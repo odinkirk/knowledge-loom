@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "knowledge-loom-repo": {
+      "command": "python3",
+      "args": ["kb_mcp.py"],
+      "env": {
+        "KB_ROOT": ".",
+        "MCP_SERVER_NAME": "knowledge-loom-repo"
+      }
+    }
+  }
+}
