@@ -4,8 +4,12 @@ A structured knowledge repository with Markdown-based notes and an MCP server fo
 
 ## Git Workflow
 
-Worktrees are stored in `~/git/worktrees/` (global, shared across all projects).
-Never commit directly to `main` — always use a feature worktree.
+Never commit directly to `main` — use feature branches (`feature/<description>`).
+
+Work directly in the main repo checkout (`/Users/odinkirk/git/knowledge-loom`).
+**Do not use git worktrees for this project.** The MCP server's `KB_ROOT` is hardcoded
+to the main repo root, so worktrees at a different path are invisible to all MCP tools
+(`search`, `outline`, `read_section`, etc.), making them counterproductive.
 
 ## Setup
 
