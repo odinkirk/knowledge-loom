@@ -25,7 +25,7 @@ from mcp.client.stdio import stdio_client, StdioServerParameters
 from mcp.server.fastmcp import FastMCP
 from anyio import move_on_after
 
-from kb_core import KnowledgeBase
+from kb_core import KnowledgeBase, _is_excluded
 
 logging.basicConfig(level=logging.INFO, format="[loom] %(message)s")
 log = logging.getLogger("loom")
@@ -198,6 +198,19 @@ def enrich_with_kb(results: list[dict]) -> list[dict]:
     return enriched
 
 
+def _filter_excluded(items: list[dict]) -> list[dict]:
+    """Drop items whose path matches .loomignore exclusions.
+    Checks 'file', 'path', and 'note' keys — covers obsidian-brain and brainjar response shapes."""
+    if not kb.exclusions:
+        return items
+    out = []
+    for item in items:
+        path = item.get("file") or item.get("path") or item.get("note") or ""
+        if not path or not _is_excluded(str(path), kb.exclusions):
+            out.append(item)
+    return out
+
+
 # ── Startup / shutdown ────────────────────────────────────────────────────────
 
 @asynccontextmanager
@@ -249,14 +262,14 @@ async def loom_search(query: str, top_k: int = 10, file_filter: Optional[str] = 
         ob_raw = await ob.call_tool("search", {"query": query, "limit": top_k})
         if isinstance(ob_raw, list):
             # Normalise to unified schema: obsidian-brain returns {path, score, chunk}
-            ob_results = [
+            ob_results = _filter_excluded([
                 {
                     "file": r.get("path") or r.get("file", ""),
                     "snippet": r.get("chunk") or r.get("snippet", ""),
                     "score": r.get("score", 0.0),
                 }
                 for r in ob_raw
-            ]
+            ])
             result_lists.append(("obsidian-brain", ob_results))
         elif isinstance(ob_raw, dict) and "error" in ob_raw:
             warnings.append(f"obsidian-brain: {ob_raw['error']}")
@@ -283,7 +296,8 @@ async def loom_search_graph(note: str) -> dict:
     if not ob or not ob.available:
         return {"error": "obsidian-brain unavailable", "hint": "Set VAULT_PATH to enable"}
     raw = await ob.call_tool("find_connections", {"note": note})
-    return {"results": raw, "engine": "obsidian-brain"}
+    results = _filter_excluded(raw) if isinstance(raw, list) else raw
+    return {"results": results, "engine": "obsidian-brain"}
 
 
 @mcp.tool()
@@ -307,7 +321,10 @@ async def loom_rank_notes(limit: int = 20) -> dict:
     """PageRank-based ranking of most influential notes in the vault. Args: limit (default 20)"""
     if not ob or not ob.available:
         return {"error": "obsidian-brain unavailable", "hint": "Set VAULT_PATH to enable"}
-    return await ob.call_tool("rank_notes", {"limit": limit})
+    raw = await ob.call_tool("rank_notes", {"limit": limit})
+    if isinstance(raw, list):
+        return {"results": _filter_excluded(raw)}
+    return raw
 
 
 @mcp.tool()
@@ -315,7 +332,10 @@ async def loom_find_connections(note: str) -> dict:
     """Links and relationships for a specific note. Args: note (path or title)"""
     if not ob or not ob.available:
         return {"error": "obsidian-brain unavailable", "hint": "Set VAULT_PATH to enable"}
-    return await ob.call_tool("find_connections", {"note": note})
+    raw = await ob.call_tool("find_connections", {"note": note})
+    if isinstance(raw, list):
+        return {"results": _filter_excluded(raw)}
+    return raw
 
 
 @mcp.tool()

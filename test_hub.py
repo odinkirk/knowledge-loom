@@ -18,6 +18,7 @@ VAULT.mkdir(exist_ok=True)
 os.environ.setdefault("KB_ROOT", str(VAULT))
 
 import loom_mcp
+from kb_core import _load_exclusions, _is_excluded
 
 PASS = "\033[32mPASS\033[0m"
 FAIL = "\033[31mFAIL\033[0m"
@@ -118,6 +119,71 @@ async def run():
 
     create_result = await loom_mcp.loom_create_note("new-note.md", "# New\n\nContent.")
     check("loom_create_note unavailable", "error" in create_result)
+
+    print("\n── exclusions ──────────────────────────────────")
+
+    # Write a .loomignore to the test vault
+    loomignore = VAULT / ".loomignore"
+    loomignore.write_text(
+        "# comment\n"
+        ".loomignore\n"
+        ".venv/\n"
+        "*.dist-info/\n"
+        "secret.md\n"
+    )
+
+    # Files that should be excluded
+    venv_dir = VAULT / ".venv"
+    venv_dir.mkdir(exist_ok=True)
+    (venv_dir / "dep.md").write_text("# Dep\n\nShould be hidden.\n")
+    (VAULT / "secret.md").write_text("# Secret\n\nShould be hidden.\n")
+    (VAULT / "visible.md").write_text("# Visible\n\nShould be indexed.\n")
+
+    loom_mcp.kb.rebuild()
+
+    # Unit: _load_exclusions reads patterns, strips comments and blanks
+    loaded = _load_exclusions(VAULT)
+    check("_load_exclusions skips comments", ".loomignore" in loaded and "# comment" not in loaded)
+
+    # Unit: _is_excluded — directory pattern
+    check("_is_excluded .venv/ dir pattern", _is_excluded(".venv/dep.md", loaded))
+    # Unit: _is_excluded — file glob
+    check("_is_excluded secret.md file pattern", _is_excluded("secret.md", loaded))
+    # Unit: _is_excluded — *.dist-info/ pattern
+    check("_is_excluded *.dist-info/ pattern", _is_excluded("httpcore-1.0.9.dist-info/LICENSE.md", loaded))
+    # Unit: _is_excluded self-exclusion
+    check("_is_excluded .loomignore self", _is_excluded(".loomignore", loaded))
+    # Unit: _is_excluded — non-excluded file
+    check("_is_excluded visible.md not excluded", not _is_excluded("visible.md", loaded))
+
+    # Integration: excluded files absent from list_files
+    indexed = {f["file"] for f in loom_mcp.loom_list_files()}
+    check("list_files excludes .venv/dep.md", ".venv/dep.md" not in indexed)
+    check("list_files excludes secret.md", "secret.md" not in indexed)
+    check("list_files excludes .loomignore", ".loomignore" not in indexed)
+    check("list_files includes visible.md", "visible.md" in indexed)
+
+    # Integration: _filter_excluded on external result lists
+    fake_ob_results = [
+        {"file": ".venv/dep.md", "snippet": "hidden"},
+        {"file": "visible.md", "snippet": "shown"},
+        {"path": "secret.md", "snippet": "also hidden"},
+    ]
+    filtered = loom_mcp._filter_excluded(fake_ob_results)
+    check("_filter_excluded removes .venv file", all(r.get("file") != ".venv/dep.md" for r in filtered))
+    check("_filter_excluded removes secret.md (path key)", all(r.get("path") != "secret.md" for r in filtered))
+    check("_filter_excluded keeps visible.md", any(r.get("file") == "visible.md" for r in filtered))
+
+    # cleanup exclusion test artifacts
+    for f in ["secret.md", "visible.md", ".loomignore"]:
+        p = VAULT / f
+        if p.exists():
+            p.unlink()
+    if (venv_dir / "dep.md").exists():
+        (venv_dir / "dep.md").unlink()
+    if venv_dir.exists():
+        venv_dir.rmdir()
+    loom_mcp.kb.rebuild()
 
     print("\n── maintenance ─────────────────────────────────")
 

@@ -3,6 +3,7 @@
 Core knowledge base implementation - importable without side effects.
 Provides BM25 search and chunk parsing for Markdown files.
 """
+import fnmatch
 import re
 from pathlib import Path
 from typing import Optional
@@ -47,6 +48,36 @@ def _split_content(content: str) -> list[str]:
     if lines and lines[-1] == '':
         lines = lines[:-1]
     return lines
+
+
+def _load_exclusions(root: Path) -> list[str]:
+    """Read .loomignore patterns; returns empty list if file absent."""
+    ignore_file = root / ".loomignore"
+    if not ignore_file.exists():
+        return []
+    return [
+        line.strip()
+        for line in ignore_file.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.startswith("#")
+    ]
+
+
+def _is_excluded(rel_posix: str, patterns: list[str]) -> bool:
+    """Return True if rel_posix matches any .loomignore pattern.
+
+    Directory patterns (ending in '/') match when any path component matches
+    the glob. Other patterns are matched against the full path and the filename.
+    """
+    parts = rel_posix.split("/")
+    for pattern in patterns:
+        if pattern.endswith("/"):
+            dir_glob = pattern.rstrip("/")
+            if any(fnmatch.fnmatch(p, dir_glob) for p in parts[:-1]):
+                return True
+        else:
+            if fnmatch.fnmatch(rel_posix, pattern) or fnmatch.fnmatch(parts[-1], pattern):
+                return True
+    return False
 
 
 def parse_chunks(file_path: Path, root: Path) -> list[Chunk]:
@@ -113,14 +144,18 @@ class KnowledgeBase:
         self.chunks: list[Chunk] = []
         self.bm25 = None
         self.all_lines: dict[str, list[str]] = {}
+        self.exclusions: list[str] = []
         self.rebuild()
 
     def rebuild(self):
         """Rebuild the index from disk."""
         self.chunks = []
         self.all_lines = {}
+        self.exclusions = _load_exclusions(self.root)
         for fp in sorted(self.root.glob("**/*.md")):
             rel = fp.relative_to(self.root).as_posix()
+            if self.exclusions and _is_excluded(rel, self.exclusions):
+                continue
             self.all_lines[rel] = read_file(fp)
             self.chunks.extend(parse_chunks(fp, self.root))
         if self.chunks:
@@ -167,13 +202,12 @@ class KnowledgeBase:
         return None
 
     def list_files(self) -> list[dict]:
-        """List all Markdown files with line counts and sizes."""
+        """List indexed Markdown files with line counts and sizes (exclusions applied)."""
         files = []
-        for fp in sorted(self.root.glob("**/*.md")):
-            rel = fp.relative_to(self.root).as_posix()
-            lines = self.all_lines.get(rel, [])
-            size_kb = round(fp.stat().st_size / 1024, 1)
-            files.append({"file": rel, "line_count": len(lines), "size_kb": size_kb})
+        for rel in sorted(self.all_lines):
+            fp = self.root / rel
+            size_kb = round(fp.stat().st_size / 1024, 1) if fp.exists() else 0.0
+            files.append({"file": rel, "line_count": len(self.all_lines[rel]), "size_kb": size_kb})
         return files
 
     def outline(self, file_path: str) -> list[dict]:
