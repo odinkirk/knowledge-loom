@@ -1,0 +1,18 @@
+# .loomignore — excluded from the BM25 knowledge base index and all search backends
+# Syntax:
+#   dir/         exclude all files under a directory (any path component matching the glob)
+#   *.pattern    fnmatch against filename or full relative path
+#   path/file    exact relative path match
+
+# This file
+.loomignore
+
+# Python / Node dependencies
+.venv/
+venv/
+env/
+node_modules/
+
+# Build artifacts
+dist/
+build/
