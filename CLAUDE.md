@@ -20,24 +20,109 @@ pip install -r requirements.txt
 
 ### Configure Claude Code
 
-The `.mcp.json` file is already configured to use the `knowledge-loom-repo` MCP server. After installing dependencies, restart Claude Code and run `/mcp` to verify the server is connected.
+The `.mcp.json` file is already configured to use the `loom` MCP server. After installing dependencies, restart Claude Code and run `/mcp` to verify the server is connected.
 
-## Using the Knowledge Base
+## Using the Knowledge Loom
 
-Use the `knowledge-loom-repo` MCP server for intelligent search and targeted reads:
+The `loom` MCP server is the single entry point — it unifies the kb (BM25) and
+obsidian-brain (semantic/graph) backends behind a `loom_*` tool surface.
 
-- **`search(query)`** — BM25 full-text search across all notes with ranking
-- **`list_files()`** — See all notes with line counts and sizes
-- **`outline(file)`** — Browse a note's heading structure before reading
-- **`read_section(file, heading)`** — Fetch content under a specific heading
-- **`read_lines(file, start, end)`** — Read a precise line range
-- **`grep(pattern)`** — Regex search across all files
-- **`replace_lines(file, start, end, content)`** — Targeted in-place edits
-- **`append_to_file(file, content)`** — Add content to a file
+### Required environment variables
 
-All tools return file paths and line numbers, enabling direct follow-up edits without re-reading.
+| Var | Required | Purpose |
+|---|---|---|
+| `KB_ROOT` | Yes | Root path for BM25 index |
+| `VAULT_PATH` | For graph/vault tools | Path to Obsidian vault or markdown folder |
+
+Set `VAULT_PATH` in the `env` block of `.mcp.json` to enable obsidian-brain tools.
+On first run, obsidian-brain downloads a ~34 MB local embedding model.
+
+### Search tools
+
+- **`loom_search(query, top_k=10)`** — RRF-merged BM25 + semantic search; results include
+  `line_start`/`heading` metadata for immediate surgical editing
+- **`loom_search_graph(note)`** — entity/relationship traversal via obsidian-brain graph
+- **`loom_search_smart(query)`** — LLM-decomposed search (brainjar; stub until configured)
+
+### Graph analytics (requires VAULT_PATH)
+
+- **`loom_rank_notes`** — PageRank influence ranking
+- **`loom_find_connections(note)`** — links and relationships for a note
+- **`loom_find_path_between(note_a, note_b)`** — shortest graph path between notes
+- **`loom_detect_themes`** — Louvain thematic cluster detection
+
+### Navigation
+
+- **`loom_list_files`** — all Markdown files with line counts and sizes
+- **`loom_outline(file)`** — heading hierarchy with line numbers
+- **`loom_grep(pattern, file_filter?)`** — regex search across files
+
+### Targeted reads
+
+- **`loom_read_section(file, heading)`** — content under a heading (substring match)
+- **`loom_read_lines(file, start, end)`** — exact line range
+
+### Surgical edits (kb; line-precise)
+
+- **`loom_replace_lines(file, start, end, content)`** — in-place line replacement
+- **`loom_insert_after_heading(file, heading, content)`** — insert under a heading
+- **`loom_append_to_file(file, content)`** — append with blank-line separator
+
+### Vault-level edits (requires VAULT_PATH)
+
+- **`loom_create_note`**, **`loom_edit_note`**, **`loom_apply_edit_preview`**
+- **`loom_link_notes`**, **`loom_move_note`**, **`loom_delete_note`**
+
+### Maintenance
+
+- **`loom_reindex`** — rebuild both kb and obsidian-brain indexes
+- **`loom_index_status`** — health and chunk counts for all backends
+
+### Adding brainjar (future)
+
+Set `BRAINJAR_PATH` in `.mcp.json` env to activate `loom_search_smart` and the
+brainjar backend in `loom_search`. See `docs/superpowers/specs/2026-05-03-loom-hub-design.md`.
 
 ## Index Freshness
 
 - The index rebuilds automatically after any write operation
 - External edits (outside Claude Code) require restarting the server to pick up (`/mcp restart`)
+
+<!-- code-review-graph MCP tools -->
+## MCP Tools: code-review-graph
+
+**IMPORTANT: This project has a knowledge graph. ALWAYS use the
+code-review-graph MCP tools BEFORE using Grep/Glob/Read to explore
+the codebase.** The graph is faster, cheaper (fewer tokens), and gives
+you structural context (callers, dependents, test coverage) that file
+scanning cannot.
+
+### When to use graph tools FIRST
+
+- **Exploring code**: `semantic_search_nodes` or `query_graph` instead of Grep
+- **Understanding impact**: `get_impact_radius` instead of manually tracing imports
+- **Code review**: `detect_changes` + `get_review_context` instead of reading entire files
+- **Finding relationships**: `query_graph` with callers_of/callees_of/imports_of/tests_for
+- **Architecture questions**: `get_architecture_overview` + `list_communities`
+
+Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
+
+### Key Tools
+
+| Tool | Use when |
+|------|----------|
+| `detect_changes` | Reviewing code changes — gives risk-scored analysis |
+| `get_review_context` | Need source snippets for review — token-efficient |
+| `get_impact_radius` | Understanding blast radius of a change |
+| `get_affected_flows` | Finding which execution paths are impacted |
+| `query_graph` | Tracing callers, callees, imports, tests, dependencies |
+| `semantic_search_nodes` | Finding functions/classes by name or keyword |
+| `get_architecture_overview` | Understanding high-level codebase structure |
+| `refactor_tool` | Planning renames, finding dead code |
+
+### Workflow
+
+1. The graph auto-updates on file changes (via hooks).
+2. Use `detect_changes` for code review.
+3. Use `get_affected_flows` to understand impact.
+4. Use `query_graph` pattern="tests_for" to check coverage.
