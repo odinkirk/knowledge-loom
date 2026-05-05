@@ -1,19 +1,12 @@
 {
   "mcpServers": {
-    "loom": {
-      "command": "/Users/odinkirk/git/knowledge-loom/.venv/bin/python3",
-      "args": [
-        "/Users/odinkirk/git/knowledge-loom/loom_mcp.py"
-      ],
-      "env": {
-        "KB_ROOT": "/Users/odinkirk/git/knowledge-loom"
-      }
-    },
     "code-review-graph": {
       "command": "uvx",
       "args": [
         "code-review-graph",
-        "serve"
+        "serve",
+        "--repo",
+        "/Users/odinkirk/git/knowledge-loom"
       ],
       "type": "stdio"
     }

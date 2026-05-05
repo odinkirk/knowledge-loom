@@ -33,6 +33,7 @@ obsidian-brain (semantic/graph) backends behind a `loom_*` tool surface.
 |---|---|---|
 | `KB_ROOT` | Yes | Root path for BM25 index |
 | `VAULT_PATH` | For graph/vault tools | Path to Obsidian vault or markdown folder |
+| `BRAINJAR_PATH` | For smart search | Path to brainjar binary — enables `loom_search_smart` |
 
 Set `VAULT_PATH` in the `env` block of `.mcp.json` to enable obsidian-brain tools.
 On first run, obsidian-brain downloads a ~34 MB local embedding model.
@@ -78,15 +79,23 @@ On first run, obsidian-brain downloads a ~34 MB local embedding model.
 - **`loom_reindex`** — rebuild both kb and obsidian-brain indexes
 - **`loom_index_status`** — health and chunk counts for all backends
 
-### Adding brainjar (future)
+### Brainjar
 
-Set `BRAINJAR_PATH` in `.mcp.json` env to activate `loom_search_smart` and the
-brainjar backend in `loom_search`. See `docs/superpowers/specs/2026-05-03-loom-hub-design.md`.
+Set `BRAINJAR_PATH` in `.mcp.json` env to the path of the brainjar binary.
+Enables `loom_search_smart` (LLM-decomposed multi-search via brainjar's `--smart` mode).
 
 ## Index Freshness
 
 - The index rebuilds automatically after any write operation
 - External edits (outside Claude Code) require restarting the server to pick up (`/mcp restart`)
+
+## Testing
+
+Here is the command to run the automated tests:
+
+```bash
+source .venv/bin/activate && .venv/bin/python -m pip install rank_bm25 mcp pytest pytest-asyncio && .venv/bin/python -m pytest -q 2>&1
+```
 
 <!-- code-review-graph MCP tools -->
 ## MCP Tools: code-review-graph

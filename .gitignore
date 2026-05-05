@@ -19,6 +19,11 @@ Thumbs.db
 dist/
 build/
 
+# Rust
+target/
+**/*.rs.bk
+*.pdb
+
 # Environment
 .env
 .env.local
@@ -27,3 +32,34 @@ build/
 
 # Test vaults
 test-vault/
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# Generated indexes
+.loom-index/
+
+# Claude Code local settings (machine-specific)
+.claude/settings.local.json
+
+# IDE / editor local config
+.cursorrules
+.kiro/
+.openclaude-profile.json
+.opencode.json
+.windsurfrules
+
+# Internal reference / planning docs (not for public tracking)
+Intent.md
+project-shape.md
+examples/
+docs/
+
+# Scratch / temp files
+edit-smoke.md
+
+# Loom install targets (when embedding loom inside another project)
+.loom/
+.knowledge-loom/
