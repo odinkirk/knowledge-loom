@@ -22,8 +22,8 @@ anyhow = "1.0"
 thiserror = "1.0"
 bytemuck = "1.14"
 tracing = "0.1"
-# For MCP server - we'll implement a simple version manually
-# rmcp crate doesn't exist, will implement MCP protocol manually
+rmcp = { version = "1.6", features = ["server", "macros", "transport-io", "schemars"] }
+schemars = "0.8"
 
 [dev-dependencies]
 tempfile = "3.10"
