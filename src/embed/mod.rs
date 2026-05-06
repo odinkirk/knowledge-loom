@@ -8,6 +8,7 @@ pub mod ollama;
 use local::LocalEmbedProvider;
 use ollama::OllamaEmbedProvider;
 
+#[allow(dead_code)]
 pub trait EmbedProvider: Send + Sync {
     fn embed(&self, text: &str) -> Vec<f32>;
     fn dimension(&self) -> usize;
@@ -53,6 +54,7 @@ impl EmbedProviderEnum {
         provider_lock.embed(text).await
     }
     
+    #[allow(dead_code)]
     pub fn dimension(&self) -> usize {
         // Assuming all models have same dimension for simplicity
         // In practice, we'd need to handle different dimensions

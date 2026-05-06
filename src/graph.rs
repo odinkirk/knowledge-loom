@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use petgraph::graph::{DiGraph, NodeIndex};
-use petgraph::algo::{dijkstra, connected_components};
 use petgraph::visit::EdgeRef;
 use serde::{Deserialize, Serialize};
 
@@ -218,7 +217,7 @@ impl GraphState {
             }
             
             // Add teleportation factor
-            for (name, score) in &mut new_scores {
+            for (_name, score) in &mut new_scores {
                 *score += (1.0 - damping) / node_count as f64;
             }
             

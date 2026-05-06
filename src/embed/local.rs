@@ -1,6 +1,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
+#[allow(dead_code)]
 pub struct LocalEmbedProvider {
     models_dir: Arc<Path>,
 }
@@ -27,6 +28,7 @@ impl LocalEmbedProvider {
         embedding
     }
     
+    #[allow(dead_code)]
     pub fn dimension(&self) -> usize {
         384
     }

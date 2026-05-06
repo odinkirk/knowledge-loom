@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use crate::bm25::BM25Index;
 use crate::index::VectorIndex;
 use crate::embed::EmbedProviderEnum;
@@ -10,28 +12,37 @@ pub struct SearchResult {
     pub heading: Option<String>,
     pub content: String,
     pub score: f32,
-    pub line_start: Option<usize>,
+    pub line_start: usize,
 }
 
 pub struct SearchEngine {
-    pub bm25: BM25Index,
-    pub vector: VectorIndex,
-    pub embed: EmbedProviderEnum,
-    pub graph: GraphState,
-    pub brainjar: BrainJarWrapper,
+    pub bm25: Arc<Mutex<BM25Index>>,
+    pub vector: Arc<Mutex<VectorIndex>>,
+    pub embed: Arc<Mutex<EmbedProviderEnum>>,
+    pub graph: Arc<Mutex<GraphState>>,
+    pub brainjar: Arc<Mutex<BrainJarWrapper>>,
 }
 
 impl SearchEngine {
+    #[allow(dead_code)]
     pub async fn new(kb_root: &str) -> Self {
-        let bm25 = BM25Index::new(kb_root).await;
-        let vector = VectorIndex::new(kb_root).await;
-        let embed = EmbedProviderEnum::new(kb_root).await;
-        let graph = GraphState::new(kb_root).await;
-        
-        // Try to get BrainJar path from environment
+        let bm25 = Arc::new(Mutex::new(BM25Index::new(kb_root).await));
+        let vector = Arc::new(Mutex::new(VectorIndex::new(kb_root).await));
+        let embed = Arc::new(Mutex::new(EmbedProviderEnum::new(kb_root).await));
+        let graph = Arc::new(Mutex::new(GraphState::new(kb_root).await));
         let brainjar_path = std::env::var("BRAINJAR_PATH").ok();
-        let brainjar = BrainJarWrapper::new(brainjar_path);
-        
+        let brainjar = Arc::new(Mutex::new(BrainJarWrapper::new(brainjar_path)));
+
+        Self { bm25, vector, embed, graph, brainjar }
+    }
+
+    pub fn from_components(
+        bm25: Arc<Mutex<BM25Index>>,
+        vector: Arc<Mutex<VectorIndex>>,
+        embed: Arc<Mutex<EmbedProviderEnum>>,
+        graph: Arc<Mutex<GraphState>>,
+        brainjar: Arc<Mutex<BrainJarWrapper>>,
+    ) -> Self {
         Self { bm25, vector, embed, graph, brainjar }
     }
     
@@ -40,10 +51,15 @@ impl SearchEngine {
     pub async fn search(&self, query: &str, top_k: usize) -> Vec<SearchResult> {
         // Run all searches in parallel
         let (bm25_results, semantic_results, graph_results, brainjar_results) = tokio::join!(
-            self.bm25.search_and_retrieve(query, top_k * 2),
             async {
-                let query_embedding = self.embed.embed(query).await;
-                self.vector.search_similar(&query_embedding, top_k * 2).await
+                let bm25 = self.bm25.lock().await;
+                bm25.search_and_retrieve(query, top_k * 2).await
+            },
+            async {
+                let embed = self.embed.lock().await;
+                let query_embedding = embed.embed(query).await;
+                let vector = self.vector.lock().await;
+                vector.search_similar(&query_embedding, top_k * 2).await
             },
             self.search_graph(query, top_k * 2),
             self.search_brainjar(query, top_k * 2)
@@ -61,72 +77,73 @@ impl SearchEngine {
         // BM25 contribution (k=60)
         for (rank, (_score, doc)) in bm25_results.iter().enumerate() {
             let path = self.extract_path_from_doc(doc);
+            let content = self.extract_content_from_doc(doc);
             let rrf_score = 1.0 / (60.0 + rank as f32 + 1.0);
-            
+
             *rrf_scores.entry(path.clone()).or_insert(0.0) += rrf_score;
-            
+
             if !results_map.contains_key(&path) {
                 results_map.insert(path.clone(), SearchResult {
                     path: path.clone(),
                     heading: None,
-                    content: self.extract_content_from_doc(doc),
+                    content,
                     score: 0.0,
-                    line_start: None,
+                    line_start: 1, // Default to first line for BM25 results
                 });
             }
         }
-        
+
         // Semantic contribution (k=60)
         for (rank, (path, heading, content, _similarity)) in semantic_results.iter().enumerate() {
             let rrf_score = 1.0 / (60.0 + rank as f32 + 1.0);
-            
+
             *rrf_scores.entry(path.clone()).or_insert(0.0) += rrf_score;
-            
+
             if !results_map.contains_key(path) {
                 results_map.insert(path.clone(), SearchResult {
                     path: path.clone(),
                     heading: heading.clone(),
                     content: content.clone(),
                     score: 0.0,
-                    line_start: None,
+                    line_start: 1, // Default to first line for semantic results
                 });
             }
         }
-        
+
         // Graph contribution (k=60)
         for (rank, path) in graph_results.iter().enumerate() {
             let rrf_score = 1.0 / (60.0 + rank as f32 + 1.0);
-            
+
             *rrf_scores.entry(path.clone()).or_insert(0.0) += rrf_score;
-            
+
             if !results_map.contains_key(path) {
                 results_map.insert(path.clone(), SearchResult {
                     path: path.clone(),
                     heading: None,
                     content: String::new(),
                     score: 0.0,
-                    line_start: None,
+                    line_start: 1, // Default to first line for graph results
                 });
             }
         }
-        
+
         // BrainJar contribution (k=60)
         for (rank, path) in brainjar_results.iter().enumerate() {
             let rrf_score = 1.0 / (60.0 + rank as f32 + 1.0);
-            
+
             *rrf_scores.entry(path.clone()).or_insert(0.0) += rrf_score;
-            
+
             if !results_map.contains_key(path) {
                 results_map.insert(path.clone(), SearchResult {
                     path: path.clone(),
                     heading: None,
                     content: String::new(),
                     score: 0.0,
-                    line_start: None,
+                    line_start: 1, // Default to first line for BrainJar results
                 });
             }
         }
-        
+
         // Sort by RRF score and take top_k
         let mut results: Vec<SearchResult> = results_map.into_values()
             .map(|mut result| {
@@ -137,13 +154,14 @@ impl SearchEngine {
         
         results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
         results.truncate(top_k);
-        
+
         results
     }
-    
+
     fn extract_path_from_doc(&self, doc: &tantivy::schema::Document) -> String {
         // Extract path from document
-        if let Some(field) = self.bm25.schema.get_field("path") {
+        let bm25 = self.bm25.try_lock().unwrap();
+        if let Some(field) = bm25.schema.get_field("path") {
             for value in doc.get_all(field) {
                 if let tantivy::schema::Value::Str(path) = value {
                     return path.to_string();
@@ -152,10 +170,11 @@ impl SearchEngine {
         }
         String::new()
     }
-    
+
     fn extract_content_from_doc(&self, doc: &tantivy::schema::Document) -> String {
         // Extract content from document
-        if let Some(field) = self.bm25.schema.get_field("content") {
+        let bm25 = self.bm25.try_lock().unwrap();
+        if let Some(field) = bm25.schema.get_field("content") {
             for value in doc.get_all(field) {
                 if let tantivy::schema::Value::Str(content) = value {
                     return content.to_string();
@@ -167,28 +186,31 @@ impl SearchEngine {
     
     async fn search_graph(&self, query: &str, top_k: usize) -> Result<Vec<String>, String> {
         // Search graph for nodes matching the query
-        let neighbors = self.graph.search_graph(query).await;
-        
+        let graph = self.graph.lock().await;
+        let neighbors = graph.search_graph(query).await;
+
         // If no direct neighbors, try BFS to find related nodes
         let mut results = if neighbors.is_empty() {
-            let bfs_results = self.graph.bfs_connections(query, 2).await;
+            let bfs_results = graph.bfs_connections(query, 2).await;
             bfs_results.into_iter().map(|(name, _depth)| name).collect()
         } else {
             neighbors
         };
-        
+
         // Limit results
         results.truncate(top_k);
         Ok(results)
     }
-    
+
     async fn search_brainjar(&self, query: &str, top_k: usize) -> Result<Vec<String>, String> {
-        if !self.brainjar.is_available().await {
+        let brainjar = self.brainjar.lock().await;
+        if !brainjar.is_available().await {
             return Ok(Vec::new());
         }
-        
+
         // Get cached graph analytics
-        let (pagerank, communities) = self.graph.get_cached_analytics().await;
+        let graph = self.graph.lock().await;
+        let (pagerank, communities) = graph.get_cached_analytics().await;
         
         // Call BrainJar search tool with graph context
         let args = serde_json::json!({
@@ -200,7 +222,7 @@ impl SearchEngine {
             }
         });
         
-        match self.brainjar.call_tool("search", args).await {
+        match brainjar.call_tool("search", args).await {
             Ok(result) => {
                 // Parse results from BrainJar response
                 if let Some(results) = result.get("results").and_then(|r| r.as_array()) {

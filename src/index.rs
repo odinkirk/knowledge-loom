@@ -1,9 +1,10 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use rusqlite::{ffi::sqlite3_auto_extension, params, Connection, Result};
 use tokio::sync::Mutex;
+use rusqlite::{Connection, params, Result as SqliteResult, ffi::sqlite3_auto_extension};
 use sqlite_vec::sqlite3_vec_init;
 
+#[allow(dead_code)]
 pub struct VectorIndex {
     pub conn: Arc<Mutex<Connection>>,
     pub kb_root: PathBuf,
@@ -16,15 +17,15 @@ impl VectorIndex {
         
         // Create directory if it doesn't exist
         let _ = std::fs::create_dir_all(index_path.parent().unwrap());
-        
+
         // Initialize sqlite-vec extension globally
         unsafe {
             sqlite3_auto_extension(Some(std::mem::transmute(sqlite3_vec_init as *const ())));
         }
-        
+
         // Open or create database
         let conn = Connection::open(&index_path).expect("Failed to open database");
-        
+
         // Create tables if they don't exist
         conn.execute_batch(
             "
@@ -52,8 +53,8 @@ impl VectorIndex {
         heading: Option<&str>,
         content: &str,
         embedding: &[f32],
-    ) -> Result<()> {
-        let mut conn_lock = self.conn.lock().await;
+    ) -> SqliteResult<()> {
+        let conn_lock = self.conn.lock().await;
         
         // Convert embedding to blob
         let embedding_blob = bytemuck::cast_slice(embedding);
@@ -74,8 +75,9 @@ impl VectorIndex {
         Ok(())
     }
     
-    pub async fn remove_embedding(&self, path: &Path, heading: Option<&str>) -> Result<()> {
-        let mut conn_lock = self.conn.lock().await;
+    #[allow(dead_code)]
+    pub async fn remove_embedding(&self, path: &Path, heading: Option<&str>) -> SqliteResult<()> {
+        let conn_lock = self.conn.lock().await;
         
         conn_lock.execute(
             "
@@ -97,7 +99,7 @@ impl VectorIndex {
         limit: usize,
     ) -> Result<Vec<(String, Option<String>, String, f32)>, rusqlite::Error> {
         let query_blob = bytemuck::cast_slice(query_embedding);
-        let mut conn_lock = self.conn.lock().await;
+        let conn_lock = self.conn.lock().await;
         
         let mut stmt = conn_lock.prepare(
             "

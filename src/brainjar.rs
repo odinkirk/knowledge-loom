@@ -3,7 +3,6 @@ use std::process::Stdio;
 use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
 use serde_json::{json, Value};
-use std::io::{BufRead, BufReader};
 use std::sync::Arc;
 
 pub struct BrainJarWrapper {
@@ -131,7 +130,8 @@ impl BrainJarWrapper {
             false
         }
     }
-    
+
+    #[allow(dead_code)]
     pub async fn stop(&self) -> Result<(), std::io::Error> {
         let mut process_lock = self.process.lock().await;
         if let Some(mut child) = process_lock.take() {

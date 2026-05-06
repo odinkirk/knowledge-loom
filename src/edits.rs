@@ -1,14 +1,26 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use crate::vault::VaultState;
 
+pub struct SectionPreview {
+    pub heading: String,
+    pub line_start: usize,
+    pub line_end: usize,
+    pub current: String,
+    pub proposed: String,
+}
+
+#[allow(dead_code)]
 pub struct EditManager {
     pub kb_root: PathBuf,
     pub vault_state: Arc<Mutex<crate::vault::VaultState>>,
+    #[allow(dead_code)]
     pub bm25_index: Arc<Mutex<crate::bm25::BM25Index>>,
+    #[allow(dead_code)]
     pub embed_provider: Arc<Mutex<crate::embed::EmbedProviderEnum>>,
+    #[allow(dead_code)]
     pub vector_index: Arc<Mutex<crate::index::VectorIndex>>,
+    #[allow(dead_code)]
     pub graph_state: Arc<Mutex<crate::graph::GraphState>>,
 }
 
@@ -87,7 +99,7 @@ impl EditManager {
             let mut in_section = false;
             let mut section_content = Vec::new();
             let mut heading_level = 0;
-            
+
             for line in lines {
                 if line.trim().starts_with('#') {
                     if in_section {
@@ -97,7 +109,7 @@ impl EditManager {
                             break;
                         }
                     }
-                    
+
                     let heading_text = line.trim().trim_start_matches('#').trim();
                     if !in_section && heading_text == heading {
                         in_section = true;
@@ -108,7 +120,7 @@ impl EditManager {
                     section_content.push(line);
                 }
             }
-            
+
             if in_section {
                 Ok(Some(section_content.join("\n")))
             } else {
@@ -117,6 +129,58 @@ impl EditManager {
         } else {
             Err(std::io::Error::new(std::io::ErrorKind::NotFound, "File not found"))
         }
+    }
+
+    pub async fn apply_edit_preview(
+        &self,
+        file_path: &Path,
+        heading: &str,
+        proposed: &str,
+    ) -> Result<Option<SectionPreview>, std::io::Error> {
+        let vault_lock = self.vault_state.lock().await;
+        let content = match vault_lock.read_file(file_path).await {
+            Some(c) => c,
+            None => return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "File not found")),
+        };
+
+        let lines: Vec<&str> = content.lines().collect();
+        let mut in_section = false;
+        let mut heading_level = 0usize;
+        let mut line_start = 0usize;
+        let mut section_lines: Vec<&str> = Vec::new();
+
+        for (i, line) in lines.iter().enumerate() {
+            if line.trim().starts_with('#') {
+                if in_section {
+                    let cur_level = line.chars().take_while(|c| *c == '#').count();
+                    if cur_level <= heading_level {
+                        break;
+                    }
+                }
+                let heading_text = line.trim().trim_start_matches('#').trim();
+                if !in_section && heading_text == heading {
+                    in_section = true;
+                    heading_level = line.chars().take_while(|c| *c == '#').count();
+                    line_start = i + 1;
+                    section_lines.push(line);
+                }
+            } else if in_section {
+                section_lines.push(line);
+            }
+        }
+
+        if !in_section {
+            return Ok(None);
+        }
+
+        let line_end = line_start + section_lines.len().saturating_sub(1);
+        Ok(Some(SectionPreview {
+            heading: heading.to_string(),
+            line_start,
+            line_end,
+            current: section_lines.join("\n"),
+            proposed: proposed.to_string(),
+        }))
     }
     
     pub async fn read_lines(&self, file_path: &Path, start: usize, end: usize) -> Result<Option<String>, std::io::Error> {
@@ -271,8 +335,6 @@ impl EditManager {
     }
     
     pub async fn move_note(&self, from_path: &Path, to_path: &Path) -> Result<(), std::io::Error> {
-        let vault_lock = self.vault_state.lock().await;
-        
         // Check if source exists
         if !from_path.exists() {
             return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "Source file not found"));
@@ -293,8 +355,6 @@ impl EditManager {
     }
     
     pub async fn delete_note(&self, file_path: &Path) -> Result<(), std::io::Error> {
-        let vault_lock = self.vault_state.lock().await;
-        
         // Check if file exists
         if !file_path.exists() {
             return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "File not found"));
@@ -305,7 +365,50 @@ impl EditManager {
         
         // Update indexes
         // TODO: Remove from BM25, vector index, and graph
-        
+
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+    use tokio::sync::Mutex;
+    use tempfile::TempDir;
+
+    async fn make_edit_manager(tmp: &TempDir, content: &str) -> (EditManager, std::path::PathBuf) {
+        let root = tmp.path().to_str().unwrap().to_string();
+        let vault = Arc::new(Mutex::new(crate::vault::VaultState::new(&root).await));
+        let bm25 = Arc::new(Mutex::new(crate::bm25::BM25Index::new(&root).await));
+        let embed = Arc::new(Mutex::new(crate::embed::EmbedProviderEnum::new(&root).await));
+        let vector = Arc::new(Mutex::new(crate::index::VectorIndex::new(&root).await));
+        let graph = Arc::new(Mutex::new(crate::graph::GraphState::new(&root).await));
+        let em = EditManager::new(root, vault.clone(), bm25, embed, vector, graph);
+        let file_path = tmp.path().join("note.md");
+        std::fs::write(&file_path, content).unwrap();
+        (em, file_path)
+    }
+
+    #[tokio::test]
+    async fn test_apply_edit_preview_found() {
+        let tmp = TempDir::new().unwrap();
+        let content = "# Intro\n\nHello world\n\n# Summary\n\nFin\n";
+        let (em, path) = make_edit_manager(&tmp, content).await;
+        let preview = em.apply_edit_preview(&path, "Intro", "New intro content").await.unwrap();
+        assert!(preview.is_some());
+        let p = preview.unwrap();
+        assert_eq!(p.heading, "Intro");
+        assert!(p.current.contains("Hello world"));
+        assert_eq!(p.proposed, "New intro content");
+    }
+
+    #[tokio::test]
+    async fn test_apply_edit_preview_not_found() {
+        let tmp = TempDir::new().unwrap();
+        let content = "# Intro\n\nHello\n";
+        let (em, path) = make_edit_manager(&tmp, content).await;
+        let preview = em.apply_edit_preview(&path, "Missing", "x").await.unwrap();
+        assert!(preview.is_none());
     }
 }

@@ -1,11 +1,14 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tantivy::{collector::TopDocs, Document, Index, IndexWriter, TantivyError, Term};
-use tantivy::schema::{SchemaBuilder, TEXT, STORED, STRING};
 use tokio::sync::Mutex;
-
+use tantivy::{
+    schema::{SchemaBuilder, TEXT, STRING, STORED, Document},
+    collector::TopDocs,
+    Index, IndexWriter, Term, TantivyError,
+};
 use crate::vault::VaultState;
 
+#[allow(dead_code)]
 pub struct BM25Index {
     pub index: Arc<Index>,
     pub writer: Arc<Mutex<IndexWriter>>,
@@ -24,21 +27,39 @@ impl BM25Index {
         
         // Define schema using correct tantivy 0.19 API
         let mut schema_builder = SchemaBuilder::new();
-        let title = schema_builder.add_text_field("title", TEXT | STORED);
-        let content = schema_builder.add_text_field("content", TEXT | STORED);
-        let path = schema_builder.add_text_field("path", STRING | STORED);
+        let _title = schema_builder.add_text_field("title", TEXT | STORED);
+        let _content = schema_builder.add_text_field("content", TEXT | STORED);
+        let _path = schema_builder.add_text_field("path", STRING | STORED);
         let schema = schema_builder.build();
         
-        // Open or create index
+        // Open or create index; recreate if the stored schema doesn't match
+        // (e.g. stale index from a previous version with different field options)
         let index = match Index::open_in_dir(&index_path) {
-            Ok(idx) => idx,
-            Err(_) => Index::create_in_dir(&index_path, schema.clone()).unwrap_or_else(|e| {
-                panic!("Failed to create tantivy index: {}", e)
-            }),
+            Ok(idx) if idx.schema() == schema => idx,
+            Ok(_) | Err(_) => {
+                // Schema mismatch or missing — wipe and recreate
+                let _ = std::fs::remove_dir_all(&index_path);
+                let _ = std::fs::create_dir_all(&index_path);
+                Index::create_in_dir(&index_path, schema.clone()).unwrap_or_else(|e| {
+                    panic!("Failed to create tantivy index: {}", e)
+                })
+            }
         };
+        // Always derive schema from the actual index so field IDs are correct
+        let schema = index.schema();
         
-        // Initialize writer
-        let writer = index.writer(50_000_000).unwrap();
+        // Initialize writer — on LockBusy, the previous server may have left a stale
+        // lock file. Delete it and retry once (safe: we verified no live process holds it).
+        let writer = match index.writer(50_000_000) {
+            Ok(w) => w,
+            Err(TantivyError::LockFailure(_, _)) => {
+                let _ = std::fs::remove_file(index_path.join(".tantivy-writer.lock"));
+                index.writer(50_000_000).unwrap_or_else(|e| {
+                    panic!("Failed to acquire index writer after lock reset: {e}")
+                })
+            }
+            Err(e) => panic!("Failed to open index writer: {e}"),
+        };
         
         Self {
             index: Arc::new(index),
@@ -56,24 +77,26 @@ impl BM25Index {
         doc.add_text(self.schema.get_field("path").unwrap(), 
                     path.to_string_lossy().as_ref());
         
-        let mut writer_lock = self.writer.lock().await;
+        let writer_lock = self.writer.lock().await;
         writer_lock.add_document(doc)?;
         // Don't commit here - commit at the end of batch operations
         Ok(())
     }
     
+    #[allow(dead_code)]
     pub async fn remove_document(&mut self, path: &Path) -> Result<(), TantivyError> {
         let path_term = Term::from_field_text(
             self.schema.get_field("path").unwrap(),
-            path.to_string_lossy().as_ref()
+            path.to_string_lossy().as_ref(),
         );
-        
+
         let mut writer_lock = self.writer.lock().await;
         writer_lock.delete_term(path_term);
         writer_lock.commit()?;
         Ok(())
     }
-    
+
+    #[allow(dead_code)]
     pub async fn search(&self, query: &str, limit: usize) -> Result<Vec<(f32, tantivy::DocAddress)>, TantivyError> {
         let reader = self.index.reader()?;
         let searcher = reader.searcher();
@@ -114,7 +137,7 @@ impl BM25Index {
         
         for file_path in files {
             // Check if file has been modified since last index
-            if let Some(mod_time) = vault_state.get_file_mod_time(&file_path).await {
+            if let Some(_mod_time) = vault_state.get_file_mod_time(&file_path).await {
                 // For now, we'll just index everything
                 // In a real implementation, we'd check against stored timestamps
                 

@@ -2,9 +2,6 @@ use std::fs;
 use std::path::Path;
 use tempfile::TempDir;
 use loom::vault::VaultState;
-use loom::bm25::BM25Index;
-use loom::embed::EmbedProviderEnum;
-use loom::index::VectorIndex;
 use loom::search::SearchEngine;
 
 #[tokio::test]
@@ -17,16 +14,23 @@ async fn integration_full_workflow() {
     
     // Initialize all components
     let vault = VaultState::new(kb_root.to_str().unwrap()).await;
-    let mut search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
-    
+    let search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
+
     // Build indexes
     println!("Building BM25 index...");
-    search_engine.bm25.index_vault(&vault).await
-        .expect("Failed to build BM25 index");
-    
+    {
+        let mut bm25 = search_engine.bm25.lock().await;
+        bm25.index_vault(&vault).await
+            .expect("Failed to build BM25 index");
+    }
+
     println!("Building vector index...");
-    search_engine.vector.index_vault(&vault, &search_engine.embed).await
-        .expect("Failed to build vector index");
+    {
+        let vector = search_engine.vector.lock().await;
+        let embed = search_engine.embed.lock().await;
+        vector.index_vault(&vault, &embed).await
+            .expect("Failed to build vector index");
+    }
     
     // Test search functionality
     println!("Testing search...");
@@ -66,28 +70,42 @@ async fn integration_incremental_indexing() {
     create_test_vault(kb_root);
     
     let vault = VaultState::new(kb_root.to_str().unwrap()).await;
-    let mut search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
-    
+    let search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
+
     // Build initial indexes
-    search_engine.bm25.index_vault(&vault).await.unwrap();
-    search_engine.vector.index_vault(&vault, &search_engine.embed).await.unwrap();
-    
+    {
+        let mut bm25 = search_engine.bm25.lock().await;
+        bm25.index_vault(&vault).await.unwrap();
+    }
+    {
+        let vector = search_engine.vector.lock().await;
+        let embed = search_engine.embed.lock().await;
+        vector.index_vault(&vault, &embed).await.unwrap();
+    }
+
     // Get initial result count
     let initial_results = search_engine.search("test", 10).await;
     let initial_count = initial_results.len();
-    
+
     // Drop the search engine to release locks
     drop(search_engine);
-    
+
     // Add new file
-    fs::write(kb_root.join("new_file.md"), 
+    fs::write(kb_root.join("new_file.md"),
              "# New File\nThis is a new file added after initial indexing").unwrap();
-    
+
     // Rebuild indexes with new engine
     let vault = VaultState::new(kb_root.to_str().unwrap()).await;
-    let mut search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
-    search_engine.bm25.index_vault(&vault).await.unwrap();
-    search_engine.vector.index_vault(&vault, &search_engine.embed).await.unwrap();
+    let search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
+    {
+        let mut bm25 = search_engine.bm25.lock().await;
+        bm25.index_vault(&vault).await.unwrap();
+    }
+    {
+        let vector = search_engine.vector.lock().await;
+        let embed = search_engine.embed.lock().await;
+        vector.index_vault(&vault, &embed).await.unwrap();
+    }
     
     // Verify new file is indexed
     let new_results = search_engine.search("new file", 10).await;
@@ -103,11 +121,18 @@ async fn integration_file_deletion() {
     create_test_vault(kb_root);
     
     let vault = VaultState::new(kb_root.to_str().unwrap()).await;
-    let mut search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
-    
+    let search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
+
     // Build indexes
-    search_engine.bm25.index_vault(&vault).await.unwrap();
-    search_engine.vector.index_vault(&vault, &search_engine.embed).await.unwrap();
+    {
+        let mut bm25 = search_engine.bm25.lock().await;
+        bm25.index_vault(&vault).await.unwrap();
+    }
+    {
+        let vector = search_engine.vector.lock().await;
+        let embed = search_engine.embed.lock().await;
+        vector.index_vault(&vault, &embed).await.unwrap();
+    }
     
     // Get initial results
     let initial_results = search_engine.search("machine learning", 10).await;
@@ -121,9 +146,16 @@ async fn integration_file_deletion() {
     
     // Rebuild indexes with new engine
     let vault = VaultState::new(kb_root.to_str().unwrap()).await;
-    let mut search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
-    search_engine.bm25.index_vault(&vault).await.unwrap();
-    search_engine.vector.index_vault(&vault, &search_engine.embed).await.unwrap();
+    let search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
+    {
+        let mut bm25 = search_engine.bm25.lock().await;
+        bm25.index_vault(&vault).await.unwrap();
+    }
+    {
+        let vector = search_engine.vector.lock().await;
+        let embed = search_engine.embed.lock().await;
+        vector.index_vault(&vault, &embed).await.unwrap();
+    }
     
     // Verify file is removed from index
     let new_results = search_engine.search("machine learning", 10).await;
@@ -151,11 +183,18 @@ async fn integration_large_vault() {
     
     assert_eq!(files.len(), 50, "Should find all 50 files");
     
-    let mut search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
-    
+    let search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
+
     // Build indexes
-    search_engine.bm25.index_vault(&vault).await.unwrap();
-    search_engine.vector.index_vault(&vault, &search_engine.embed).await.unwrap();
+    {
+        let mut bm25 = search_engine.bm25.lock().await;
+        bm25.index_vault(&vault).await.unwrap();
+    }
+    {
+        let vector = search_engine.vector.lock().await;
+        let embed = search_engine.embed.lock().await;
+        vector.index_vault(&vault, &embed).await.unwrap();
+    }
     
     // Test search performance
     let start = std::time::Instant::now();
@@ -175,10 +214,17 @@ async fn integration_complex_queries() {
     create_test_vault(kb_root);
     
     let vault = VaultState::new(kb_root.to_str().unwrap()).await;
-    let mut search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
-    
-    search_engine.bm25.index_vault(&vault).await.unwrap();
-    search_engine.vector.index_vault(&vault, &search_engine.embed).await.unwrap();
+    let search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
+
+    {
+        let mut bm25 = search_engine.bm25.lock().await;
+        bm25.index_vault(&vault).await.unwrap();
+    }
+    {
+        let vector = search_engine.vector.lock().await;
+        let embed = search_engine.embed.lock().await;
+        vector.index_vault(&vault, &embed).await.unwrap();
+    }
     
     // Test various query types
     let test_cases = vec![
@@ -210,11 +256,18 @@ async fn integration_empty_vault() {
     
     assert_eq!(files.len(), 0, "Empty vault should have no files");
     
-    let mut search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
-    
+    let search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
+
     // Build indexes (should handle empty vault gracefully)
-    search_engine.bm25.index_vault(&vault).await.unwrap();
-    search_engine.vector.index_vault(&vault, &search_engine.embed).await.unwrap();
+    {
+        let mut bm25 = search_engine.bm25.lock().await;
+        bm25.index_vault(&vault).await.unwrap();
+    }
+    {
+        let vector = search_engine.vector.lock().await;
+        let embed = search_engine.embed.lock().await;
+        vector.index_vault(&vault, &embed).await.unwrap();
+    }
     
     // Search should return empty results
     let results = search_engine.search("test", 10).await;
@@ -237,13 +290,20 @@ async fn integration_special_characters() {
     for (filename, content) in special_files {
         fs::write(kb_root.join(filename), content).unwrap();
     }
-    
+
     let vault = VaultState::new(kb_root.to_str().unwrap()).await;
-    let mut search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
-    
-    search_engine.bm25.index_vault(&vault).await.unwrap();
-    search_engine.vector.index_vault(&vault, &search_engine.embed).await.unwrap();
-    
+    let search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
+
+    {
+        let mut bm25 = search_engine.bm25.lock().await;
+        bm25.index_vault(&vault).await.unwrap();
+    }
+    {
+        let vector = search_engine.vector.lock().await;
+        let embed = search_engine.embed.lock().await;
+        vector.index_vault(&vault, &embed).await.unwrap();
+    }
+
     // Should find files despite special characters
     let results = search_engine.search("test", 10).await;
     assert!(!results.is_empty(), "Should find files with special characters");
@@ -267,20 +327,30 @@ async fn smoke_test_against_test_vault() {
     println!("Found {} files in test-vault", files.len());
     assert!(!files.is_empty(), "test-vault should contain files");
     
-    let mut search_engine = SearchEngine::new(kb_root).await;
-    
+    let search_engine = SearchEngine::new(kb_root).await;
+
     // Build indexes
     println!("Building BM25 index...");
-    search_engine.bm25.index_vault(&vault).await
-        .expect("Failed to build BM25 index");
-    
+    {
+        let mut bm25 = search_engine.bm25.lock().await;
+        bm25.index_vault(&vault).await
+            .expect("Failed to build BM25 index");
+    }
+
     println!("Building vector index...");
-    search_engine.vector.index_vault(&vault, &search_engine.embed).await
-        .expect("Failed to build vector index");
-    
+    {
+        let vector = search_engine.vector.lock().await;
+        let embed = search_engine.embed.lock().await;
+        vector.index_vault(&vault, &embed).await
+            .expect("Failed to build vector index");
+    }
+
     println!("Building graph index...");
-    search_engine.graph.build_graph(&vault).await
-        .expect("Failed to build graph index");
+    {
+        let graph = search_engine.graph.lock().await;
+        graph.build_graph(&vault).await
+            .expect("Failed to build graph index");
+    }
     
     // Test search functionality with content-agnostic queries
     println!("Testing search...");
@@ -296,7 +366,8 @@ async fn smoke_test_against_test_vault() {
     
     // Test graph analytics
     println!("Testing graph analytics...");
-    let (pagerank, communities) = search_engine.graph.get_cached_analytics().await;
+    let graph = search_engine.graph.lock().await;
+    let (pagerank, communities) = graph.get_cached_analytics().await;
     
     println!("PageRank scores: {} nodes", pagerank.len());
     println!("Communities: {} communities", communities.len());

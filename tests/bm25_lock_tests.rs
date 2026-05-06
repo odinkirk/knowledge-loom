@@ -1,0 +1,43 @@
+use std::fs;
+use tempfile::TempDir;
+use loom::bm25::BM25Index;
+
+#[tokio::test]
+async fn test_bm25_stale_lock_recovery() {
+    let temp_dir = TempDir::new().unwrap();
+    let kb_root = temp_dir.path().to_str().unwrap();
+
+    // Create initial index
+    let mut index1 = BM25Index::new(kb_root).await;
+
+    // Add a document
+    let test_path = temp_dir.path().join("test.md");
+    index1.add_document(&test_path, "Test", "Test content").await.unwrap();
+
+    // Commit to make searchable
+    {
+        let mut writer = index1.writer.lock().await;
+        writer.commit().unwrap();
+    }
+
+    // Simulate stale lock by creating a lock file
+    let lock_path = temp_dir.path().join(".loom-index").join("tantivy").join(".tantivy-writer.lock");
+    fs::write(&lock_path, "stale lock").unwrap();
+
+    // Create a new index instance - should recover from stale lock
+    let mut index2 = BM25Index::new(kb_root).await;
+
+    // Verify we can write to the recovered index
+    let test_path2 = temp_dir.path().join("test2.md");
+    index2.add_document(&test_path2, "Test2", "Test content 2").await.unwrap();
+
+    // Commit to make searchable
+    {
+        let mut writer = index2.writer.lock().await;
+        writer.commit().unwrap();
+    }
+
+    // Verify we can search
+    let results = index2.search("Test", 10).await.unwrap();
+    assert!(!results.is_empty(), "Should find results after lock recovery");
+}

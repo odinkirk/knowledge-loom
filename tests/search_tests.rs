@@ -10,7 +10,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let kb_root = temp_dir.path();
         
-        let mut engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
+        let engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
         
         // Verify components were created
         assert!(kb_root.join(".loom-index/tantivy").exists());
@@ -21,21 +21,28 @@ mod tests {
     async fn test_search_engine_unified_search() {
         let temp_dir = TempDir::new().unwrap();
         let kb_root = temp_dir.path();
-        
+
         // Create test files
         fs::write(kb_root.join("test1.md"), "# Test 1\nThis is about cats and dogs").unwrap();
         fs::write(kb_root.join("test2.md"), "# Test 2\nThis is about birds and fish").unwrap();
-        
-        let mut engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
-        
+
+        let engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
+
         // Build indexes
         let vault = VaultState::new(kb_root.to_str().unwrap()).await;
-        engine.bm25.index_vault(&vault).await.unwrap();
-        engine.vector.index_vault(&vault, &engine.embed).await.unwrap();
-        
+        {
+            let mut bm25 = engine.bm25.lock().await;
+            bm25.index_vault(&vault).await.unwrap();
+        }
+        {
+            let vector = engine.vector.lock().await;
+            let embed = engine.embed.lock().await;
+            vector.index_vault(&vault, &embed).await.unwrap();
+        }
+
         // Search
         let results = engine.search("cats", 5).await;
-        
+
         assert!(!results.is_empty());
         // Results should be sorted by score
         for i in 0..results.len().saturating_sub(1) {
@@ -48,7 +55,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let kb_root = temp_dir.path();
         
-        let mut engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
+        let engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
         
         // Search with empty query
         let results = engine.search("", 5).await;
@@ -61,22 +68,29 @@ mod tests {
     async fn test_search_engine_limit() {
         let temp_dir = TempDir::new().unwrap();
         let kb_root = temp_dir.path();
-        
+
         // Create multiple test files
         for i in 0..10 {
-            fs::write(kb_root.join(format!("test{}.md", i)), 
+            fs::write(kb_root.join(format!("test{}.md", i)),
                      format!("# Test {}\nContent {}", i, i)).unwrap();
         }
-        
-        let mut engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
-        
+
+        let engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
+
         let vault = VaultState::new(kb_root.to_str().unwrap()).await;
-        engine.bm25.index_vault(&vault).await.unwrap();
-        engine.vector.index_vault(&vault, &engine.embed).await.unwrap();
-        
+        {
+            let mut bm25 = engine.bm25.lock().await;
+            bm25.index_vault(&vault).await.unwrap();
+        }
+        {
+            let vector = engine.vector.lock().await;
+            let embed = engine.embed.lock().await;
+            vector.index_vault(&vault, &embed).await.unwrap();
+        }
+
         // Search with limit
         let results = engine.search("test", 3).await;
-        
+
         // Should respect limit
         assert!(results.len() <= 3);
     }
@@ -85,20 +99,27 @@ mod tests {
     async fn test_search_engine_rrf_scoring() {
         let temp_dir = TempDir::new().unwrap();
         let kb_root = temp_dir.path();
-        
+
         // Create test files with different content
         fs::write(kb_root.join("relevant.md"), "# Relevant\nThis is highly relevant content").unwrap();
         fs::write(kb_root.join("less_relevant.md"), "# Less Relevant\nSome other content").unwrap();
-        
-        let mut engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
-        
+
+        let engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
+
         let vault = VaultState::new(kb_root.to_str().unwrap()).await;
-        engine.bm25.index_vault(&vault).await.unwrap();
-        engine.vector.index_vault(&vault, &engine.embed).await.unwrap();
-        
+        {
+            let mut bm25 = engine.bm25.lock().await;
+            bm25.index_vault(&vault).await.unwrap();
+        }
+        {
+            let vector = engine.vector.lock().await;
+            let embed = engine.embed.lock().await;
+            vector.index_vault(&vault, &embed).await.unwrap();
+        }
+
         // Search for "relevant"
         let results = engine.search("relevant", 5).await;
-        
+
         assert!(!results.is_empty());
         // Most relevant result should have highest score
         let max_score = results.iter().map(|r| r.score).fold(f32::NEG_INFINITY, f32::max);
@@ -109,17 +130,24 @@ mod tests {
     async fn test_search_engine_result_structure() {
         let temp_dir = TempDir::new().unwrap();
         let kb_root = temp_dir.path();
-        
+
         fs::write(kb_root.join("test.md"), "# Test\nTest content").unwrap();
-        
-        let mut engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
-        
+
+        let engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
+
         let vault = VaultState::new(kb_root.to_str().unwrap()).await;
-        engine.bm25.index_vault(&vault).await.unwrap();
-        engine.vector.index_vault(&vault, &engine.embed).await.unwrap();
-        
+        {
+            let mut bm25 = engine.bm25.lock().await;
+            bm25.index_vault(&vault).await.unwrap();
+        }
+        {
+            let vector = engine.vector.lock().await;
+            let embed = engine.embed.lock().await;
+            vector.index_vault(&vault, &embed).await.unwrap();
+        }
+
         let results = engine.search("test", 5).await;
-        
+
         if !results.is_empty() {
             let result = &results[0];
             // Verify result structure

@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+#[allow(dead_code)]
 pub struct OllamaEmbedProvider {
     ollama_url: Arc<String>,
 }
@@ -26,6 +27,7 @@ impl OllamaEmbedProvider {
         embedding
     }
     
+    #[allow(dead_code)]
     pub fn dimension(&self) -> usize {
         384
     }

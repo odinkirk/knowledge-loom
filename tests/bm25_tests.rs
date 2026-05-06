@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
+    
     use tempfile::TempDir;
-    use std::fs;
+    
     use loom::bm25::{BM25Index, extract_title};
 
     #[tokio::test]

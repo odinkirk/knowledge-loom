@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
+    
     use tempfile::TempDir;
-    use std::path::Path;
+    
     use loom::index::VectorIndex;
 
     #[tokio::test]

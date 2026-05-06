@@ -1,9 +1,9 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
+    
     use tempfile::TempDir;
     use std::fs;
-    use std::path::Path;
+    
     use loom::vault::VaultState;
 
     #[tokio::test]

@@ -1,14 +1,20 @@
 {
   "mcpServers": {
     "code-review-graph": {
-      "command": "uvx",
       "args": [
         "code-review-graph",
         "serve",
         "--repo",
         "/Users/odinkirk/git/knowledge-loom"
       ],
+      "command": "uvx",
       "type": "stdio"
+    },
+    "loom": {
+      "command": "/Users/odinkirk/git/knowledge-loom/.loom/bin/loom",
+      "env": {
+        "KB_ROOT": "/Users/odinkirk/git/knowledge-loom"
+      }
     }
   }
 }
