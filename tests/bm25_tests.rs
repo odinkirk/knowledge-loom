@@ -3,7 +3,7 @@ mod tests {
     
     use tempfile::TempDir;
     
-    use loom::bm25::{BM25Index, extract_title};
+    use loom::bm25::{BM25Index, extract_title, parse_chunks, Chunk};
 
     #[tokio::test]
     async fn test_bm25_create_index() {
@@ -138,7 +138,48 @@ mod tests {
     fn test_extract_title_empty_heading() {
         let content = "# \n\nContent after empty heading";
         let title = extract_title(content);
-        
+
         assert_eq!(title, None);
+    }
+
+    #[test]
+    fn test_parse_chunks_two_sections() {
+        let content = "# Introduction\n\nSome intro text here.\n\n## Background\n\nBackground details.";
+        let chunks = parse_chunks(content);
+        assert_eq!(chunks.len(), 2);
+        assert_eq!(chunks[0].heading, Some("Introduction".to_string()));
+        assert_eq!(chunks[0].line_start, 1);
+        assert!(chunks[0].content.contains("intro text"));
+        assert_eq!(chunks[1].heading, Some("Introduction > Background".to_string()));
+        assert!(chunks[1].content.contains("Background details"));
+    }
+
+    #[test]
+    fn test_parse_chunks_headingless_fallback() {
+        let content = "Just some plain text\nwith no headings at all.";
+        let chunks = parse_chunks(content);
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(chunks[0].heading, None);
+        assert_eq!(chunks[0].line_start, 1);
+        assert!(chunks[0].content.contains("plain text"));
+    }
+
+    #[test]
+    fn test_parse_chunks_empty_section_skipped() {
+        let content = "# Heading With No Content\n\n# Second Heading\n\nActual content here.";
+        let chunks = parse_chunks(content);
+        // Empty section should be skipped; only second heading with content
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(chunks[0].heading, Some("Second Heading".to_string()));
+    }
+
+    #[test]
+    fn test_parse_chunks_breadcrumb() {
+        let content = "# Top\n\nTop content.\n\n## Sub\n\nSub content.\n\n### DeepSub\n\nDeep content.";
+        let chunks = parse_chunks(content);
+        assert_eq!(chunks.len(), 3);
+        assert_eq!(chunks[0].heading, Some("Top".to_string()));
+        assert_eq!(chunks[1].heading, Some("Top > Sub".to_string()));
+        assert_eq!(chunks[2].heading, Some("Top > Sub > DeepSub".to_string()));
     }
 }
