@@ -12,7 +12,7 @@ async fn test_bm25_stale_lock_recovery() {
 
     // Add a document
     let test_path = temp_dir.path().join("test.md");
-    index1.add_document(&test_path, "Test", "Test content").await.unwrap();
+    index1.index_file(&test_path, "# Test\n\nTest content").await.unwrap();
 
     // Commit to make searchable
     {
@@ -29,7 +29,7 @@ async fn test_bm25_stale_lock_recovery() {
 
     // Verify we can write to the recovered index
     let test_path2 = temp_dir.path().join("test2.md");
-    index2.add_document(&test_path2, "Test2", "Test content 2").await.unwrap();
+    index2.index_file(&test_path2, "# Test2\n\nTest content 2").await.unwrap();
 
     // Commit to make searchable
     {

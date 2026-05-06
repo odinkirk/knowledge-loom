@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use crate::bm25::BM25Index;
+use crate::bm25::{BM25Index, ChunkDoc};
 use crate::index::VectorIndex;
 use crate::embed::EmbedProviderEnum;
 use crate::graph::GraphState;
@@ -75,9 +75,9 @@ impl SearchEngine {
         let mut results_map: HashMap<String, SearchResult> = HashMap::new();
         
         // BM25 contribution (k=60)
-        for (rank, (_score, doc)) in bm25_results.iter().enumerate() {
-            let path = self.extract_path_from_doc(doc);
-            let content = self.extract_content_from_doc(doc);
+        for (rank, (_score, chunk)) in bm25_results.iter().enumerate() {
+            let path = chunk.path.clone();
+            let content = chunk.content.clone();
             let rrf_score = 1.0 / (60.0 + rank as f32 + 1.0);
 
             *rrf_scores.entry(path.clone()).or_insert(0.0) += rrf_score;
@@ -85,10 +85,10 @@ impl SearchEngine {
             if !results_map.contains_key(&path) {
                 results_map.insert(path.clone(), SearchResult {
                     path: path.clone(),
-                    heading: None,
+                    heading: chunk.heading.clone(),
                     content,
                     score: 0.0,
-                    line_start: 1, // Default to first line for BM25 results
+                    line_start: chunk.line_start,
                 });
             }
         }
@@ -158,32 +158,6 @@ impl SearchEngine {
         results
     }
 
-    fn extract_path_from_doc(&self, doc: &tantivy::schema::Document) -> String {
-        // Extract path from document
-        let bm25 = self.bm25.try_lock().unwrap();
-        if let Some(field) = bm25.schema.get_field("path") {
-            for value in doc.get_all(field) {
-                if let tantivy::schema::Value::Str(path) = value {
-                    return path.to_string();
-                }
-            }
-        }
-        String::new()
-    }
-
-    fn extract_content_from_doc(&self, doc: &tantivy::schema::Document) -> String {
-        // Extract content from document
-        let bm25 = self.bm25.try_lock().unwrap();
-        if let Some(field) = bm25.schema.get_field("content") {
-            for value in doc.get_all(field) {
-                if let tantivy::schema::Value::Str(content) = value {
-                    return content.to_string();
-                }
-            }
-        }
-        String::new()
-    }
-    
     async fn search_graph(&self, query: &str, top_k: usize) -> Result<Vec<String>, String> {
         // Search graph for nodes matching the query
         let graph = self.graph.lock().await;

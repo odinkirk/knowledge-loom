@@ -4,6 +4,8 @@ use tokio::sync::Mutex;
 use tantivy::{
     schema::{SchemaBuilder, TEXT, STRING, STORED, Document},
     collector::TopDocs,
+    query::TermQuery,
+    schema::IndexRecordOption,
     Index, IndexWriter, Term, TantivyError,
 };
 use crate::vault::VaultState;
@@ -96,6 +98,29 @@ pub fn parse_chunks(content: &str) -> Vec<Chunk> {
     chunks
 }
 
+#[derive(Debug, Clone)]
+pub struct ChunkDoc {
+    pub path: String,
+    pub heading: Option<String>,
+    pub content: String,
+    pub line_start: usize,
+    pub line_end: usize,
+}
+
+fn get_text(doc: &Document, schema: &tantivy::schema::Schema, field_name: &str) -> String {
+    schema.get_field(field_name)
+        .and_then(|f| doc.get_first(f))
+        .and_then(|v| if let tantivy::schema::Value::Str(s) = v { Some(s.clone()) } else { None })
+        .unwrap_or_default()
+}
+
+fn get_u64(doc: &Document, schema: &tantivy::schema::Schema, field_name: &str) -> u64 {
+    schema.get_field(field_name)
+        .and_then(|f| doc.get_first(f))
+        .and_then(|v| if let tantivy::schema::Value::U64(n) = v { Some(*n) } else { None })
+        .unwrap_or(1)
+}
+
 #[allow(dead_code)]
 pub struct BM25Index {
     pub index: Arc<Index>,
@@ -115,9 +140,11 @@ impl BM25Index {
         
         // Define schema using correct tantivy 0.19 API
         let mut schema_builder = SchemaBuilder::new();
-        let _title = schema_builder.add_text_field("title", TEXT | STORED);
+        let _heading = schema_builder.add_text_field("heading", TEXT | STORED);
         let _content = schema_builder.add_text_field("content", TEXT | STORED);
         let _path = schema_builder.add_text_field("path", STRING | STORED);
+        let _line_start = schema_builder.add_u64_field("line_start", STORED);
+        let _line_end = schema_builder.add_u64_field("line_end", STORED);
         let schema = schema_builder.build();
         
         // Open or create index; recreate if the stored schema doesn't match
@@ -158,19 +185,66 @@ impl BM25Index {
         }
     }
     
+    pub async fn index_file(&mut self, path: &Path, content: &str) -> Result<(), TantivyError> {
+        let path_str = path.to_string_lossy().to_string();
+        let path_field = self.schema.get_field("path").unwrap();
+        let path_term = Term::from_field_text(path_field, &path_str);
+
+        let chunks = parse_chunks(content);
+        let writer_lock = self.writer.lock().await;
+        writer_lock.delete_term(path_term);
+        for chunk in chunks {
+            let mut doc = Document::new();
+            doc.add_text(self.schema.get_field("heading").unwrap(),
+                chunk.heading.as_deref().unwrap_or(""));
+            doc.add_text(self.schema.get_field("content").unwrap(), &chunk.content);
+            doc.add_text(self.schema.get_field("path").unwrap(), &path_str);
+            doc.add_u64(self.schema.get_field("line_start").unwrap(), chunk.line_start as u64);
+            doc.add_u64(self.schema.get_field("line_end").unwrap(), chunk.line_end as u64);
+            writer_lock.add_document(doc)?;
+        }
+        Ok(())
+    }
+
+    #[allow(dead_code)]
     pub async fn add_document(&mut self, path: &Path, title: &str, content: &str) -> Result<(), TantivyError> {
         let mut doc = Document::new();
-        doc.add_text(self.schema.get_field("title").unwrap(), title);
+        doc.add_text(self.schema.get_field("heading").unwrap(), title);
         doc.add_text(self.schema.get_field("content").unwrap(), content);
-        doc.add_text(self.schema.get_field("path").unwrap(), 
+        doc.add_text(self.schema.get_field("path").unwrap(),
                     path.to_string_lossy().as_ref());
-        
+
         let writer_lock = self.writer.lock().await;
         writer_lock.add_document(doc)?;
         // Don't commit here - commit at the end of batch operations
         Ok(())
     }
-    
+
+    pub async fn get_chunks_for_path(&self, path: &str) -> Result<Vec<ChunkDoc>, TantivyError> {
+        let reader = self.index.reader()?;
+        let searcher = reader.searcher();
+        let path_field = self.schema.get_field("path").unwrap();
+        let path_term = Term::from_field_text(path_field, path);
+        let term_query = TermQuery::new(path_term, IndexRecordOption::Basic);
+        let top_docs = searcher.search(&term_query, &TopDocs::with_limit(1000))?;
+
+        let mut chunks = Vec::new();
+        for (_, doc_address) in top_docs {
+            let doc = searcher.doc(doc_address)?;
+            let heading_raw = get_text(&doc, &self.schema, "heading");
+            let heading = if heading_raw.is_empty() { None } else { Some(heading_raw) };
+            chunks.push(ChunkDoc {
+                path: path.to_string(),
+                heading,
+                content: get_text(&doc, &self.schema, "content"),
+                line_start: get_u64(&doc, &self.schema, "line_start") as usize,
+                line_end: get_u64(&doc, &self.schema, "line_end") as usize,
+            });
+        }
+        chunks.sort_by_key(|c| c.line_start);
+        Ok(chunks)
+    }
+
     #[allow(dead_code)]
     pub async fn remove_document(&mut self, path: &Path) -> Result<(), TantivyError> {
         let path_term = Term::from_field_text(
@@ -189,33 +263,40 @@ impl BM25Index {
         let reader = self.index.reader()?;
         let searcher = reader.searcher();
         let query_parser = tantivy::query::QueryParser::for_index(&self.index, vec![
-            self.schema.get_field("title").unwrap(),
+            self.schema.get_field("heading").unwrap(),
             self.schema.get_field("content").unwrap()
         ]);
-        
+
         let query = query_parser.parse_query(query)?;
         let top_docs = searcher.search(&query, &TopDocs::with_limit(limit))?;
-        
+
         Ok(top_docs)
     }
     
-    pub async fn search_and_retrieve(&self, query: &str, limit: usize) -> Result<Vec<(f32, tantivy::schema::Document)>, TantivyError> {
+    pub async fn search_and_retrieve(&self, query: &str, limit: usize) -> Result<Vec<(f32, ChunkDoc)>, TantivyError> {
         let reader = self.index.reader()?;
         let searcher = reader.searcher();
         let query_parser = tantivy::query::QueryParser::for_index(&self.index, vec![
-            self.schema.get_field("title").unwrap(),
-            self.schema.get_field("content").unwrap()
+            self.schema.get_field("heading").unwrap(),
+            self.schema.get_field("content").unwrap(),
         ]);
-        
+
         let query = query_parser.parse_query(query)?;
         let top_docs = searcher.search(&query, &TopDocs::with_limit(limit))?;
-        
+
         let mut results = Vec::new();
         for (score, doc_address) in top_docs {
-            let retrieved_doc = searcher.doc(doc_address)?;
-            results.push((score, retrieved_doc));
+            let doc = searcher.doc(doc_address)?;
+            let heading_raw = get_text(&doc, &self.schema, "heading");
+            let heading = if heading_raw.is_empty() { None } else { Some(heading_raw) };
+            results.push((score, ChunkDoc {
+                path: get_text(&doc, &self.schema, "path"),
+                heading,
+                content: get_text(&doc, &self.schema, "content"),
+                line_start: get_u64(&doc, &self.schema, "line_start") as usize,
+                line_end: get_u64(&doc, &self.schema, "line_end") as usize,
+            }));
         }
-        
         Ok(results)
     }
     
