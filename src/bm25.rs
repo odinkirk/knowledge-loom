@@ -303,33 +303,19 @@ impl BM25Index {
     pub async fn index_vault(&mut self, vault_state: &VaultState) -> Result<(), TantivyError> {
         let files = vault_state.scan_files().await;
         let mut indexed_count = 0;
-        
+
         for file_path in files {
-            // Check if file has been modified since last index
-            if let Some(_mod_time) = vault_state.get_file_mod_time(&file_path).await {
-                // For now, we'll just index everything
-                // In a real implementation, we'd check against stored timestamps
-                
-                if let Some(content) = vault_state.read_file(&file_path).await {
-                    // Extract title from first heading or filename
-                    let title = extract_title(&content)
-                        .unwrap_or_else(|| file_path.file_name()
-                            .and_then(|s| s.to_str())
-                            .unwrap_or("unknown")
-                            .to_string());
-                    
-                    self.add_document(&file_path, &title, &content).await?;
-                    indexed_count += 1;
-                }
+            if let Some(content) = vault_state.read_file(&file_path).await {
+                self.index_file(&file_path, &content).await?;
+                indexed_count += 1;
             }
         }
-        
-        // Commit once at the end
+
         if indexed_count > 0 {
             let mut writer_lock = self.writer.lock().await;
             writer_lock.commit()?;
         }
-        
+
         Ok(())
     }
 }
