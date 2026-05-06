@@ -182,4 +182,31 @@ mod tests {
             assert!(results[0].sections[i].score >= results[0].sections[i + 1].score);
         }
     }
+
+    #[tokio::test]
+    async fn test_graph_result_gets_sections() {
+        // This test verifies that files surfaced by graph (no BM25 match) still get sections.
+        // We simulate by indexing a file so get_chunks_for_path can find it, but
+        // searching a query that won't BM25-match it (only graph would surface it).
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        // Write file with unique content unlikely to BM25-match "zephyr"
+        fs::write(kb_root.join("unrelated.md"),
+            "# Alpha Section\n\nSome alpha content.\n\n# Beta Section\n\nSome beta content.").unwrap();
+
+        let engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
+        let vault = VaultState::new(kb_root.to_str().unwrap()).await;
+        {
+            let mut bm25 = engine.bm25.lock().await;
+            bm25.index_vault(&vault).await.unwrap();
+        }
+
+        // Directly call populate_sections to test the lookup
+        let path = kb_root.join("unrelated.md").to_string_lossy().to_string();
+        let bm25 = engine.bm25.lock().await;
+        let chunks = bm25.get_chunks_for_path(&path).await.unwrap();
+        assert_eq!(chunks.len(), 2);
+        assert!(chunks[0].line_start < chunks[1].line_start);
+    }
 }

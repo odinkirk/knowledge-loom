@@ -138,6 +138,32 @@ impl SearchEngine {
             .collect();
 
         results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+
+        // Populate sections for files without BM25 chunks (graph/brainjar-only results)
+        let paths_needing_sections: Vec<String> = results.iter()
+            .filter(|r| r.sections.is_empty())
+            .map(|r| r.path.clone())
+            .collect();
+
+        if !paths_needing_sections.is_empty() {
+            let bm25 = self.bm25.lock().await;
+            for path in paths_needing_sections {
+                if let Ok(chunks) = bm25.get_chunks_for_path(&path).await {
+                    let sections: Vec<SectionResult> = chunks.into_iter().map(|c| SectionResult {
+                        heading: c.heading,
+                        content: c.content,
+                        line_start: c.line_start,
+                        line_end: c.line_end,
+                        score: 0.0,
+                    }).collect();
+                    // Find the result and set sections
+                    if let Some(r) = results.iter_mut().find(|r| r.path == path) {
+                        r.sections = sections;
+                    }
+                }
+            }
+        }
+
         results.truncate(top_k);
         results
     }
