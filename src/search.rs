@@ -7,12 +7,18 @@ use crate::embed::EmbedProviderEnum;
 use crate::graph::GraphState;
 use crate::brainjar::BrainJarWrapper;
 
-pub struct SearchResult {
-    pub path: String,
+pub struct SectionResult {
     pub heading: Option<String>,
     pub content: String,
-    pub score: f32,
     pub line_start: usize,
+    pub line_end: usize,
+    pub score: f32,
+}
+
+pub struct SearchResult {
+    pub path: String,
+    pub sections: Vec<SectionResult>,
+    pub score: f32,
 }
 
 pub struct SearchEngine {
@@ -49,7 +55,12 @@ impl SearchEngine {
     /// Combined search using RRF (Reciprocal Rank Fusion)
     /// Runs BM25, vector, graph, and BrainJar searches in parallel
     pub async fn search(&self, query: &str, top_k: usize) -> Vec<SearchResult> {
-        // Run all searches in parallel
+        use std::collections::{HashMap, HashSet};
+
+        if query.is_empty() {
+            return Vec::new();
+        }
+
         let (bm25_results, semantic_results, graph_results, brainjar_results) = tokio::join!(
             async {
                 let bm25 = self.bm25.lock().await;
@@ -64,97 +75,70 @@ impl SearchEngine {
             self.search_graph(query, top_k * 2),
             self.search_brainjar(query, top_k * 2)
         );
-        
+
         let bm25_results = bm25_results.unwrap_or_default();
         let semantic_results = semantic_results.unwrap_or_default();
         let graph_results = graph_results.unwrap_or_default();
         let brainjar_results = brainjar_results.unwrap_or_default();
-        
-        // Apply RRF across all result sources
+
         let mut rrf_scores: HashMap<String, f32> = HashMap::new();
-        let mut results_map: HashMap<String, SearchResult> = HashMap::new();
-        
-        // BM25 contribution (k=60)
-        for (rank, (_score, chunk)) in bm25_results.iter().enumerate() {
-            let path = chunk.path.clone();
-            let content = chunk.content.clone();
-            let rrf_score = 1.0 / (60.0 + rank as f32 + 1.0);
+        // path -> Vec<SectionResult> collected from BM25 chunks
+        let mut sections_map: HashMap<String, Vec<SectionResult>> = HashMap::new();
 
-            *rrf_scores.entry(path.clone()).or_insert(0.0) += rrf_score;
+        // BM25: use first-occurrence rank per file for RRF; collect all chunks as sections
+        let mut bm25_file_seen: HashSet<String> = HashSet::new();
+        for (rank, (score, chunk)) in bm25_results.iter().enumerate() {
+            if !bm25_file_seen.contains(&chunk.path) {
+                bm25_file_seen.insert(chunk.path.clone());
+                let rrf = 1.0 / (60.0 + rank as f32 + 1.0);
+                *rrf_scores.entry(chunk.path.clone()).or_insert(0.0) += rrf;
+            }
+            sections_map.entry(chunk.path.clone()).or_default().push(SectionResult {
+                heading: chunk.heading.clone(),
+                content: chunk.content.clone(),
+                line_start: chunk.line_start,
+                line_end: chunk.line_end,
+                score: *score,
+            });
+        }
 
-            if !results_map.contains_key(&path) {
-                results_map.insert(path.clone(), SearchResult {
-                    path: path.clone(),
-                    heading: chunk.heading.clone(),
-                    content,
-                    score: 0.0,
-                    line_start: chunk.line_start,
-                });
+        // Semantic (k=60, file-level using first occurrence)
+        let mut sem_file_seen: HashSet<String> = HashSet::new();
+        for (rank, (path, _heading, _content, _sim)) in semantic_results.iter().enumerate() {
+            if !sem_file_seen.contains(path) {
+                sem_file_seen.insert(path.clone());
+                let rrf = 1.0 / (60.0 + rank as f32 + 1.0);
+                *rrf_scores.entry(path.clone()).or_insert(0.0) += rrf;
             }
         }
 
-        // Semantic contribution (k=60)
-        for (rank, (path, heading, content, _similarity)) in semantic_results.iter().enumerate() {
-            let rrf_score = 1.0 / (60.0 + rank as f32 + 1.0);
-
-            *rrf_scores.entry(path.clone()).or_insert(0.0) += rrf_score;
-
-            if !results_map.contains_key(path) {
-                results_map.insert(path.clone(), SearchResult {
-                    path: path.clone(),
-                    heading: heading.clone(),
-                    content: content.clone(),
-                    score: 0.0,
-                    line_start: 1, // Default to first line for semantic results
-                });
-            }
-        }
-
-        // Graph contribution (k=60)
+        // Graph (k=60)
         for (rank, path) in graph_results.iter().enumerate() {
-            let rrf_score = 1.0 / (60.0 + rank as f32 + 1.0);
-
-            *rrf_scores.entry(path.clone()).or_insert(0.0) += rrf_score;
-
-            if !results_map.contains_key(path) {
-                results_map.insert(path.clone(), SearchResult {
-                    path: path.clone(),
-                    heading: None,
-                    content: String::new(),
-                    score: 0.0,
-                    line_start: 1, // Default to first line for graph results
-                });
-            }
+            let rrf = 1.0 / (60.0 + rank as f32 + 1.0);
+            *rrf_scores.entry(path.clone()).or_insert(0.0) += rrf;
         }
 
-        // BrainJar contribution (k=60)
+        // BrainJar (k=60)
         for (rank, path) in brainjar_results.iter().enumerate() {
-            let rrf_score = 1.0 / (60.0 + rank as f32 + 1.0);
-
-            *rrf_scores.entry(path.clone()).or_insert(0.0) += rrf_score;
-
-            if !results_map.contains_key(path) {
-                results_map.insert(path.clone(), SearchResult {
-                    path: path.clone(),
-                    heading: None,
-                    content: String::new(),
-                    score: 0.0,
-                    line_start: 1, // Default to first line for BrainJar results
-                });
-            }
+            let rrf = 1.0 / (60.0 + rank as f32 + 1.0);
+            *rrf_scores.entry(path.clone()).or_insert(0.0) += rrf;
         }
 
-        // Sort by RRF score and take top_k
-        let mut results: Vec<SearchResult> = results_map.into_values()
-            .map(|mut result| {
-                result.score = *rrf_scores.get(&result.path).unwrap_or(&0.0);
-                result
+        // Sort sections within each file by score desc
+        for sections in sections_map.values_mut() {
+            sections.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        }
+
+        // Build final results
+        let mut results: Vec<SearchResult> = rrf_scores.iter()
+            .map(|(path, &rrf)| {
+                let sections = sections_map.remove(path).unwrap_or_default();
+                SearchResult { path: path.clone(), sections, score: rrf }
             })
             .collect();
-        
-        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
-        results.truncate(top_k);
 
+        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        results.truncate(top_k);
         results
     }
 

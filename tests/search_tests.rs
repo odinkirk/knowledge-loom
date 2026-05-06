@@ -156,4 +156,30 @@ mod tests {
             // Content may or may not be populated depending on implementation
         }
     }
+
+    #[tokio::test]
+    async fn test_search_returns_sections() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        fs::write(kb_root.join("cats.md"),
+            "# Cats\n\nCats are great pets.\n\n## Persian Cats\n\nPersian cats are fluffy.").unwrap();
+
+        let engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
+        let vault = VaultState::new(kb_root.to_str().unwrap()).await;
+        {
+            let mut bm25 = engine.bm25.lock().await;
+            bm25.index_vault(&vault).await.unwrap();
+        }
+
+        let results = engine.search("cats fluffy", 5).await;
+
+        assert!(!results.is_empty());
+        // Top result should have sections
+        assert!(!results[0].sections.is_empty());
+        // Sections should be sorted by score desc
+        for i in 0..results[0].sections.len().saturating_sub(1) {
+            assert!(results[0].sections[i].score >= results[0].sections[i + 1].score);
+        }
+    }
 }

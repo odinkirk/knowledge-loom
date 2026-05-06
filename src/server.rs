@@ -129,12 +129,19 @@ impl LoomServer {
                 let results = self.search_engine.search(&query, top_k).await;
                 // Convert to serializable format
                 let serializable: Vec<serde_json::Value> = results.into_iter().map(|r| {
+                    let sections: Vec<serde_json::Value> = r.sections.into_iter().map(|s| {
+                        serde_json::json!({
+                            "heading": s.heading,
+                            "content": s.content,
+                            "line_start": s.line_start,
+                            "line_end": s.line_end,
+                            "score": s.score,
+                        })
+                    }).collect();
                     serde_json::json!({
                         "path": r.path,
-                        "heading": r.heading,
-                        "content": r.content,
                         "score": r.score,
-                        "line_start": r.line_start,
+                        "sections": sections,
                     })
                 }).collect();
                 Ok(serde_json::to_string(&serializable).unwrap_or_default())

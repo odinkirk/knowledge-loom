@@ -500,10 +500,11 @@ mod tests {
             let result = &results[0];
             assert!(!result.path.is_empty(), "Result should have path");
             assert!(result.score >= 0.0, "Result should have score");
+            assert!(!result.sections.is_empty(), "Result should have sections");
 
             // Check if heading is populated (metadata enrichment)
-            if result.heading.is_some() {
-                let heading = result.heading.as_ref().unwrap();
+            if result.sections[0].heading.is_some() {
+                let heading = result.sections[0].heading.as_ref().unwrap();
                 assert!(!heading.is_empty(), "Heading should not be empty if present");
             }
         }
@@ -537,8 +538,9 @@ mod tests {
         if !results.is_empty() {
             // Verify content metadata is enriched
             let result = &results[0];
-            assert!(!result.content.is_empty(), "Result should have content metadata");
-            assert!(result.content.contains("target content") || result.content.contains("target"),
+            assert!(!result.sections.is_empty(), "Result should have sections");
+            assert!(!result.sections[0].content.is_empty(), "Result should have content metadata");
+            assert!(result.sections[0].content.contains("target content") || result.sections[0].content.contains("target"),
                    "Content should contain search terms");
         }
     }
@@ -571,7 +573,8 @@ mod tests {
         if !results.is_empty() {
             // Verify line_start metadata is enriched
             let result = &results[0];
-            let line_start = result.line_start;
+            assert!(!result.sections.is_empty(), "Result should have sections");
+            let line_start = result.sections[0].line_start;
             assert!(line_start > 0, "Line start should be positive");
             assert!(line_start <= 10, "Line start should be within file bounds");
         }
@@ -605,16 +608,17 @@ mod tests {
         if !results.is_empty() {
             // Verify all metadata fields are populated
             let result = &results[0];
+            assert!(!result.sections.is_empty(), "Result should have sections");
 
             // Required fields
             assert!(!result.path.is_empty(), "Path should be populated");
             assert!(result.score >= 0.0, "Score should be non-negative");
-            assert!(!result.content.is_empty(), "Content should be populated");
-            assert!(result.line_start > 0, "Line start should be positive");
+            assert!(!result.sections[0].content.is_empty(), "Content should be populated");
+            assert!(result.sections[0].line_start > 0, "Line start should be positive");
 
             // Optional metadata fields (should be populated when available)
-            if result.heading.is_some() {
-                assert!(!result.heading.as_ref().unwrap().is_empty(), "Heading should not be empty");
+            if result.sections[0].heading.is_some() {
+                assert!(!result.sections[0].heading.as_ref().unwrap().is_empty(), "Heading should not be empty");
             }
         }
     }
@@ -649,7 +653,8 @@ mod tests {
         for result in &results {
             assert!(!result.path.is_empty(), "Each result should have a path");
             assert!(result.score >= 0.0, "Each result should have a score");
-            assert!(!result.content.is_empty(), "Each result should have content");
+            assert!(!result.sections.is_empty(), "Each result should have sections");
+            assert!(!result.sections[0].content.is_empty(), "Each result should have content");
         }
 
         // Results should be sorted by score
