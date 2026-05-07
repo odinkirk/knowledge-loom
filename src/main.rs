@@ -15,6 +15,7 @@ mod server;
 mod platforms;
 mod shell;
 mod daemon;
+mod web;
 
 #[tokio::main]
 async fn main() {
@@ -78,21 +79,19 @@ async fn main() {
             server.maintenance.reindex_all().await.expect("reindex failed");
             eprintln!("Reindex complete.");
         }
-        Some("serve") | None                       => {
-            match server::run_server().await {
-                Ok(_) => {}
-                Err(e) => {
-                    // Connection closed errors are expected in stdio mode when client disconnects
-                    let error_msg = e.to_string();
-                    if error_msg.contains("connection closed") || error_msg.contains("ConnectionClosed") {
-                        // Exit gracefully - this is expected behavior
-                        std::process::exit(0);
-                    } else {
-                        eprintln!("knowledge-loom serve failed: {e}");
-                        exit(1);
-                    }
-                }
+        Some("web")                                => {
+            let port: u16 = args()
+                .position(|a| a == "--port")
+                .and_then(|i| std::env::args().nth(i + 1))
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(8080);
+            if let Err(e) = web::run_web(port).await {
+                eprintln!("knowledge-loom web failed: {e}");
+                exit(1);
             }
+        }
+        Some("serve") | None                       => {
+            server::run_server().await;
         }
         Some("help") | Some("--help") | Some("-h") => {
             print_usage();
@@ -115,6 +114,7 @@ fn print_usage() {
     eprintln!("  loom init [dir]    Initialize knowledge-loom in a directory (default: current dir)");
     eprintln!("  loom daemon        Daemon management (start|stop|status|logs|add|remove)");
     eprintln!("  loom reindex       Reindex knowledge base (used by daemon)");
+    eprintln!("  loom web [--port]  Start read-only web UI (default port 8080)");
     eprintln!("  loom help          Show this message");
     eprintln!();
     eprintln!("ENVIRONMENT:");

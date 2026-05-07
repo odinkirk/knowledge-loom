@@ -19,3 +19,4 @@ pub mod server;
 pub mod platforms;
 pub mod shell;
 pub mod daemon;
+pub mod web;

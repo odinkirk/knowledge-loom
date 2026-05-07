@@ -32,9 +32,7 @@ pub async fn run_shell() -> Result<(), Box<dyn std::error::Error>> {
     // Start server as background task
     std::env::set_var("KB_ROOT", &kb_root);
     let server_handle = tokio::spawn(async move {
-        if let Err(e) = crate::server::run_server().await {
-            eprintln!("[loom server] error: {e}");
-        }
+        crate::server::run_server().await;
     });
 
     // Give server a moment to initialize
