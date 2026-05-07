@@ -1,7 +1,8 @@
 // src/daemon.rs
 use std::path::{Path, PathBuf};
 use std::fs;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
@@ -165,7 +166,7 @@ pub async fn run_daemon_foreground() -> Result<(), Box<dyn std::error::Error>> {
 
     for repo in &config.repos {
         let handle = spawn_watcher(repo.clone());
-        children.lock().unwrap().insert(repo.alias.clone(), handle);
+        children.lock().await.insert(repo.alias.clone(), handle);
     }
 
     // Health-check loop
@@ -175,7 +176,7 @@ pub async fn run_daemon_foreground() -> Result<(), Box<dyn std::error::Error>> {
         ticker.tick().await;
         let mut dead = Vec::new();
         {
-            let map = children.lock().unwrap();
+            let map = children.lock().await;
             for (alias, handle) in map.iter() {
                 if handle.is_finished() {
                     dead.push(alias.clone());
@@ -188,7 +189,7 @@ pub async fn run_daemon_foreground() -> Result<(), Box<dyn std::error::Error>> {
             eprintln!("[daemon] restarting watcher for {alias}");
             if let Some(repo) = cfg.repos.iter().find(|r| r.alias == alias) {
                 let handle = spawn_watcher(repo.clone());
-                children.lock().unwrap().insert(alias, handle);
+                children.lock().await.insert(alias, handle);
             }
         }
     }

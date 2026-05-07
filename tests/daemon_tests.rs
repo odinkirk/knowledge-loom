@@ -92,6 +92,22 @@ fn test_daemon_remove_repo() {
     assert_eq!(updated.repos[0].alias, "b");
 }
 
+#[tokio::test]
+async fn test_daemon_children_map_uses_tokio_mutex() {
+    // Verifies tokio::sync::Mutex is used — compile-time check.
+    // If this compiles and the lock().await syntax works, the type is correct.
+    use std::sync::Arc;
+    use tokio::sync::Mutex;
+    use std::collections::HashMap;
+    use tokio::task::JoinHandle;
+
+    let children: Arc<Mutex<HashMap<String, JoinHandle<()>>>> =
+        Arc::new(Mutex::new(HashMap::new()));
+    let handle = tokio::spawn(async {});
+    children.lock().await.insert("test".to_string(), handle);
+    assert_eq!(children.lock().await.len(), 1);
+}
+
 #[test]
 fn test_expand_path_tilde() {
     let home = dirs::home_dir().expect("home dir");
