@@ -71,24 +71,27 @@ impl EditManager {
     }
     
     pub async fn grep(&self, pattern: &str) -> Vec<(String, usize, String)> {
+        let re = match regex::Regex::new(pattern) {
+            Ok(r) => r,
+            Err(_) => return Vec::new(),
+        };
         let vault_lock = self.vault_state.lock().await;
         let files = vault_lock.scan_files().await;
         let mut results = Vec::new();
-        
+
         for file_path in files {
             if let Some(content) = vault_lock.read_file(&file_path).await {
                 for (line_num, line) in content.lines().enumerate() {
-                    if line.contains(pattern) {
+                    if re.is_match(line) {
                         results.push((
                             file_path.to_string_lossy().to_string(),
                             line_num + 1,
-                            line.to_string()
+                            line.to_string(),
                         ));
                     }
                 }
             }
         }
-        
         results
     }
     
@@ -370,6 +373,15 @@ impl EditManager {
     }
 }
 
+pub async fn make_edit_manager_for_test(kb_root: &str) -> EditManager {
+    let vault = Arc::new(Mutex::new(crate::vault::VaultState::new(kb_root).await));
+    let bm25 = Arc::new(Mutex::new(crate::bm25::BM25Index::new(kb_root).await));
+    let embed = Arc::new(Mutex::new(crate::embed::EmbedProviderEnum::new(kb_root).await));
+    let vector = Arc::new(Mutex::new(crate::index::VectorIndex::new(kb_root).await));
+    let graph = Arc::new(Mutex::new(crate::graph::GraphState::new(kb_root).await));
+    EditManager::new(kb_root.to_string(), vault, bm25, embed, vector, graph)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -377,7 +389,7 @@ mod tests {
     use tokio::sync::Mutex;
     use tempfile::TempDir;
 
-    async fn make_edit_manager(tmp: &TempDir, content: &str) -> (EditManager, std::path::PathBuf) {
+    pub async fn make_edit_manager(tmp: &TempDir, content: &str) -> (EditManager, std::path::PathBuf) {
         let root = tmp.path().to_str().unwrap().to_string();
         let vault = Arc::new(Mutex::new(crate::vault::VaultState::new(&root).await));
         let bm25 = Arc::new(Mutex::new(crate::bm25::BM25Index::new(&root).await));

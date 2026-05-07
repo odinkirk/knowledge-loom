@@ -11,6 +11,7 @@ mod tests {
     use knowledge_loom::embed::EmbedProviderEnum;
     use knowledge_loom::graph::GraphState;
     use knowledge_loom::brainjar::BrainJarWrapper;
+    use knowledge_loom::edits::make_edit_manager_for_test;
 
     #[tokio::test]
     async fn test_search_engine_create() {
@@ -380,5 +381,37 @@ mod tests {
         // Search with only whitespace
         let results = engine.search("   ", 5).await;
         assert!(results.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_grep_regex_anchored_start() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("note.md"), "foo bar\nbaz foo\nfoo123").unwrap();
+        let em = make_edit_manager_for_test(tmp.path().to_str().unwrap()).await;
+
+        // Only lines starting with "foo"
+        let results = em.grep("^foo").await;
+        assert_eq!(results.len(), 2, "expected 'foo bar' and 'foo123', got {results:?}");
+    }
+
+    #[tokio::test]
+    async fn test_grep_regex_digit_sequence() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("note.md"), "foo bar\nbaz qux\nfoo123").unwrap();
+        let em = make_edit_manager_for_test(tmp.path().to_str().unwrap()).await;
+
+        let results = em.grep(r"\d+").await;
+        assert_eq!(results.len(), 1, "expected only 'foo123', got {results:?}");
+    }
+
+    #[tokio::test]
+    async fn test_grep_invalid_regex_returns_empty() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("note.md"), "anything").unwrap();
+        let em = make_edit_manager_for_test(tmp.path().to_str().unwrap()).await;
+
+        // Invalid regex — should not panic, should return empty
+        let results = em.grep("[invalid").await;
+        assert!(results.is_empty(), "invalid regex should return empty vec");
     }
 }
