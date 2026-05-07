@@ -3,7 +3,7 @@ mod tests {
     
     use tempfile::TempDir;
     
-    use knowledge_loom::bm25::{BM25Index, extract_title, parse_chunks};
+    use knowledge_loom::bm25::{BM25Index, extract_title, parse_chunks, truncate_at_whitespace};
 
     #[tokio::test]
     async fn test_bm25_create_index() {
@@ -213,5 +213,47 @@ mod tests {
         let chunks = index.get_chunks_for_path(path.to_str().unwrap()).await.unwrap();
         assert_eq!(chunks.len(), 1);
         assert!(chunks[0].content.contains("New content"));
+    }
+
+    #[test]
+    fn test_truncate_at_whitespace_short_content_unchanged() {
+        assert_eq!(truncate_at_whitespace("hello world", 2000), "hello world");
+    }
+
+    #[test]
+    fn test_truncate_at_whitespace_cuts_at_space() {
+        // 100 a's + space + 100 b's = 201 chars
+        let content = format!("{} {}", "a".repeat(100), "b".repeat(100));
+        let result = truncate_at_whitespace(&content, 110);
+        assert!(result.len() <= 110);
+        assert!(!result.ends_with(' '));
+    }
+
+    #[test]
+    fn test_truncate_at_whitespace_hard_cuts_when_no_space() {
+        let content = "a".repeat(200);
+        let result = truncate_at_whitespace(&content, 100);
+        assert_eq!(result.len(), 100);
+    }
+
+    #[test]
+    fn test_parse_chunks_caps_large_section_at_2000() {
+        let body = "word ".repeat(500); // 2500 chars
+        let md = format!("# Big Section\n\n{}", body);
+        let chunks = parse_chunks(&md);
+        assert_eq!(chunks.len(), 1);
+        assert!(
+            chunks[0].content.len() <= 2000,
+            "chunk len {} exceeds 2000",
+            chunks[0].content.len()
+        );
+    }
+
+    #[test]
+    fn test_headingless_fallback_caps_large_content() {
+        let md = "word ".repeat(500); // no headings, 2500 chars
+        let chunks = parse_chunks(&md);
+        assert_eq!(chunks.len(), 1);
+        assert!(chunks[0].content.len() <= 2000);
     }
 }

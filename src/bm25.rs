@@ -11,6 +11,19 @@ use tantivy::{
 };
 use crate::vault::VaultState;
 
+pub const MAX_CHUNK_CHARS: usize = 2000;
+
+pub fn truncate_at_whitespace(content: &str, max: usize) -> &str {
+    if content.len() <= max {
+        return content;
+    }
+    let slice = &content[..max];
+    match slice.rfind(|c: char| c.is_whitespace()) {
+        Some(pos) if pos > 0 => content[..pos].trim_end(),
+        _ => &content[..max],
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Chunk {
     pub heading: Option<String>,
@@ -63,7 +76,7 @@ pub fn parse_chunks(content: &str) -> Vec<Chunk> {
                     }
 
                     let section_content = lines[i + 1..j].join("\n");
-                    let section_content = section_content.trim().to_string();
+                    let section_content = truncate_at_whitespace(section_content.trim(), MAX_CHUNK_CHARS).to_string();
                     let section_end = if j > i + 1 { j } else { i + 1 };
 
                     if !section_content.is_empty() {
@@ -85,7 +98,7 @@ pub fn parse_chunks(content: &str) -> Vec<Chunk> {
 
     // Headingless fallback
     if chunks.is_empty() {
-        let full = content.trim().to_string();
+        let full = truncate_at_whitespace(content.trim(), MAX_CHUNK_CHARS).to_string();
         if !full.is_empty() {
             chunks.push(Chunk {
                 heading: None,
