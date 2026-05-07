@@ -13,6 +13,7 @@ mod maintenance;
 mod init;
 mod server;
 mod platforms;
+mod shell;
 
 #[tokio::main]
 async fn main() {
@@ -20,6 +21,12 @@ async fn main() {
         Some("init")                               => {
             if let Err(e) = init::run_init(args().skip(1)) {
                 eprintln!("knowledge-loom init failed: {e}");
+                exit(1);
+            }
+        }
+        Some("shell")                              => {
+            if let Err(e) = shell::run_shell().await {
+                eprintln!("knowledge-loom shell failed: {e}");
                 exit(1);
             }
         }
@@ -56,6 +63,7 @@ fn print_usage() {
     eprintln!("USAGE:");
     eprintln!("  loom               Start MCP stdio server (same as 'loom serve')");
     eprintln!("  loom serve         Start MCP stdio server");
+    eprintln!("  loom shell         Start MCP server and open interactive shell");
     eprintln!("  loom init [dir]    Initialize knowledge-loom in a directory (default: current dir)");
     eprintln!("  loom help          Show this message");
     eprintln!();
