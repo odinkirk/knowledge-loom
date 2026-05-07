@@ -1,18 +1,34 @@
 use std::fs;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use serde_json::Value;
 
 pub fn run_init(mut args: impl Iterator<Item = String>) -> Result<(), Box<dyn std::error::Error>> {
-    // Skip "init" arg
-    let _ = args.next();
-    let dir = args.next()
-        .map(PathBuf::from)
-        .unwrap_or_else(|| std::env::current_dir().unwrap());
+    let _ = args.next(); // skip "init"
+    let mut platform: Option<String> = None;
+    let mut dir_arg: Option<String> = None;
+
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--platform" => {
+                platform = args.next();
+            }
+            other => {
+                dir_arg = Some(other.to_string());
+            }
+        }
+    }
+
+    let dir = match dir_arg {
+        Some(d) => std::path::PathBuf::from(d),
+        None => std::env::current_dir()?,
+    };
     let dir = dir.canonicalize()
         .map_err(|e| format!("Cannot resolve directory '{}': {e}", dir.display()))?;
+
+    // Resolve binary (existing logic)
     let binary_src = std::env::current_exe()?;
-    run_init_with_binary(&dir, &binary_src)
+    run_init_with_binary_and_platform(&dir, &binary_src, platform.as_deref())
 }
 
 fn write_opencode_json(dir: &Path, binary_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
@@ -124,5 +140,38 @@ pub fn run_init_with_binary(dir: &Path, binary_src: &Path) -> Result<(), Box<dyn
     eprintln!();
     eprintln!("Next: restart Claude Code and run /mcp to connect.");
 
+    Ok(())
+}
+
+pub fn run_init_with_binary_and_platform(
+    dir: &Path,
+    binary_src: &Path,
+    platform: Option<&str>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // Existing binary-copy logic (unchanged)
+    run_init_with_binary(dir, binary_src)?;
+
+    let installed_binary = dir.join(".knowledge-loom/bin/loom");
+
+    match platform {
+        None | Some("all") => {
+            let results = crate::platforms::install_all_detected(dir, &installed_binary);
+            for (p, result) in results {
+                match result {
+                    Ok(files) => eprintln!("  [ok] {p:?}: {} file(s)", files.len()),
+                    Err(e) => eprintln!("  [warn] {p:?}: {e}"),
+                }
+            }
+        }
+        Some(name) => {
+            let p = crate::platforms::PlatformName::from_str(name)
+                .ok_or_else(|| format!("unknown platform: {name}. Use one of: claude, cursor, windsurf, zed, continue, opencode, kiro, codex, all"))?;
+            let files = crate::platforms::install_platform(p, dir, &installed_binary)?;
+            for f in &files {
+                eprintln!("  wrote {}", f.display());
+            }
+        }
+    }
+    eprintln!("knowledge-loom init complete.");
     Ok(())
 }

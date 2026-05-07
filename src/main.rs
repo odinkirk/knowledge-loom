@@ -12,6 +12,7 @@ mod brainjar;
 mod maintenance;
 mod init;
 mod server;
+mod platforms;
 
 #[tokio::main]
 async fn main() {
