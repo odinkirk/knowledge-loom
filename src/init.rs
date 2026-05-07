@@ -15,9 +15,39 @@ pub fn run_init(mut args: impl Iterator<Item = String>) -> Result<(), Box<dyn st
     run_init_with_binary(&dir, &binary_src)
 }
 
+fn write_opencode_json(dir: &Path, binary_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    let opencode_path = dir.join("opencode.json");
+    let mut root: Value = if opencode_path.exists() {
+        serde_json::from_str(&fs::read_to_string(&opencode_path)?)?
+    } else {
+        serde_json::json!({ "$schema": "https://opencode.ai/config.json" })
+    };
+
+    if root.get("mcp").is_none() {
+        root["mcp"] = serde_json::json!({});
+    }
+
+    root["mcp"]["knowledge-loom"] = serde_json::json!({
+        "type": "local",
+        "command": [binary_path.to_str().unwrap(), "serve"],
+        "environment": {
+            "KB_ROOT": dir.to_str().unwrap()
+        }
+    });
+
+    let tmp_path = opencode_path.with_extension("json.tmp");
+    {
+        let mut f = fs::File::create(&tmp_path)?;
+        write!(f, "{}", serde_json::to_string_pretty(&root)?)?;
+    }
+    fs::rename(&tmp_path, &opencode_path)?;
+
+    Ok(())
+}
+
 pub fn run_init_with_binary(dir: &Path, binary_src: &Path) -> Result<(), Box<dyn std::error::Error>> {
     // 1. Copy binary
-    let bin_dir = dir.join(".loom/bin");
+    let bin_dir = dir.join(".knowledge-loom/bin");
     fs::create_dir_all(&bin_dir)?;
     let dest = bin_dir.join("loom");
     fs::copy(binary_src, &dest)?;
@@ -41,7 +71,7 @@ pub fn run_init_with_binary(dir: &Path, binary_src: &Path) -> Result<(), Box<dyn
         root["mcpServers"] = serde_json::json!({});
     }
 
-    root["mcpServers"]["loom"] = serde_json::json!({
+    root["mcpServers"]["knowledge-loom"] = serde_json::json!({
         "command": dest.to_str().unwrap(),
         "env": {
             "KB_ROOT": dir.to_str().unwrap()
@@ -56,6 +86,9 @@ pub fn run_init_with_binary(dir: &Path, binary_src: &Path) -> Result<(), Box<dyn
     }
     fs::rename(&tmp_path, &mcp_path)?;
 
+    // 2.5. Write opencode.json
+    write_opencode_json(dir, &dest)?;
+
     // 3. Update .gitignore
     let gi_path = dir.join(".gitignore");
     let existing_gi = if gi_path.exists() {
@@ -65,11 +98,11 @@ pub fn run_init_with_binary(dir: &Path, binary_src: &Path) -> Result<(), Box<dyn
     };
 
     let mut additions = Vec::new();
-    if !existing_gi.lines().any(|l| l.trim() == ".loom/") {
-        additions.push(".loom/");
+    if !existing_gi.lines().any(|l| l.trim() == ".knowledge-loom/") {
+        additions.push(".knowledge-loom/");
     }
-    if !existing_gi.lines().any(|l| l.trim() == ".loom-index/") {
-        additions.push(".loom-index/");
+    if !existing_gi.lines().any(|l| l.trim() == ".knowledge-loom-index/") {
+        additions.push(".knowledge-loom-index/");
     }
 
     if !additions.is_empty() {
@@ -83,12 +116,13 @@ pub fn run_init_with_binary(dir: &Path, binary_src: &Path) -> Result<(), Box<dyn
     }
 
     // 4. Print next steps
-    println!("loom init complete.");
-    println!("  binary:  {}", dest.display());
-    println!("  KB_ROOT: {}", dir.display());
-    println!("  .mcp.json updated");
-    println!();
-    println!("Next: restart Claude Code and run /mcp to connect.");
+    eprintln!("knowledge-loom init complete.");
+    eprintln!("  binary:  {}", dest.display());
+    eprintln!("  KB_ROOT: {}", dir.display());
+    eprintln!("  .mcp.json updated");
+    eprintln!("  opencode.json updated");
+    eprintln!();
+    eprintln!("Next: restart Claude Code and run /mcp to connect.");
 
     Ok(())
 }

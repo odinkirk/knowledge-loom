@@ -24,20 +24,20 @@ fn test_init_happy_path() {
     knowledge_loom::init::run_init_with_binary(dir, &binary_src).unwrap();
 
     // Binary copied
-    assert!(dir.join(".loom/bin/loom").exists());
+    assert!(dir.join(".knowledge-loom/bin/loom").exists());
 
-    // .mcp.json written with loom key
+    // .mcp.json written with knowledge-loom key
     let mcp: serde_json::Value = serde_json::from_str(
         &fs::read_to_string(dir.join(".mcp.json")).unwrap()
     ).unwrap();
-    assert!(mcp["mcpServers"]["loom"]["command"].is_string());
-    let kb_root = mcp["mcpServers"]["loom"]["env"]["KB_ROOT"].as_str().unwrap();
+    assert!(mcp["mcpServers"]["knowledge-loom"]["command"].is_string());
+    let kb_root = mcp["mcpServers"]["knowledge-loom"]["env"]["KB_ROOT"].as_str().unwrap();
     assert_eq!(kb_root, dir.to_str().unwrap());
 
     // .gitignore updated
     let gi = fs::read_to_string(dir.join(".gitignore")).unwrap();
-    assert!(gi.contains(".loom/"));
-    assert!(gi.contains(".loom-index/"));
+    assert!(gi.contains(".knowledge-loom/"));
+    assert!(gi.contains(".knowledge-loom-index/"));
 }
 
 #[test]
@@ -62,8 +62,8 @@ fn test_init_preserves_existing_mcp_servers() {
     ).unwrap();
     // Original server preserved
     assert!(mcp["mcpServers"]["other-server"]["command"].is_string());
-    // Loom server added
-    assert!(mcp["mcpServers"]["loom"]["command"].is_string());
+    // Knowledge-loom server added
+    assert!(mcp["mcpServers"]["knowledge-loom"]["command"].is_string());
 }
 
 #[test]
@@ -80,12 +80,12 @@ fn test_init_idempotent() {
         &fs::read_to_string(dir.join(".mcp.json")).unwrap()
     ).unwrap();
     let servers = mcp["mcpServers"].as_object().unwrap();
-    // Exactly one "loom" key, no duplicates
-    assert_eq!(servers.keys().filter(|k| k.as_str() == "loom").count(), 1);
+    // Exactly one "knowledge-loom" key, no duplicates
+    assert_eq!(servers.keys().filter(|k| k.as_str() == "knowledge-loom").count(), 1);
 
     let gi = fs::read_to_string(dir.join(".gitignore")).unwrap();
-    assert_eq!(gi.matches(".loom/").count(), 1);
-    assert_eq!(gi.matches(".loom-index/").count(), 1);
+    assert_eq!(gi.matches(".knowledge-loom/").count(), 1);
+    assert_eq!(gi.matches(".knowledge-loom-index/").count(), 1);
 }
 
 #[test]
@@ -102,7 +102,7 @@ fn test_run_init_with_no_args_uses_current_dir() {
     knowledge_loom::init::run_init(std::iter::once("init".to_string())).unwrap();
 
     // Binary should be copied to temp directory
-    assert!(dir.join(".loom/bin/loom").exists());
+    assert!(dir.join(".knowledge-loom/bin/loom").exists());
 }
 
 #[test]
@@ -122,7 +122,7 @@ fn test_run_init_with_explicit_dir() {
     ).unwrap();
 
     // Binary should be copied to target directory
-    assert!(target_dir.join(".loom/bin/loom").exists());
+    assert!(target_dir.join(".knowledge-loom/bin/loom").exists());
 }
 
 #[test]

@@ -13,8 +13,8 @@ impl VaultState {
         let kb_root_path = PathBuf::from(kb_root);
         let mut ignored_patterns = HashSet::new();
         
-        // Load .loomignore if exists
-        let loomignore_path = kb_root_path.join(".loomignore");
+        // Load .knowledge-loom-ignore if exists
+        let loomignore_path = kb_root_path.join(".knowledge-loom-ignore");
         if loomignore_path.exists() {
             if let Ok(content) = fs::read_to_string(&loomignore_path).await {
                 for line in content.lines() {
