@@ -14,6 +14,7 @@ mod init;
 mod server;
 mod platforms;
 mod shell;
+mod daemon;
 
 #[tokio::main]
 async fn main() {
@@ -29,6 +30,53 @@ async fn main() {
                 eprintln!("knowledge-loom shell failed: {e}");
                 exit(1);
             }
+        }
+        Some("daemon")                             => {
+            let sub_arg = args().nth(2);
+            let sub = sub_arg.as_deref().unwrap_or("status");
+            match sub {
+                "start" => {
+                    let foreground = args().any(|a| a == "--foreground");
+                    if !foreground {
+                        daemon::daemonize().expect("daemonize failed");
+                    }
+                    daemon::run_daemon_foreground().await.expect("daemon failed");
+                }
+                "stop"   => daemon::daemon_stop().expect("stop failed"),
+                "status" => daemon::daemon_status(),
+                "logs"   => {
+                    let repo = args().position(|a| a == "--repo")
+                        .and_then(|i| std::env::args().nth(i + 1));
+                    let follow = args().any(|a| a == "-f" || a == "--follow");
+                    let n = args().position(|a| a == "-n" || a == "--lines")
+                        .and_then(|i| std::env::args().nth(i + 1))
+                        .and_then(|v| v.parse().ok())
+                        .unwrap_or(50usize);
+                    daemon::daemon_logs(repo.as_deref(), follow, n);
+                }
+                "add" => {
+                    let path = args().nth(3).expect("loom daemon add <path>");
+                    let alias = args().position(|a| a == "--alias")
+                        .and_then(|i| std::env::args().nth(i + 1));
+                    daemon::add_repo(&path, alias.as_deref(), &daemon::config_path())
+                        .expect("add_repo failed");
+                    eprintln!("Added {path}");
+                }
+                "remove" => {
+                    let target = args().nth(3).expect("loom daemon remove <path_or_alias>");
+                    daemon::remove_repo(&target, &daemon::config_path())
+                        .expect("remove_repo failed");
+                    eprintln!("Removed {target}");
+                }
+                other => eprintln!("unknown daemon subcommand: {other}"),
+            }
+        }
+        Some("reindex")                            => {
+            let server = server::LoomServer::new(
+                &std::env::var("KB_ROOT").expect("KB_ROOT required")
+            ).await;
+            server.maintenance.reindex_all().await.expect("reindex failed");
+            eprintln!("Reindex complete.");
         }
         Some("serve") | None                       => {
             match server::run_server().await {
@@ -65,6 +113,8 @@ fn print_usage() {
     eprintln!("  loom serve         Start MCP stdio server");
     eprintln!("  loom shell         Start MCP server and open interactive shell");
     eprintln!("  loom init [dir]    Initialize knowledge-loom in a directory (default: current dir)");
+    eprintln!("  loom daemon        Daemon management (start|stop|status|logs|add|remove)");
+    eprintln!("  loom reindex       Reindex knowledge base (used by daemon)");
     eprintln!("  loom help          Show this message");
     eprintln!();
     eprintln!("ENVIRONMENT:");
