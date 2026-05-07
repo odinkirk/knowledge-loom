@@ -23,7 +23,7 @@ pub struct EmbedProviderEnum {
 impl EmbedProviderEnum {
     pub async fn new(kb_root: &str) -> Self {
         let kb_root_path = PathBuf::from(kb_root);
-        let models_dir = kb_root_path.join(".loom-index/models");
+        let models_dir = kb_root_path.join(".knowledge-loom-index/models");
         
         let local_provider = LocalEmbedProvider::new(&models_dir).await;
         let ollama_url = std::env::var("OLLAMA_URL").ok();

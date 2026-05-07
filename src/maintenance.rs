@@ -83,14 +83,14 @@ impl MaintenanceManager {
         // TODO: Get actual document count from tantivy
         status["bm25"] = serde_json::json!({
             "documents": 0, // Placeholder
-            "index_path": self.kb_root.join(".loom-index/tantivy").to_string_lossy().to_string()
+            "index_path": self.kb_root.join(".knowledge-loom-index/tantivy").to_string_lossy().to_string()
         });
         
         // Vector index status
         // TODO: Get actual vector count from sqlite
         status["embeddings"] = serde_json::json!({
             "vectors": 0, // Placeholder
-            "index_path": self.kb_root.join(".loom-index/embeddings.db").to_string_lossy().to_string()
+            "index_path": self.kb_root.join(".knowledge-loom-index/embeddings.db").to_string_lossy().to_string()
         });
         
         // Graph status
@@ -100,7 +100,7 @@ impl MaintenanceManager {
         status["graph"] = serde_json::json!({
             "nodes": node_count,
             "edges": 0, // Placeholder
-            "index_path": self.kb_root.join(".loom-index/graph.bin").to_string_lossy().to_string()
+            "index_path": self.kb_root.join(".knowledge-loom-index/graph.bin").to_string_lossy().to_string()
         });
         
         // BrainJar status
@@ -116,5 +116,12 @@ impl MaintenanceManager {
         });
         
         Ok(status)
+    }
+
+    pub async fn reindex_file_brainjar(&self, _file_path: &std::path::Path) -> Result<(), String> {
+        // Brainjar is an external MCP server - we can call a reindex tool if available
+        // For now, this is a no-op since brainjar doesn't have a documented reindex API
+        // In the future, we might call something like brainjar.call_tool("reindex", json!({"path": file_path}))
+        Ok(())
     }
 }

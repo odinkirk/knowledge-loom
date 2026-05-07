@@ -13,7 +13,7 @@ pub struct VectorIndex {
 impl VectorIndex {
     pub async fn new(kb_root: &str) -> Self {
         let kb_root_path = PathBuf::from(kb_root);
-        let index_path = kb_root_path.join(".loom-index/embeddings.db");
+        let index_path = kb_root_path.join(".knowledge-loom-index/embeddings.db");
         
         // Create directory if it doesn't exist
         let _ = std::fs::create_dir_all(index_path.parent().unwrap());
@@ -55,37 +55,49 @@ impl VectorIndex {
         embedding: &[f32],
     ) -> SqliteResult<()> {
         let conn_lock = self.conn.lock().await;
-        
+
+        // Convert to relative path from kb_root
+        let relative_path = path.strip_prefix(&self.kb_root)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .to_string();
+
         // Convert embedding to blob
         let embedding_blob = bytemuck::cast_slice(embedding);
-        
+
         conn_lock.execute(
             "
             INSERT OR REPLACE INTO embeddings (path, heading, content, embedding)
             VALUES (?1, ?2, ?3, ?4)
             ",
             params![
-                path.to_string_lossy().as_ref(),
+                relative_path,
                 heading.map(|s| s.to_string()).unwrap_or_default(),
                 content,
                 embedding_blob,
             ],
         )?;
-        
+
         Ok(())
     }
     
     #[allow(dead_code)]
     pub async fn remove_embedding(&self, path: &Path, heading: Option<&str>) -> SqliteResult<()> {
         let conn_lock = self.conn.lock().await;
-        
+
+        // Convert to relative path from kb_root
+        let relative_path = path.strip_prefix(&self.kb_root)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .to_string();
+
         conn_lock.execute(
             "
-            DELETE FROM embeddings 
+            DELETE FROM embeddings
             WHERE path = ?1 AND (heading = ?2 OR (?2 IS NULL AND heading IS NULL))
             ",
             params![
-                path.to_string_lossy().as_ref(),
+                relative_path,
                 heading.map(|s| s.to_string()).unwrap_or_default(),
             ],
         )?;

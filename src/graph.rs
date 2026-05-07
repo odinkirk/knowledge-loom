@@ -23,7 +23,7 @@ pub struct GraphState {
 impl GraphState {
     pub async fn new(kb_root: &str) -> Self {
         let kb_root_path = PathBuf::from(kb_root);
-        let graph_path = kb_root_path.join(".loom-index/graph.bin");
+        let graph_path = kb_root_path.join(".knowledge-loom-index/graph.bin");
         
         // Try to load existing graph
         let graph = if graph_path.exists() {
@@ -140,7 +140,7 @@ impl GraphState {
     }
     
     async fn save_graph(&self, graph: &DiGraph<String, String>) -> Result<(), std::io::Error> {
-        let graph_path = self.kb_root.join(".loom-index/graph.bin");
+        let graph_path = self.kb_root.join(".knowledge-loom-index/graph.bin");
         let _ = std::fs::create_dir_all(graph_path.parent().unwrap());
         
         // Convert graph to serializable format

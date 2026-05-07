@@ -5,6 +5,7 @@ use tantivy::{
     schema::{SchemaBuilder, TEXT, STRING, STORED, Document},
     collector::TopDocs,
     query::TermQuery,
+    query::Occur,
     schema::IndexRecordOption,
     Index, IndexWriter, Term, TantivyError,
 };
@@ -133,7 +134,7 @@ pub struct BM25Index {
 impl BM25Index {
     pub async fn new(kb_root: &str) -> Self {
         let kb_root_path = PathBuf::from(kb_root);
-        let index_path = kb_root_path.join(".loom-index/tantivy");
+        let index_path = kb_root_path.join(".knowledge-loom-index/tantivy");
         
         // Create directory if it doesn't exist
         let _ = std::fs::create_dir_all(&index_path);
@@ -186,12 +187,15 @@ impl BM25Index {
     }
     
     pub async fn index_file(&mut self, path: &Path, content: &str) -> Result<(), TantivyError> {
-        let path_str = path.to_string_lossy().to_string();
+        let path_str = path.strip_prefix(&self.kb_root)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .to_string();
         let path_field = self.schema.get_field("path").unwrap();
         let path_term = Term::from_field_text(path_field, &path_str);
 
         let chunks = parse_chunks(content);
-        let writer_lock = self.writer.lock().await;
+        let mut writer_lock = self.writer.lock().await;
         writer_lock.delete_term(path_term);
         for chunk in chunks {
             let mut doc = Document::new();
@@ -203,16 +207,21 @@ impl BM25Index {
             doc.add_u64(self.schema.get_field("line_end").unwrap(), chunk.line_end as u64);
             writer_lock.add_document(doc)?;
         }
+        writer_lock.commit()?;
         Ok(())
     }
 
     #[allow(dead_code)]
     pub async fn add_document(&mut self, path: &Path, title: &str, content: &str) -> Result<(), TantivyError> {
+        let path_str = path.strip_prefix(&self.kb_root)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .to_string();
+
         let mut doc = Document::new();
         doc.add_text(self.schema.get_field("heading").unwrap(), title);
         doc.add_text(self.schema.get_field("content").unwrap(), content);
-        doc.add_text(self.schema.get_field("path").unwrap(),
-                    path.to_string_lossy().as_ref());
+        doc.add_text(self.schema.get_field("path").unwrap(), &path_str);
 
         let writer_lock = self.writer.lock().await;
         writer_lock.add_document(doc)?;
@@ -221,10 +230,21 @@ impl BM25Index {
     }
 
     pub async fn get_chunks_for_path(&self, path: &str) -> Result<Vec<ChunkDoc>, TantivyError> {
+        // Normalize path to relative path from kb_root
+        let path_obj = Path::new(path);
+        let relative_path = if path_obj.is_absolute() {
+            path_obj.strip_prefix(&self.kb_root)
+                .unwrap_or(path_obj)
+                .to_string_lossy()
+                .to_string()
+        } else {
+            path.to_string()
+        };
+
         let reader = self.index.reader()?;
         let searcher = reader.searcher();
         let path_field = self.schema.get_field("path").unwrap();
-        let path_term = Term::from_field_text(path_field, path);
+        let path_term = Term::from_field_text(path_field, &relative_path);
         let term_query = TermQuery::new(path_term, IndexRecordOption::Basic);
         let top_docs = searcher.search(&term_query, &TopDocs::with_limit(1000))?;
 
@@ -247,9 +267,13 @@ impl BM25Index {
 
     #[allow(dead_code)]
     pub async fn remove_document(&mut self, path: &Path) -> Result<(), TantivyError> {
+        let path_str = path.strip_prefix(&self.kb_root)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .to_string();
         let path_term = Term::from_field_text(
             self.schema.get_field("path").unwrap(),
-            path.to_string_lossy().as_ref(),
+            &path_str,
         );
 
         let mut writer_lock = self.writer.lock().await;
@@ -262,10 +286,11 @@ impl BM25Index {
     pub async fn search(&self, query: &str, limit: usize) -> Result<Vec<(f32, tantivy::DocAddress)>, TantivyError> {
         let reader = self.index.reader()?;
         let searcher = reader.searcher();
-        let query_parser = tantivy::query::QueryParser::for_index(&self.index, vec![
+        let mut query_parser = tantivy::query::QueryParser::for_index(&self.index, vec![
             self.schema.get_field("heading").unwrap(),
-            self.schema.get_field("content").unwrap()
+            self.schema.get_field("content").unwrap(),
         ]);
+        query_parser.set_conjunction_by_default();
 
         let query = query_parser.parse_query(query)?;
         let top_docs = searcher.search(&query, &TopDocs::with_limit(limit))?;
@@ -299,7 +324,62 @@ impl BM25Index {
         }
         Ok(results)
     }
-    
+
+    pub async fn search_file(&self, file_path: &str, query: &str, limit: usize) -> Result<Vec<(f32, ChunkDoc)>, TantivyError> {
+        let reader = self.index.reader()?;
+        let searcher = reader.searcher();
+
+        // Normalize file_path to relative path from kb_root
+        let path_obj = Path::new(file_path);
+        let relative_path = if path_obj.is_absolute() {
+            path_obj.strip_prefix(&self.kb_root)
+                .unwrap_or(path_obj)
+                .to_string_lossy()
+                .to_string()
+        } else {
+            file_path.to_string()
+        };
+
+        // Create a boolean query that combines text search with path filter
+        let path_field = self.schema.get_field("path").unwrap();
+        let path_term = Term::from_field_text(path_field, &relative_path);
+        let path_query = Box::new(TermQuery::new(path_term, IndexRecordOption::Basic));
+
+        let query_parser = tantivy::query::QueryParser::for_index(&self.index, vec![
+            self.schema.get_field("heading").unwrap(),
+            self.schema.get_field("content").unwrap(),
+        ]);
+
+        let text_query = query_parser.parse_query(query)?;
+
+        // Combine: text_query AND path_query
+        let boolean_query = tantivy::query::BooleanQuery::new(vec![
+            (Occur::Must, text_query),
+            (Occur::Must, path_query),
+        ]);
+
+        let top_docs = searcher.search(&boolean_query, &TopDocs::with_limit(limit))?;
+
+        let mut results = Vec::new();
+        for (score, doc_address) in top_docs {
+            let doc = searcher.doc(doc_address)?;
+            let heading_raw = get_text(&doc, &self.schema, "heading");
+            let heading = if heading_raw.is_empty() { None } else { Some(heading_raw) };
+            let content = get_text(&doc, &self.schema, "content");
+            // Only include results where content contains the query as a substring
+            if content.to_lowercase().contains(&query.to_lowercase()) {
+                results.push((score, ChunkDoc {
+                    path: get_text(&doc, &self.schema, "path"),
+                    heading,
+                    content,
+                    line_start: get_u64(&doc, &self.schema, "line_start") as usize,
+                    line_end: get_u64(&doc, &self.schema, "line_end") as usize,
+                }));
+            }
+        }
+        Ok(results)
+    }
+
     pub async fn index_vault(&mut self, vault_state: &VaultState) -> Result<(), TantivyError> {
         let files = vault_state.scan_files().await;
         let mut indexed_count = 0;
