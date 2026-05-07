@@ -2,7 +2,7 @@
 mod tests {
     
     use tempfile::TempDir;
-    use loom::embed::EmbedProviderEnum;
+    use knowledge_loom::embed::EmbedProviderEnum;
 
     #[tokio::test]
     async fn test_embed_provider_enum_new() {
@@ -83,7 +83,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ollama_provider_new() {
-        use loom::embed::ollama::OllamaEmbedProvider;
+        use knowledge_loom::embed::ollama::OllamaEmbedProvider;
         
         let url = "http://localhost:11434".to_string();
         let provider = OllamaEmbedProvider::new(url.clone()).await;
@@ -96,7 +96,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ollama_provider_embed() {
-        use loom::embed::ollama::OllamaEmbedProvider;
+        use knowledge_loom::embed::ollama::OllamaEmbedProvider;
         
         let url = "http://localhost:11434".to_string();
         let provider = OllamaEmbedProvider::new(url).await;
@@ -115,7 +115,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ollama_provider_different_texts() {
-        use loom::embed::ollama::OllamaEmbedProvider;
+        use knowledge_loom::embed::ollama::OllamaEmbedProvider;
         
         let url = "http://localhost:11434".to_string();
         let provider = OllamaEmbedProvider::new(url).await;
@@ -132,7 +132,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ollama_provider_same_text() {
-        use loom::embed::ollama::OllamaEmbedProvider;
+        use knowledge_loom::embed::ollama::OllamaEmbedProvider;
         
         let url = "http://localhost:11434".to_string();
         let provider = OllamaEmbedProvider::new(url).await;
@@ -147,7 +147,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ollama_provider_dimension() {
-        use loom::embed::ollama::OllamaEmbedProvider;
+        use knowledge_loom::embed::ollama::OllamaEmbedProvider;
         
         let url = "http://localhost:11434".to_string();
         let provider = OllamaEmbedProvider::new(url).await;
@@ -157,7 +157,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ollama_provider_empty_text() {
-        use loom::embed::ollama::OllamaEmbedProvider;
+        use knowledge_loom::embed::ollama::OllamaEmbedProvider;
         
         let url = "http://localhost:11434".to_string();
         let provider = OllamaEmbedProvider::new(url).await;
@@ -175,7 +175,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ollama_provider_long_text() {
-        use loom::embed::ollama::OllamaEmbedProvider;
+        use knowledge_loom::embed::ollama::OllamaEmbedProvider;
         
         let url = "http://localhost:11434".to_string();
         let provider = OllamaEmbedProvider::new(url).await;

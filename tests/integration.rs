@@ -1,8 +1,8 @@
 use std::fs;
 use std::path::Path;
 use tempfile::TempDir;
-use loom::vault::VaultState;
-use loom::search::SearchEngine;
+use knowledge_loom::vault::VaultState;
+use knowledge_loom::search::SearchEngine;
 
 #[tokio::test]
 async fn integration_full_workflow() {
@@ -85,7 +85,7 @@ async fn integration_incremental_indexing() {
 
     // Get initial result count
     let initial_results = search_engine.search("test", 10).await;
-    let initial_count = initial_results.len();
+    let _initial_count = initial_results.len();
 
     // Drop the search engine to release locks
     drop(search_engine);
@@ -136,7 +136,7 @@ async fn integration_file_deletion() {
     
     // Get initial results
     let initial_results = search_engine.search("machine learning", 10).await;
-    let initial_count = initial_results.len();
+    let _initial_count = initial_results.len();
     
     // Drop the search engine to release locks
     drop(search_engine);
@@ -158,7 +158,7 @@ async fn integration_file_deletion() {
     }
     
     // Verify file is removed from index
-    let new_results = search_engine.search("machine learning", 10).await;
+    let _new_results = search_engine.search("machine learning", 10).await;
     // Results should be different (file removed)
     // Note: This test depends on the specific content and may need adjustment
 }

@@ -2,15 +2,15 @@
 mod tests {
     use std::fs;
     use tempfile::TempDir;
-    use loom::search::SearchEngine;
-    use loom::vault::VaultState;
+    use knowledge_loom::search::SearchEngine;
+    use knowledge_loom::vault::VaultState;
     use std::sync::Arc;
     use tokio::sync::Mutex;
-    use loom::bm25::BM25Index;
-    use loom::index::VectorIndex;
-    use loom::embed::EmbedProviderEnum;
-    use loom::graph::GraphState;
-    use loom::brainjar::BrainJarWrapper;
+    use knowledge_loom::bm25::BM25Index;
+    use knowledge_loom::index::VectorIndex;
+    use knowledge_loom::embed::EmbedProviderEnum;
+    use knowledge_loom::graph::GraphState;
+    use knowledge_loom::brainjar::BrainJarWrapper;
 
     #[tokio::test]
     async fn test_search_engine_create() {

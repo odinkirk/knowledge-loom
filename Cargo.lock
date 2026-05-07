@@ -1021,6 +1021,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "knowledge-loom"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "bytemuck",
+ "ignore",
+ "petgraph",
+ "pulldown-cmark",
+ "regex",
+ "reqwest",
+ "rmcp",
+ "rusqlite",
+ "schemars 0.8.22",
+ "serde",
+ "serde_json",
+ "sqlite-vec",
+ "tantivy",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+ "walkdir",
+]
+
+[[package]]
 name = "leb128fmt"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1066,32 +1092,6 @@ name = "log"
 version = "0.4.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
-
-[[package]]
-name = "loom"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bincode",
- "bytemuck",
- "ignore",
- "petgraph",
- "pulldown-cmark",
- "regex",
- "reqwest",
- "rmcp",
- "rusqlite",
- "schemars 0.8.22",
- "serde",
- "serde_json",
- "sqlite-vec",
- "tantivy",
- "tempfile",
- "thiserror 1.0.69",
- "tokio",
- "tracing",
- "walkdir",
-]
 
 [[package]]
 name = "lru"
@@ -1548,9 +1548,9 @@ dependencies = [
 
 [[package]]
 name = "rmcp"
-version = "1.6.0"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e12ca9067b5ebfbd5b3fcdc4acfceb81aa7d5ab2a879dff7cb75d22434276aad"
+checksum = "ba6b9d2f0efe2258b23767f1f9e0054cfbcac9c2d6f81a031214143096d7864f"
 dependencies = [
  "async-trait",
  "base64 0.22.1",

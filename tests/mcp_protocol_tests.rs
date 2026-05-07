@@ -107,8 +107,8 @@ async fn test_mcp_protocol_initialization() {
                             .filter_map(|t| t.get("name").and_then(|n| n.as_str()))
                             .collect();
 
-                        assert!(tool_names.contains(&"loom_search"), "Should have loom_search tool");
-                        assert!(tool_names.contains(&"loom_list_files"), "Should have loom_list_files tool");
+                        assert!(tool_names.contains(&"search"), "Should have search tool");
+                        assert!(tool_names.contains(&"list_files"), "Should have list_files tool");
                     } else {
                         panic!("No tools array in response");
                     }
@@ -173,13 +173,13 @@ async fn test_mcp_tool_call() {
     })).unwrap();
     stdin.flush().expect("Failed to flush stdin");
 
-    // Call loom_list_files
+    // Call list_files
     writeln!(stdin, "{}", json!({
         "jsonrpc": "2.0",
         "id": 2,
         "method": "tools/call",
         "params": {
-            "name": "loom_list_files",
+            "name": "list_files",
             "arguments": {}
         }
     })).unwrap();

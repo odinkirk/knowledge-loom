@@ -1,3 +1,10 @@
+pub const INDEX_DIR: &str = ".knowledge-loom-index";
+pub const BIN_DIR: &str = ".knowledge-loom/bin";
+pub const IGNORE_FILE: &str = ".knowledge-loom-ignore";
+pub const MCP_CONFIG_KEY: &str = "knowledge-loom";
+pub const GITIGNORE_ENTRY_BIN: &str = ".knowledge-loom/";
+pub const GITIGNORE_ENTRY_INDEX: &str = ".knowledge-loom-index/";
+
 pub mod vault;
 pub mod bm25;
 pub mod embed;

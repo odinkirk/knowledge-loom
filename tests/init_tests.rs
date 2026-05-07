@@ -21,7 +21,7 @@ fn test_init_happy_path() {
     let binary_src = dir.join("fake_loom");
     fake_binary(&binary_src);
 
-    loom::init::run_init_with_binary(dir, &binary_src).unwrap();
+    knowledge_loom::init::run_init_with_binary(dir, &binary_src).unwrap();
 
     // Binary copied
     assert!(dir.join(".loom/bin/loom").exists());
@@ -55,7 +55,7 @@ fn test_init_preserves_existing_mcp_servers() {
     });
     fs::write(dir.join(".mcp.json"), serde_json::to_string_pretty(&existing).unwrap()).unwrap();
 
-    loom::init::run_init_with_binary(dir, &binary_src).unwrap();
+    knowledge_loom::init::run_init_with_binary(dir, &binary_src).unwrap();
 
     let mcp: serde_json::Value = serde_json::from_str(
         &fs::read_to_string(dir.join(".mcp.json")).unwrap()
@@ -73,8 +73,8 @@ fn test_init_idempotent() {
     let binary_src = dir.join("fake_loom");
     fake_binary(&binary_src);
 
-    loom::init::run_init_with_binary(dir, &binary_src).unwrap();
-    loom::init::run_init_with_binary(dir, &binary_src).unwrap();
+    knowledge_loom::init::run_init_with_binary(dir, &binary_src).unwrap();
+    knowledge_loom::init::run_init_with_binary(dir, &binary_src).unwrap();
 
     let mcp: serde_json::Value = serde_json::from_str(
         &fs::read_to_string(dir.join(".mcp.json")).unwrap()
@@ -99,7 +99,7 @@ fn test_run_init_with_no_args_uses_current_dir() {
     let _ = env::set_current_dir(&dir);
     
     // Call run_init with just "init" arg (simulating command line)
-    loom::init::run_init(std::iter::once("init".to_string())).unwrap();
+    knowledge_loom::init::run_init(std::iter::once("init".to_string())).unwrap();
 
     // Binary should be copied to temp directory
     assert!(dir.join(".loom/bin/loom").exists());
@@ -116,7 +116,7 @@ fn test_run_init_with_explicit_dir() {
     fake_binary(&binary_src);
 
     // Call run_init with "init" and target directory
-    loom::init::run_init(
+    knowledge_loom::init::run_init(
         std::iter::once("init".to_string())
             .chain(std::iter::once(target_dir.to_string_lossy().to_string()))
     ).unwrap();
@@ -127,7 +127,7 @@ fn test_run_init_with_explicit_dir() {
 
 #[test]
 fn test_run_init_handles_invalid_directory() {
-    let result = loom::init::run_init(
+    let result = knowledge_loom::init::run_init(
         std::iter::once("init".to_string())
             .chain(std::iter::once("/nonexistent/path".to_string()))
     );

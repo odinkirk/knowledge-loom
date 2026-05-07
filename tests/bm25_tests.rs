@@ -3,7 +3,7 @@ mod tests {
     
     use tempfile::TempDir;
     
-    use loom::bm25::{BM25Index, extract_title, parse_chunks, Chunk, ChunkDoc};
+    use knowledge_loom::bm25::{BM25Index, extract_title, parse_chunks};
 
     #[tokio::test]
     async fn test_bm25_create_index() {

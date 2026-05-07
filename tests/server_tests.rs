@@ -1,4 +1,4 @@
-use loom::server::LoomServer;
+use knowledge_loom::server::LoomServer;
 use tempfile::TempDir;
 use rmcp::handler::server::ServerHandler;
 

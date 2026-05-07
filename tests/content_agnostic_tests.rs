@@ -2,8 +2,8 @@
 mod tests {
     use tempfile::TempDir;
     use std::fs;
-    use loom::search::SearchEngine;
-    use loom::vault::VaultState;
+    use knowledge_loom::search::SearchEngine;
+    use knowledge_loom::vault::VaultState;
 
     #[tokio::test]
     async fn test_search_basic_functionality() {

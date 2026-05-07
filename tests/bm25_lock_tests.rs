@@ -1,6 +1,6 @@
 use std::fs;
 use tempfile::TempDir;
-use loom::bm25::BM25Index;
+use knowledge_loom::bm25::BM25Index;
 
 #[tokio::test]
 async fn test_bm25_stale_lock_recovery() {

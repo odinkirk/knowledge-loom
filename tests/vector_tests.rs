@@ -3,14 +3,14 @@ mod tests {
     
     use tempfile::TempDir;
     
-    use loom::index::VectorIndex;
+    use knowledge_loom::index::VectorIndex;
 
     #[tokio::test]
     async fn test_vector_index_create() {
         let temp_dir = TempDir::new().unwrap();
         let kb_root = temp_dir.path();
         
-        let index = VectorIndex::new(kb_root.to_str().unwrap()).await;
+        let _index = VectorIndex::new(kb_root.to_str().unwrap()).await;
         
         // Verify database was created
         assert!(kb_root.join(".loom-index/embeddings.db").exists());

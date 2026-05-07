@@ -4,7 +4,7 @@ mod tests {
     use tempfile::TempDir;
     use std::fs;
     
-    use loom::vault::VaultState;
+    use knowledge_loom::vault::VaultState;
 
     #[tokio::test]
     async fn test_vault_scan_files() {
