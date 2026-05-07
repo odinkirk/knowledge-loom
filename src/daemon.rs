@@ -95,12 +95,14 @@ fn read_pid() -> Option<u32> {
     fs::read_to_string(pid_path()).ok()?.trim().parse().ok()
 }
 
+#[allow(dead_code)]
 fn write_pid(pid: u32) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all(config_dir())?;
     fs::write(pid_path(), pid.to_string())?;
     Ok(())
 }
 
+#[allow(dead_code)]
 fn read_state() -> std::collections::HashMap<String, RepoStateEntry> {
     fs::read_to_string(state_path())
         .ok()
@@ -108,6 +110,7 @@ fn read_state() -> std::collections::HashMap<String, RepoStateEntry> {
         .unwrap_or_default()
 }
 
+#[allow(dead_code)]
 fn write_state(state: &std::collections::HashMap<String, RepoStateEntry>) {
     if let Ok(json) = serde_json::to_string_pretty(state) {
         let _ = fs::write(state_path(), json);

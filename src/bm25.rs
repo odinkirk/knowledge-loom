@@ -165,8 +165,39 @@ impl BM25Index {
         // (e.g. stale index from a previous version with different field options)
         let index = match Index::open_in_dir(&index_path) {
             Ok(idx) if idx.schema() == schema => idx,
-            Ok(_) | Err(_) => {
-                // Schema mismatch or missing — wipe and recreate
+            Ok(_) | Err(TantivyError::LockFailure(_, _)) => {
+                // Attempt a second open before touching the lock file.
+                // If the second attempt succeeds, the lock is already released — no deletion needed.
+                // If it also fails, the lock file is stale (no live writer) — safe to remove.
+                match Index::open_in_dir(&index_path) {
+                    Ok(idx) if idx.schema() == schema => idx,
+                    Ok(_) => {
+                        // Schema mismatch — wipe and recreate
+                        let _ = std::fs::remove_dir_all(&index_path);
+                        let _ = std::fs::create_dir_all(&index_path);
+                        Index::create_in_dir(&index_path, schema.clone()).unwrap_or_else(|e| {
+                            panic!("Failed to create tantivy index: {}", e)
+                        })
+                    }
+                    Err(TantivyError::LockFailure(_, _)) => {
+                        // Lock is stale — remove and retry
+                        let lock_file = index_path.join(".tantivy-writer.lock");
+                        let _ = std::fs::remove_file(&lock_file);
+                        Index::open_in_dir(&index_path)
+                            .unwrap_or_else(|e| panic!("Failed to recover tantivy index after stale lock removal: {e}"))
+                    }
+                    Err(_) => {
+                        // Other error — wipe and recreate
+                        let _ = std::fs::remove_dir_all(&index_path);
+                        let _ = std::fs::create_dir_all(&index_path);
+                        Index::create_in_dir(&index_path, schema.clone()).unwrap_or_else(|e| {
+                            panic!("Failed to create tantivy index: {}", e)
+                        })
+                    }
+                }
+            }
+            Err(_) => {
+                // Other error — wipe and recreate
                 let _ = std::fs::remove_dir_all(&index_path);
                 let _ = std::fs::create_dir_all(&index_path);
                 Index::create_in_dir(&index_path, schema.clone()).unwrap_or_else(|e| {
@@ -338,6 +369,7 @@ impl BM25Index {
         Ok(results)
     }
 
+    #[allow(dead_code)]
     pub async fn search_file(&self, file_path: &str, query: &str, limit: usize) -> Result<Vec<(f32, ChunkDoc)>, TantivyError> {
         let reader = self.index.reader()?;
         let searcher = reader.searcher();
@@ -413,6 +445,7 @@ impl BM25Index {
     }
 }
 
+#[allow(dead_code)]
 pub fn extract_title(content: &str) -> Option<String> {
     // Look for first markdown heading
     for line in content.lines() {

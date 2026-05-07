@@ -77,7 +77,8 @@ impl VaultState {
         }
         fs::write(path, content).await
     }
-    
+
+    #[allow(dead_code)]
     pub async fn get_file_mod_time(&self, path: &Path) -> Option<std::time::SystemTime> {
         fs::metadata(path).await.ok().and_then(|m| m.modified().ok())
     }

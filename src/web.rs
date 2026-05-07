@@ -80,6 +80,7 @@ pub struct SearchRequest {
 }
 fn default_limit() -> usize { 20 }
 
+#[allow(dead_code)]
 #[derive(Serialize)]
 pub struct SearchResponse {
     pub results: Vec<serde_json::Value>,

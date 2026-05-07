@@ -21,7 +21,7 @@ async fn test_bm25_stale_lock_recovery() {
     }
 
     // Simulate stale lock by creating a lock file
-    let lock_path = temp_dir.path().join(".loom-index").join("tantivy").join(".tantivy-writer.lock");
+    let lock_path = temp_dir.path().join(".knowledge-loom-index").join("tantivy").join(".tantivy-writer.lock");
     fs::write(&lock_path, "stale lock").unwrap();
 
     // Create a new index instance - should recover from stale lock
@@ -40,4 +40,25 @@ async fn test_bm25_stale_lock_recovery() {
     // Verify we can search
     let results = index2.search("Test", 10).await.unwrap();
     assert!(!results.is_empty(), "Should find results after lock recovery");
+}
+
+#[tokio::test]
+async fn test_bm25_new_does_not_delete_live_lock() {
+    // If a valid index exists with a released writer, opening a second
+    // BM25Index should succeed without touching any lock file.
+    let tmp = tempfile::tempdir().unwrap();
+    std::fs::write(tmp.path().join("a.md"), "# A\ncontent").unwrap();
+
+    // First index — creates and releases the writer
+    let mut idx = BM25Index::new(tmp.path().to_str().unwrap()).await;
+    idx.index_file(tmp.path().join("a.md").as_path(), "# A\ncontent")
+        .await
+        .expect("first index");
+    drop(idx); // writer lock released
+
+    // Second index — should open cleanly without lock deletion
+    let idx2 = BM25Index::new(tmp.path().to_str().unwrap()).await;
+    // Verify it can search (proves the index is intact)
+    let results = idx2.search("content", 5).await.expect("search failed");
+    assert!(!results.is_empty(), "index was corrupted by lock handling");
 }

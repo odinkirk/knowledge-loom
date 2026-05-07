@@ -118,6 +118,7 @@ impl MaintenanceManager {
         Ok(status)
     }
 
+    #[allow(dead_code)]
     pub async fn reindex_file_brainjar(&self, _file_path: &std::path::Path) -> Result<(), String> {
         // Brainjar is an external MCP server - we can call a reindex tool if available
         // For now, this is a no-op since brainjar doesn't have a documented reindex API

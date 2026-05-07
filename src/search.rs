@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use crate::bm25::{BM25Index, ChunkDoc};
+use crate::bm25::BM25Index;
 use crate::index::VectorIndex;
 use crate::embed::EmbedProviderEnum;
 use crate::graph::GraphState;
