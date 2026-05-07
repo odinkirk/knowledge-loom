@@ -1,16 +1,23 @@
 #[cfg(test)]
 mod tests {
-    use tempfile::TempDir;
     use std::fs;
+    use tempfile::TempDir;
     use loom::search::SearchEngine;
     use loom::vault::VaultState;
+    use std::sync::Arc;
+    use tokio::sync::Mutex;
+    use loom::bm25::BM25Index;
+    use loom::index::VectorIndex;
+    use loom::embed::EmbedProviderEnum;
+    use loom::graph::GraphState;
+    use loom::brainjar::BrainJarWrapper;
 
     #[tokio::test]
     async fn test_search_engine_create() {
         let temp_dir = TempDir::new().unwrap();
         let kb_root = temp_dir.path();
         
-        let engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
+        let _engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
         
         // Verify components were created
         assert!(kb_root.join(".loom-index/tantivy").exists());
@@ -158,6 +165,133 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_search_file_basic_functionality() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        // Create a test file with distinct content
+        let test_content = "# Introduction\n\nThis is about machine learning and AI.\n\n## Deep Learning\n\nDeep learning is a subset of ML.";
+        fs::write(kb_root.join("test.md"), test_content).unwrap();
+
+        // Create another file to ensure we're searching within the correct file
+        let other_content = "# Other Topic\n\nThis is about cooking and recipes.";
+        fs::write(kb_root.join("other.md"), other_content).unwrap();
+
+        let engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
+
+        let vault = VaultState::new(kb_root.to_str().unwrap()).await;
+        {
+            let mut bm25 = engine.bm25.lock().await;
+            bm25.index_vault(&vault).await.unwrap();
+        }
+        {
+            let vector = engine.vector.lock().await;
+            let embed = engine.embed.lock().await;
+            vector.index_vault(&vault, &embed).await.unwrap();
+        }
+
+        // Search within the test file for "machine learning"
+        let results = engine.bm25.lock().await.search_file(
+            "test.md", 
+            "machine learning", 
+            5
+        ).await.unwrap();
+
+        assert!(!results.is_empty());
+        // All results should be from test.md
+        for (score, chunk) in results {
+            assert_eq!(chunk.path, "test.md");
+            assert!(chunk.content.contains("machine learning"));
+            assert!(score > 0.0);
+        }
+
+        // Search within the test file for "cooking" should return empty
+        let results = engine.bm25.lock().await.search_file(
+            "test.md", 
+            "cooking", 
+            5
+        ).await.unwrap();
+
+        assert!(results.is_empty(), "Should not find cooking in test.md");
+
+        // Search within other.md for "cooking" should return results
+        let results = engine.bm25.lock().await.search_file(
+            "other.md", 
+            "cooking", 
+            5
+        ).await.unwrap();
+
+        assert!(!results.is_empty());
+        for (score, chunk) in results {
+            assert_eq!(chunk.path, "other.md");
+            assert!(chunk.content.contains("cooking"));
+            assert!(score > 0.0);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_search_file_limit() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        // Create a test file with multiple mentions of the same term
+        let test_content = "# Test\n\nThis is a test about testing.\n\nMore testing content here.\n\nEven more testing information.";
+        fs::write(kb_root.join("test.md"), test_content).unwrap();
+
+        let engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
+
+        let vault = VaultState::new(kb_root.to_str().unwrap()).await;
+        {
+            let mut bm25 = engine.bm25.lock().await;
+            bm25.index_vault(&vault).await.unwrap();
+        }
+        {
+            let vector = engine.vector.lock().await;
+            let embed = engine.embed.lock().await;
+            vector.index_vault(&vault, &embed).await.unwrap();
+        }
+
+        // Search with limit 2
+        let results = engine.bm25.lock().await.search_file(
+            "test.md", 
+            "testing", 
+            2
+        ).await.unwrap();
+
+        // Should respect limit
+        assert!(results.len() <= 2);
+    }
+
+    #[tokio::test]
+    async fn test_search_file_nonexistent_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        let engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
+
+        let vault = VaultState::new(kb_root.to_str().unwrap()).await;
+        {
+            let mut bm25 = engine.bm25.lock().await;
+            bm25.index_vault(&vault).await.unwrap();
+        }
+        {
+            let vector = engine.vector.lock().await;
+            let embed = engine.embed.lock().await;
+            vector.index_vault(&vault, &embed).await.unwrap();
+        }
+
+        // Search in a file that doesn't exist
+        let results = engine.bm25.lock().await.search_file(
+            "nonexistent.md", 
+            "test", 
+            5
+        ).await.unwrap();
+
+        // Should return empty results for nonexistent file
+        assert!(results.is_empty());
+    }
+
+    #[tokio::test]
     async fn test_search_returns_sections() {
         let temp_dir = TempDir::new().unwrap();
         let kb_root = temp_dir.path();
@@ -208,5 +342,43 @@ mod tests {
         let chunks = bm25.get_chunks_for_path(&path).await.unwrap();
         assert_eq!(chunks.len(), 2);
         assert!(chunks[0].line_start < chunks[1].line_start);
+    }
+
+    #[tokio::test]
+    async fn test_search_engine_from_components() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+        
+        // Create mock components
+        let bm25 = Arc::new(Mutex::new(BM25Index::new(kb_root.to_str().unwrap()).await));
+        let vector = Arc::new(Mutex::new(VectorIndex::new(kb_root.to_str().unwrap()).await));
+        let embed = Arc::new(Mutex::new(EmbedProviderEnum::new(kb_root.to_str().unwrap()).await));
+        let graph = Arc::new(Mutex::new(GraphState::new(kb_root.to_str().unwrap()).await));
+        let brainjar = Arc::new(Mutex::new(BrainJarWrapper::new(None)));
+        
+        // Create engine from components
+        let engine = SearchEngine::from_components(bm25.clone(), vector.clone(), embed.clone(), graph.clone(), brainjar.clone());
+        
+        // Verify all components are present
+        assert!(Arc::ptr_eq(&engine.bm25, &bm25));
+        assert!(Arc::ptr_eq(&engine.vector, &vector));
+        assert!(Arc::ptr_eq(&engine.embed, &embed));
+        assert!(Arc::ptr_eq(&engine.graph, &graph));
+        assert!(Arc::ptr_eq(&engine.brainjar, &brainjar));
+    }
+
+    #[tokio::test]
+    async fn test_search_engine_search_with_empty_query_returns_empty() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+        let engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
+        
+        // Search with empty string
+        let results = engine.search("", 5).await;
+        assert!(results.is_empty());
+        
+        // Search with only whitespace
+        let results = engine.search("   ", 5).await;
+        assert!(results.is_empty());
     }
 }

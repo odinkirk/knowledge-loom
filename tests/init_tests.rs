@@ -1,3 +1,4 @@
+use std::env;
 use std::fs;
 use tempfile::TempDir;
 
@@ -85,4 +86,52 @@ fn test_init_idempotent() {
     let gi = fs::read_to_string(dir.join(".gitignore")).unwrap();
     assert_eq!(gi.matches(".loom/").count(), 1);
     assert_eq!(gi.matches(".loom-index/").count(), 1);
+}
+
+#[test]
+fn test_run_init_with_no_args_uses_current_dir() {
+    let tmp = TempDir::new().unwrap();
+    let dir = tmp.path();
+    let binary_src = dir.join("fake_loom");
+    fake_binary(&binary_src);
+
+    // Change to temp directory
+    let _ = env::set_current_dir(&dir);
+    
+    // Call run_init with just "init" arg (simulating command line)
+    loom::init::run_init(std::iter::once("init".to_string())).unwrap();
+
+    // Binary should be copied to temp directory
+    assert!(dir.join(".loom/bin/loom").exists());
+}
+
+#[test]
+fn test_run_init_with_explicit_dir() {
+    let tmp = TempDir::new().unwrap();
+    let dir = tmp.path();
+    let target_dir = dir.join("target");
+    // Create the target directory
+    fs::create_dir_all(&target_dir).unwrap();
+    let binary_src = dir.join("fake_loom");
+    fake_binary(&binary_src);
+
+    // Call run_init with "init" and target directory
+    loom::init::run_init(
+        std::iter::once("init".to_string())
+            .chain(std::iter::once(target_dir.to_string_lossy().to_string()))
+    ).unwrap();
+
+    // Binary should be copied to target directory
+    assert!(target_dir.join(".loom/bin/loom").exists());
+}
+
+#[test]
+fn test_run_init_handles_invalid_directory() {
+    let result = loom::init::run_init(
+        std::iter::once("init".to_string())
+            .chain(std::iter::once("/nonexistent/path".to_string()))
+    );
+    
+    // Should return an error
+    assert!(result.is_err());
 }
