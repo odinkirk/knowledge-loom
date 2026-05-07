@@ -75,6 +75,24 @@ pub fn run_init_with_binary(dir: &Path, binary_src: &Path) -> Result<(), Box<dyn
         fs::set_permissions(&dest, perms)?;
     }
 
+    // 1.5. Emit loom-shell.sh
+    let script_path = dir.join("loom-shell.sh");
+    let kb_root_placeholder = dir.to_string_lossy();
+    let script_content = crate::shell::make_shell_script(
+        &dest.to_string_lossy(),
+        &kb_root_placeholder,
+    );
+    let tmp_script = script_path.with_extension("tmp");
+    std::fs::write(&tmp_script, &script_content)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&tmp_script)?.permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&tmp_script, perms)?;
+    }
+    std::fs::rename(&tmp_script, &script_path)?;
+
     // 2. Merge .mcp.json
     let mcp_path = dir.join(".mcp.json");
     let mut root: Value = if mcp_path.exists() {
@@ -137,6 +155,7 @@ pub fn run_init_with_binary(dir: &Path, binary_src: &Path) -> Result<(), Box<dyn
     eprintln!("  KB_ROOT: {}", dir.display());
     eprintln!("  .mcp.json updated");
     eprintln!("  opencode.json updated");
+    eprintln!("  loom-shell.sh created");
     eprintln!();
     eprintln!("Next: restart Claude Code and run /mcp to connect.");
 
