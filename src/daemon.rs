@@ -5,6 +5,19 @@ use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
+pub fn expand_path(path: &str) -> String {
+    if let Some(rest) = path.strip_prefix("~/") {
+        if let Some(home) = dirs::home_dir() {
+            return home.join(rest).to_string_lossy().to_string();
+        }
+    } else if path == "~" {
+        if let Some(home) = dirs::home_dir() {
+            return home.to_string_lossy().to_string();
+        }
+    }
+    path.to_string()
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct WatchRepo {
     pub path: String,
@@ -105,6 +118,8 @@ pub fn add_repo(
     alias: Option<&str>,
     config_path: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let expanded = expand_path(path);
+    let path = expanded.as_str();
     let mut config = if config_path.exists() {
         load_config(config_path)?
     } else {

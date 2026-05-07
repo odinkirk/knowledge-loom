@@ -1,4 +1,4 @@
-use knowledge_loom::daemon::{DaemonConfig, WatchRepo, load_config, save_config, add_repo, remove_repo};
+use knowledge_loom::daemon::{DaemonConfig, WatchRepo, load_config, save_config, add_repo, remove_repo, expand_path};
 use tempfile::TempDir;
 use std::fs;
 
@@ -90,4 +90,42 @@ fn test_daemon_remove_repo() {
     let updated = load_config(&config_path).unwrap();
     assert_eq!(updated.repos.len(), 1);
     assert_eq!(updated.repos[0].alias, "b");
+}
+
+#[test]
+fn test_expand_path_tilde() {
+    let home = dirs::home_dir().expect("home dir");
+    let result = expand_path("~/git/awesome-repo");
+    assert_eq!(result, format!("{}/git/awesome-repo", home.display()));
+}
+
+#[test]
+fn test_expand_path_tilde_only() {
+    let home = dirs::home_dir().expect("home dir");
+    let result = expand_path("~");
+    assert_eq!(result, home.to_string_lossy().to_string());
+}
+
+#[test]
+fn test_expand_path_absolute_unchanged() {
+    let path = "/home/user/repos/myrepo";
+    assert_eq!(expand_path(path), path);
+}
+
+#[test]
+fn test_expand_path_relative_unchanged() {
+    assert_eq!(expand_path("relative/path"), "relative/path");
+}
+
+#[test]
+fn test_add_repo_expands_tilde() {
+    let tmp = tempfile::tempdir().unwrap();
+    let cfg = tmp.path().join("watch.toml");
+    add_repo("~/projects/notes", None, &cfg).unwrap();
+    let config = load_config(&cfg).unwrap();
+    let home = dirs::home_dir().unwrap();
+    assert_eq!(
+        config.repos[0].path,
+        format!("{}/projects/notes", home.display())
+    );
 }
