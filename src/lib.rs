@@ -11,7 +11,6 @@ pub mod embed;
 pub mod index;
 pub mod search;
 pub mod graph;
-pub mod brainjar;
 pub mod edits;
 pub mod maintenance;
 pub mod init;

@@ -6,7 +6,6 @@ use crate::bm25::BM25Index;
 use crate::embed::EmbedProviderEnum;
 use crate::index::VectorIndex;
 use crate::graph::GraphState;
-use crate::brainjar::BrainJarWrapper;
 
 pub struct MaintenanceManager {
     pub kb_root: PathBuf,
@@ -15,7 +14,6 @@ pub struct MaintenanceManager {
     pub embed_provider: Arc<Mutex<EmbedProviderEnum>>,
     pub vector_index: Arc<Mutex<VectorIndex>>,
     pub graph_state: Arc<Mutex<GraphState>>,
-    pub brainjar_wrapper: Arc<Mutex<BrainJarWrapper>>,
 }
 
 impl MaintenanceManager {
@@ -26,7 +24,6 @@ impl MaintenanceManager {
         embed_provider: Arc<Mutex<EmbedProviderEnum>>,
         vector_index: Arc<Mutex<VectorIndex>>,
         graph_state: Arc<Mutex<GraphState>>,
-        brainjar_wrapper: Arc<Mutex<BrainJarWrapper>>,
     ) -> Self {
         Self {
             kb_root: PathBuf::from(kb_root),
@@ -35,7 +32,6 @@ impl MaintenanceManager {
             embed_provider,
             vector_index,
             graph_state,
-            brainjar_wrapper,
         }
     }
     
@@ -102,27 +98,7 @@ impl MaintenanceManager {
             "edges": 0, // Placeholder
             "index_path": self.kb_root.join(".knowledge-loom-index/graph.bin").to_string_lossy().to_string()
         });
-        
-        // BrainJar status
-        let brainjar_available = self.brainjar_wrapper.lock().await.is_available().await;
-        let brainjar_healthy = if brainjar_available {
-            self.brainjar_wrapper.lock().await.health_check().await
-        } else {
-            false
-        };
-        status["brainjar"] = serde_json::json!({
-            "available": brainjar_available,
-            "connected": brainjar_healthy
-        });
-        
-        Ok(status)
-    }
 
-    #[allow(dead_code)]
-    pub async fn reindex_file_brainjar(&self, _file_path: &std::path::Path) -> Result<(), String> {
-        // Brainjar is an external MCP server - we can call a reindex tool if available
-        // For now, this is a no-op since brainjar doesn't have a documented reindex API
-        // In the future, we might call something like brainjar.call_tool("reindex", json!({"path": file_path}))
-        Ok(())
+        Ok(status)
     }
 }

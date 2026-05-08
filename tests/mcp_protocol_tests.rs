@@ -11,7 +11,7 @@ async fn test_mcp_protocol_initialization() {
     std::fs::write(temp_dir.path().join("test.md"), "# Test\nContent").unwrap();
 
     // Start the MCP server
-    let mut child = Command::new(&std::env::var("CARGO_BIN_EXE_loom").unwrap_or_else(|_| "target/release/loom".to_string()))
+    let mut child = Command::new(&std::env::var("CARGO_BIN_EXE_loom").unwrap_or_else(|_| format!("{}/target/debug/loom", env!("CARGO_MANIFEST_DIR"))))
         .arg("serve")
         .env("KB_ROOT", kb_root)
         .stdin(Stdio::piped())
@@ -137,7 +137,7 @@ async fn test_mcp_tool_call() {
     std::fs::write(temp_dir.path().join("test.md"), "# Test\nContent").unwrap();
 
     // Start the MCP server
-    let mut child = Command::new(&std::env::var("CARGO_BIN_EXE_loom").unwrap_or_else(|_| "target/release/loom".to_string()))
+    let mut child = Command::new(&std::env::var("CARGO_BIN_EXE_loom").unwrap_or_else(|_| format!("{}/target/debug/loom", env!("CARGO_MANIFEST_DIR"))))
         .arg("serve")
         .env("KB_ROOT", kb_root)
         .stdin(Stdio::piped())

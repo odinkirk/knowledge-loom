@@ -45,8 +45,8 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let kb_root = temp_dir.path();
         
-        // Create .loomignore
-        fs::write(kb_root.join(".loomignore"), "*.tmp\nignored/").unwrap();
+        // Create .knowledge-loom-ignore
+        fs::write(kb_root.join(".knowledge-loom-ignore"), "*.tmp\nignored/").unwrap();
         
         // Create files
         fs::create_dir_all(kb_root.join("ignored")).unwrap();

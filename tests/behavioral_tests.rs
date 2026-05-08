@@ -417,3 +417,24 @@ async fn behavioral_integration_search_file_specificity() {
         assert_eq!(chunk.path, "file1.md");
     }
 }
+
+#[tokio::test]
+async fn test_edit_reindexes_vector_backend() {
+    use knowledge_loom::server::LoomServer;
+
+    let tmp = tempfile::tempdir().unwrap();
+    std::fs::write(tmp.path().join("note.md"), "# Topic\noriginal text").unwrap();
+
+    let server = LoomServer::new(tmp.path().to_str().unwrap()).await;
+
+    // Edit the file through the server - this should trigger reindex_file
+    let result = server.dispatch_tool("replace_lines", &serde_json::json!({
+        "file": "note.md",
+        "start": 2,
+        "end": 2,
+        "content": "updated vector content"
+    })).await;
+
+    // The edit should succeed
+    assert!(result.is_ok(), "edit should succeed: {:?}", result);
+}

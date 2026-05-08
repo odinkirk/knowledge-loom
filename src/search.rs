@@ -1,11 +1,10 @@
-use std::collections::HashMap;
 use std::sync::Arc;
+use std::collections::HashMap;
 use tokio::sync::Mutex;
 use crate::bm25::BM25Index;
 use crate::index::VectorIndex;
 use crate::embed::EmbedProviderEnum;
 use crate::graph::GraphState;
-use crate::brainjar::BrainJarWrapper;
 
 pub struct SectionResult {
     pub heading: Option<String>,
@@ -26,7 +25,6 @@ pub struct SearchEngine {
     pub vector: Arc<Mutex<VectorIndex>>,
     pub embed: Arc<Mutex<EmbedProviderEnum>>,
     pub graph: Arc<Mutex<GraphState>>,
-    pub brainjar: Arc<Mutex<BrainJarWrapper>>,
 }
 
 impl SearchEngine {
@@ -36,10 +34,7 @@ impl SearchEngine {
         let vector = Arc::new(Mutex::new(VectorIndex::new(kb_root).await));
         let embed = Arc::new(Mutex::new(EmbedProviderEnum::new(kb_root).await));
         let graph = Arc::new(Mutex::new(GraphState::new(kb_root).await));
-        let brainjar_path = std::env::var("BRAINJAR_PATH").ok();
-        let brainjar = Arc::new(Mutex::new(BrainJarWrapper::new(brainjar_path)));
-
-        Self { bm25, vector, embed, graph, brainjar }
+        Self { bm25, vector, embed, graph }
     }
 
     pub fn from_components(
@@ -47,39 +42,47 @@ impl SearchEngine {
         vector: Arc<Mutex<VectorIndex>>,
         embed: Arc<Mutex<EmbedProviderEnum>>,
         graph: Arc<Mutex<GraphState>>,
-        brainjar: Arc<Mutex<BrainJarWrapper>>,
     ) -> Self {
-        Self { bm25, vector, embed, graph, brainjar }
+        Self { bm25, vector, embed, graph }
     }
     
     /// Combined search using RRF (Reciprocal Rank Fusion)
-    /// Runs BM25, vector, graph, and BrainJar searches in parallel
+    /// Runs BM25, vector, graph, and graph-fused searches in parallel
     pub async fn search(&self, query: &str, top_k: usize) -> Vec<SearchResult> {
-        use std::collections::{HashMap, HashSet};
+        use std::collections::HashSet;
 
         if query.is_empty() {
             return Vec::new();
         }
 
-        let (bm25_results, semantic_results, graph_results, brainjar_results) = tokio::join!(
+        // Pre-hoist shared computations before the join to avoid mutex contention:
+        // both the semantic branch and graph-fused branch would otherwise race on
+        // self.embed and self.graph locks, serializing what should be parallel work.
+        let query_vec = {
+            let embed = self.embed.lock().await;
+            embed.embed(query).await
+        };
+        let cached_pagerank = {
+            self.graph.lock().await.get_cached_analytics().await.0
+        };
+
+        let (bm25_results, semantic_results, graph_results, fused_results) = tokio::join!(
             async {
                 let bm25 = self.bm25.lock().await;
                 bm25.search_and_retrieve(query, top_k * 2).await
             },
             async {
-                let embed = self.embed.lock().await;
-                let query_embedding = embed.embed(query).await;
                 let vector = self.vector.lock().await;
-                vector.search_similar(&query_embedding, top_k * 2).await
+                vector.search_similar(&query_vec, top_k * 2).await
             },
             self.search_graph(query, top_k * 2),
-            self.search_brainjar(query, top_k * 2)
+            self.search_graph_fused_inner(&query_vec, &cached_pagerank, top_k * 2)
         );
 
         let bm25_results = bm25_results.unwrap_or_default();
         let semantic_results = semantic_results.unwrap_or_default();
         let graph_results = graph_results.unwrap_or_default();
-        let brainjar_results = brainjar_results.unwrap_or_default();
+        let fused_results = fused_results.unwrap_or_default();
 
         let mut rrf_scores: HashMap<String, f32> = HashMap::new();
         // path -> Vec<SectionResult> collected from BM25 chunks
@@ -118,8 +121,8 @@ impl SearchEngine {
             *rrf_scores.entry(path.clone()).or_insert(0.0) += rrf;
         }
 
-        // BrainJar (k=60)
-        for (rank, path) in brainjar_results.iter().enumerate() {
+        // Graph-fused (k=60)
+        for (rank, path) in fused_results.iter().enumerate() {
             let rrf = 1.0 / (60.0 + rank as f32 + 1.0);
             *rrf_scores.entry(path.clone()).or_insert(0.0) += rrf;
         }
@@ -139,7 +142,6 @@ impl SearchEngine {
 
         results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
 
-        // Populate sections for files without BM25 chunks (graph/brainjar-only results)
         let paths_needing_sections: Vec<String> = results.iter()
             .filter(|r| r.sections.is_empty())
             .map(|r| r.path.clone())
@@ -186,43 +188,43 @@ impl SearchEngine {
         Ok(results)
     }
 
-    async fn search_brainjar(&self, query: &str, top_k: usize) -> Result<Vec<String>, String> {
-        let brainjar = self.brainjar.lock().await;
-        if !brainjar.is_available().await {
+    const PAGERANK_WEIGHT: f32 = 0.5;
+
+    pub async fn search_graph_fused_inner(
+        &self,
+        query_vec: &[f32],
+        pagerank: &HashMap<String, f64>,
+        top_k: usize,
+    ) -> Result<Vec<String>, String> {
+        // Vector similarity search (vector lock only — no embed or graph lock)
+        let similar = {
+            let vector = self.vector.lock().await;
+            vector.search_similar(query_vec, top_k * 2)
+                .await
+                .map_err(|e| e.to_string())?
+        };
+
+        if similar.is_empty() {
             return Ok(Vec::new());
         }
 
-        // Get cached graph analytics
-        let graph = self.graph.lock().await;
-        let (pagerank, communities) = graph.get_cached_analytics().await;
-        
-        // Call BrainJar search tool with graph context
-        let args = serde_json::json!({
-            "query": query,
-            "top_k": top_k,
-            "graph_context": {
-                "pagerank_scores": pagerank,
-                "communities": communities
-            }
-        });
-        
-        match brainjar.call_tool("search", args).await {
-            Ok(result) => {
-                // Parse results from BrainJar response
-                if let Some(results) = result.get("results").and_then(|r| r.as_array()) {
-                    Ok(results.iter()
-                        .filter_map(|r| r.get("path").and_then(|p| p.as_str()))
-                        .map(|s| s.to_string())
-                        .collect())
-                } else {
-                    Ok(Vec::new())
-                }
-            }
-            Err(e) => {
-                // Log error but don't fail the entire search
-                eprintln!("BrainJar search error: {}", e);
-                Ok(Vec::new())
+        // Re-rank: similarity * (1 + PAGERANK_WEIGHT * pagerank)
+        // VectorIndex paths keep .md; PageRank keys strip it — align before lookup.
+        let mut by_path: HashMap<String, f32> = HashMap::new();
+        for (path, _heading, _content, similarity) in similar {
+            let pr_key = path.trim_end_matches(".md");
+            let pr_boost = pagerank.get(pr_key).copied().unwrap_or(0.0) as f32;
+            let score = similarity * (1.0 + Self::PAGERANK_WEIGHT * pr_boost);
+            let entry = by_path.entry(path).or_insert(0.0);
+            if score > *entry {
+                *entry = score;
             }
         }
+
+        let mut ranked: Vec<(String, f32)> = by_path.into_iter().collect();
+        ranked.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        ranked.truncate(top_k);
+
+        Ok(ranked.into_iter().map(|(path, _)| path).collect())
     }
 }

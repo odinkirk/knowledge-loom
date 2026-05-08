@@ -8,7 +8,6 @@ mod index;
 mod search;
 mod graph;
 mod edits;
-mod brainjar;
 mod maintenance;
 mod init;
 mod server;
@@ -119,5 +118,4 @@ fn print_usage() {
     eprintln!();
     eprintln!("ENVIRONMENT:");
     eprintln!("  KB_ROOT            Root path for knowledge base (required for serve)");
-    eprintln!("  BRAINJAR_PATH      Path to brainjar binary (optional, enables loom_search_smart)");
 }

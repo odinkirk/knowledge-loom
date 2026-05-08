@@ -14,13 +14,9 @@ pub struct SectionPreview {
 pub struct EditManager {
     pub kb_root: PathBuf,
     pub vault_state: Arc<Mutex<crate::vault::VaultState>>,
-    #[allow(dead_code)]
     pub bm25_index: Arc<Mutex<crate::bm25::BM25Index>>,
-    #[allow(dead_code)]
     pub embed_provider: Arc<Mutex<crate::embed::EmbedProviderEnum>>,
-    #[allow(dead_code)]
     pub vector_index: Arc<Mutex<crate::index::VectorIndex>>,
-    #[allow(dead_code)]
     pub graph_state: Arc<Mutex<crate::graph::GraphState>>,
 }
 
@@ -203,88 +199,99 @@ impl EditManager {
             Err(std::io::Error::new(std::io::ErrorKind::NotFound, "File not found"))
         }
     }
-    
+
+    async fn reindex_file(&self, path: &Path, content: &str) {
+        {
+            let mut bm25 = self.bm25_index.lock().await;
+            let _ = bm25.index_file(path, content).await;
+        }
+        {
+            let vector = self.vector_index.lock().await;
+            let embed = self.embed_provider.lock().await;
+            let _ = vector.index_file(path, content, &*embed).await;
+        }
+        {
+            let graph = self.graph_state.lock().await;
+            let _ = graph.update_file(path, content).await;
+        }
+    }
+
     pub async fn replace_lines(&self, file_path: &Path, start: usize, end: usize, new_content: &str) -> Result<(), std::io::Error> {
         let vault_lock = self.vault_state.lock().await;
         if let Some(content) = vault_lock.read_file(file_path).await {
             let lines: Vec<&str> = content.lines().collect();
             let start_idx = start.saturating_sub(1); // Convert to 0-indexed
             let end_idx = end.min(lines.len());
-            
+
             if start_idx >= lines.len() {
                 return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Start line out of range"));
             }
-            
+
             let mut new_lines = Vec::new();
             new_lines.extend_from_slice(&lines[..start_idx]);
             new_lines.push(new_content);
             new_lines.extend_from_slice(&lines[end_idx..]);
-            
+
             let new_content = new_lines.join("\n");
             vault_lock.write_file(file_path, &new_content).await?;
-            
-            // Update indexes
-            // TODO: Update BM25, vector index, and graph
-            
-            Ok(())
-        } else {
-            Err(std::io::Error::new(std::io::ErrorKind::NotFound, "File not found"))
-        }
+        } // vault_lock dropped
+        self.reindex_file(file_path, &new_content).await;
+        Ok(())
     }
-    
+
     pub async fn insert_after_heading(&self, file_path: &Path, heading: &str, content: &str) -> Result<(), std::io::Error> {
-        let vault_lock = self.vault_state.lock().await;
-        if let Some(file_content) = vault_lock.read_file(file_path).await {
-            let lines: Vec<&str> = file_content.lines().collect();
-            let mut new_lines = Vec::new();
-            let mut inserted = false;
-            
-            for line in lines {
-                new_lines.push(line);
+        let mut new_content = String::new();
+        {
+            let vault_lock = self.vault_state.lock().await;
+            if let Some(file_content) = vault_lock.read_file(file_path).await {
+                let lines: Vec<&str> = file_content.lines().collect();
+                let mut new_lines = Vec::new();
+                let mut inserted = false;
                 
-                if !inserted && line.trim().starts_with('#') {
-                    let heading_text = line.trim().trim_start_matches('#').trim();
-                    if heading_text == heading {
-                        // Insert content after this heading
-                        for content_line in content.lines() {
-                            new_lines.push(content_line);
+                for line in lines {
+                    new_lines.push(line);
+                    
+                    if !inserted && line.trim().starts_with('#') {
+                        let heading_text = line.trim_start_matches('#').trim();
+                        if heading_text == heading {
+                            // Insert content after this heading
+                            for content_line in content.lines() {
+                                new_lines.push(content_line);
+                            }
+                            inserted = true;
                         }
-                        inserted = true;
                     }
                 }
+                
+                if !inserted {
+                    return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "Heading not found"));
+                }
+                
+                new_content = new_lines.join("\n");
+                vault_lock.write_file(file_path, &new_content).await?;
+            } else {
+                return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "File not found"));
             }
-            
-            if !inserted {
-                return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "Heading not found"));
-            }
-            
-            let new_content = new_lines.join("\n");
-            vault_lock.write_file(file_path, &new_content).await?;
-            
-            // Update indexes
-            // TODO: Update BM25, vector index, and graph
-            
-            Ok(())
-        } else {
-            Err(std::io::Error::new(std::io::ErrorKind::NotFound, "File not found"))
-        }
+        } // vault_lock dropped
+        self.reindex_file(file_path, &new_content).await;
+        Ok(())
     }
     
     pub async fn append_to_file(&self, file_path: &Path, content: &str) -> Result<(), std::io::Error> {
-        let vault_lock = self.vault_state.lock().await;
-        let existing_content = vault_lock.read_file(file_path).await.unwrap_or_default();
-        
-        let mut new_content = existing_content;
-        if !new_content.is_empty() && !new_content.ends_with('\n') {
-            new_content.push('\n');
-        }
-        new_content.push_str(content);
-        
-        vault_lock.write_file(file_path, &new_content).await?;
-        
-        // Update indexes
-        // TODO: Update BM25, vector index, and graph
-        
+        let mut new_content = String::new();
+        {
+            let vault_lock = self.vault_state.lock().await;
+            let existing_content = vault_lock.read_file(file_path).await.unwrap_or_default();
+            
+            new_content = existing_content;
+            if !new_content.is_empty() && !new_content.ends_with('\n') {
+                new_content.push('\n');
+            }
+            new_content.push_str(content);
+            
+            vault_lock.write_file(file_path, &new_content).await?;
+        } // vault_lock dropped
+        self.reindex_file(file_path, &new_content).await;
         Ok(())
     }
     
@@ -292,23 +299,21 @@ impl EditManager {
         // Convert title to filename
         let filename = title.replace(' ', "_").replace('/', "_") + ".md";
         let file_path = self.kb_root.join(&filename);
-        
-        let vault_lock = self.vault_state.lock().await;
-        vault_lock.write_file(&file_path, content).await?;
-        
-        // Update indexes
-        // TODO: Update BM25, vector index, and graph
-        
+
+        {
+            let vault_lock = self.vault_state.lock().await;
+            vault_lock.write_file(&file_path, content).await?;
+        } // vault_lock dropped
+        self.reindex_file(&file_path, content).await;
         Ok(file_path)
     }
-    
+
     pub async fn edit_note(&self, file_path: &Path, new_content: &str) -> Result<(), std::io::Error> {
-        let vault_lock = self.vault_state.lock().await;
-        vault_lock.write_file(file_path, new_content).await?;
-        
-        // Update indexes
-        // TODO: Update BM25, vector index, and graph
-        
+        {
+            let vault_lock = self.vault_state.lock().await;
+            vault_lock.write_file(file_path, new_content).await?;
+        } // vault_lock dropped
+        self.reindex_file(file_path, new_content).await;
         Ok(())
     }
     
@@ -371,15 +376,6 @@ impl EditManager {
 
         Ok(())
     }
-}
-
-pub async fn make_edit_manager_for_test(kb_root: &str) -> EditManager {
-    let vault = Arc::new(Mutex::new(crate::vault::VaultState::new(kb_root).await));
-    let bm25 = Arc::new(Mutex::new(crate::bm25::BM25Index::new(kb_root).await));
-    let embed = Arc::new(Mutex::new(crate::embed::EmbedProviderEnum::new(kb_root).await));
-    let vector = Arc::new(Mutex::new(crate::index::VectorIndex::new(kb_root).await));
-    let graph = Arc::new(Mutex::new(crate::graph::GraphState::new(kb_root).await));
-    EditManager::new(kb_root.to_string(), vault, bm25, embed, vector, graph)
 }
 
 #[cfg(test)]

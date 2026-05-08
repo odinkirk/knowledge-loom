@@ -104,7 +104,37 @@ impl VectorIndex {
         
         Ok(())
     }
-    
+
+    pub async fn remove_file_embeddings(&self, path: &Path) -> SqliteResult<()> {
+        let conn_lock = self.conn.lock().await;
+        let relative_path = path
+            .strip_prefix(&self.kb_root)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .to_string();
+        conn_lock.execute(
+            "DELETE FROM embeddings WHERE path = ?1",
+            params![relative_path],
+        )?;
+        Ok(())
+    }
+
+    pub async fn index_file(
+        &self,
+        path: &Path,
+        content: &str,
+        embed_provider: &crate::embed::EmbedProviderEnum,
+    ) -> SqliteResult<()> {
+        self.remove_file_embeddings(path).await?;
+        let chunks = self.chunk_content(content);
+        for (heading, chunk_content) in chunks {
+            let embedding = embed_provider.embed(&chunk_content).await;
+            self.upsert_embedding(path, heading.as_deref(), &chunk_content, &embedding)
+                .await?;
+        }
+        Ok(())
+    }
+
     pub async fn search_similar(
         &self,
         query_embedding: &[f32],
@@ -146,18 +176,11 @@ impl VectorIndex {
         let files = vault_state.scan_files().await;
         
         for file_path in files {
-            // For simplicity, we'll reindex all files
-            // In a real implementation, we'd check timestamps
-            
             if let Some(content) = vault_state.read_file(&file_path).await {
-                // Chunk the content by headings or fixed size
+                self.remove_file_embeddings(&file_path).await?;
                 let chunks = self.chunk_content(&content);
-                
                 for (heading, chunk_content) in chunks {
-                    // Get embedding
                     let embedding = embed_provider.embed(&chunk_content).await;
-                    
-                    // Store in database
                     self.upsert_embedding(&file_path, heading.as_deref(), &chunk_content, &embedding)
                         .await?;
                 }
@@ -169,58 +192,25 @@ impl VectorIndex {
     
     pub fn chunk_content(&self, content: &str) -> Vec<(Option<String>, String)> {
         let mut chunks = Vec::new();
-        let lines: Vec<&str> = content.lines().collect();
-        
-        let mut current_heading = None;
-        let mut current_chunk = Vec::new();
-        let mut current_size = 0;
-        
-        for line in lines {
-            // Check if line is a heading
-            if line.trim().starts_with('#') {
-                // Save previous chunk if exists
-                if !current_chunk.is_empty() {
-                    chunks.push((
-                        current_heading.clone(),
-                        current_chunk.join("\n")
-                    ));
-                    current_chunk = Vec::new();
-                    current_size = 0;
+        let mut current_heading: Option<String> = None;
+        let mut current_content = String::new();
+
+        for line in content.lines() {
+            // Strip any heading level (H1-H6): 1-6 # chars followed by space
+            if let Some(stripped) = line.trim_start_matches('#').strip_prefix(" ") {
+                if !current_content.trim().is_empty() || current_heading.is_some() {
+                    chunks.push((current_heading.take(), current_content.trim().to_string()));
+                    current_content.clear();
                 }
-                
-                // Extract heading text (remove # markers)
-                let heading_text = line.trim_start_matches('#').trim();
-                if !heading_text.is_empty() {
-                    current_heading = Some(heading_text.to_string());
-                } else {
-                    current_heading = None;
-                }
-            }
-            
-            current_chunk.push(line);
-            current_size += line.len() + 1; // +1 for newline
-            
-            // If chunk gets too big, save it and start a new one
-            if current_size > 1000 { // ~1000 chars per chunk
-                if !current_chunk.is_empty() {
-                    chunks.push((
-                        current_heading.clone(),
-                        current_chunk.join("\n")
-                    ));
-                    current_chunk = Vec::new();
-                    current_size = 0;
-                }
+                current_heading = Some(stripped.to_string());
+            } else {
+                current_content.push_str(line);
+                current_content.push('\n');
             }
         }
-        
-        // Don't forget the last chunk
-        if !current_chunk.is_empty() {
-            chunks.push((
-                current_heading.clone(),
-                current_chunk.join("\n")
-            ));
+        if !current_content.trim().is_empty() || current_heading.is_some() {
+            chunks.push((current_heading, current_content.trim().to_string()));
         }
-        
         chunks
     }
 }

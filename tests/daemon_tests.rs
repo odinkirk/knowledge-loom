@@ -1,4 +1,4 @@
-use knowledge_loom::daemon::{DaemonConfig, WatchRepo, load_config, save_config, add_repo, remove_repo, expand_path};
+use knowledge_loom::daemon::{DaemonConfig, WatchRepo, load_config, save_config, add_repo, expand_path};
 use tempfile::TempDir;
 use std::fs;
 

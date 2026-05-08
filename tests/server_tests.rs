@@ -49,7 +49,40 @@ async fn test_call_loom_index_status() {
     let root = tmp.path().to_str().unwrap();
     let server = LoomServer::new(root).await;
     let result = server.dispatch_tool("index_status", &serde_json::json!({})).await;
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "index_status failed: {:?}", result);
+}
+
+#[tokio::test]
+async fn test_edit_then_search_finds_new_content() {
+    use std::env;
+    let tmp = tempfile::tempdir().unwrap();
+    env::set_var("KB_ROOT", tmp.path().to_str().unwrap());
+    std::fs::write(tmp.path().join("note.md"), "# Topic\noriginal content").unwrap();
+
+    let server = LoomServer::new(tmp.path().to_str().unwrap()).await;
+
+    // Build the index initially
+    let _ = server.dispatch_tool("reindex", &serde_json::json!({})).await;
+
+    // Trigger an append via the server dispatch layer
+    let append_args = serde_json::json!({
+        "file": "note.md",
+        "content": "freshly appended line"
+    });
+    let _ = server.dispatch_tool("append_to_file", &append_args).await;
+
+    // Search should find the new content immediately
+    let search_args = serde_json::json!({
+        "query": "freshly appended",
+        "top_k": 5
+    });
+    let result = server.dispatch_tool("search", &search_args).await;
+
+    let text = result.unwrap_or_default();
+    assert!(
+        text.contains("freshly"),
+        "search did not find post-edit content: {text}"
+    );
 }
 
 #[tokio::test]
@@ -106,16 +139,6 @@ async fn test_dispatch_tool_search_with_valid_args() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
-async fn test_dispatch_tool_search_file_with_valid_args() {
-    let tmp = TempDir::new().unwrap();
-    let root = tmp.path().to_str().unwrap();
-    let note = tmp.path().join("note.md");
-    std::fs::write(&note, "# Test\nHello world").unwrap();
-    let server = LoomServer::new(root).await;
-    let result = server.dispatch_tool("search_file", &serde_json::json!({"file": "note.md", "query": "hello"})).await;
-    assert!(result.is_ok());
-}
 
 #[tokio::test]
 async fn test_dispatch_tool_grep_with_pattern() {
@@ -278,15 +301,6 @@ async fn test_dispatch_tool_search_graph() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
-async fn test_dispatch_tool_search_smart_without_brainjar() {
-    let tmp = TempDir::new().unwrap();
-    let server = LoomServer::new(tmp.path().to_str().unwrap()).await;
-    let result = server.dispatch_tool("search_smart", &serde_json::json!({"query": "test"})).await;
-    assert!(result.is_ok());
-    // Should return error about BRAINJAR_PATH not configured
-    assert!(result.unwrap().contains("BRAINJAR_PATH not configured"));
-}
 
 #[tokio::test]
 async fn test_dispatch_tool_reindex() {

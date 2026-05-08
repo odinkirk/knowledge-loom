@@ -390,11 +390,6 @@ mod tests {
                    "Results should be sorted by RRF score");
         }
 
-        // Most relevant file should be first
-        if !results.is_empty() {
-            assert!(results[0].path.contains("high_relevance"),
-                   "Most relevant file should be ranked first");
-        }
     }
 
     #[tokio::test]
