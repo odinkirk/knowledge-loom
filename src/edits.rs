@@ -240,17 +240,17 @@ impl EditManager {
     }
 
     pub async fn insert_after_heading(&self, file_path: &Path, heading: &str, content: &str) -> Result<(), std::io::Error> {
-        let mut new_content = String::new();
+        let new_content;
         {
             let vault_lock = self.vault_state.lock().await;
             if let Some(file_content) = vault_lock.read_file(file_path).await {
                 let lines: Vec<&str> = file_content.lines().collect();
                 let mut new_lines = Vec::new();
                 let mut inserted = false;
-                
+
                 for line in lines {
                     new_lines.push(line);
-                    
+
                     if !inserted && line.trim().starts_with('#') {
                         let heading_text = line.trim_start_matches('#').trim();
                         if heading_text == heading {
@@ -262,11 +262,11 @@ impl EditManager {
                         }
                     }
                 }
-                
+
                 if !inserted {
                     return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "Heading not found"));
                 }
-                
+
                 new_content = new_lines.join("\n");
                 vault_lock.write_file(file_path, &new_content).await?;
             } else {
@@ -278,17 +278,18 @@ impl EditManager {
     }
     
     pub async fn append_to_file(&self, file_path: &Path, content: &str) -> Result<(), std::io::Error> {
-        let mut new_content = String::new();
+        let new_content;
         {
             let vault_lock = self.vault_state.lock().await;
             let existing_content = vault_lock.read_file(file_path).await.unwrap_or_default();
-            
-            new_content = existing_content;
-            if !new_content.is_empty() && !new_content.ends_with('\n') {
-                new_content.push('\n');
+
+            let mut content_buf = existing_content;
+            if !content_buf.is_empty() && !content_buf.ends_with('\n') {
+                content_buf.push('\n');
             }
-            new_content.push_str(content);
-            
+            content_buf.push_str(content);
+
+            new_content = content_buf;
             vault_lock.write_file(file_path, &new_content).await?;
         } // vault_lock dropped
         self.reindex_file(file_path, &new_content).await;
