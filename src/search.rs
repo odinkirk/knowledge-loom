@@ -212,7 +212,7 @@ impl SearchEngine {
         // VectorIndex paths keep .md; PageRank keys strip it — align before lookup.
         let mut by_path: HashMap<String, f32> = HashMap::new();
         for (path, _heading, _content, similarity) in similar {
-            let pr_key = path.trim_end_matches(".md");
+            let pr_key = path.strip_suffix(".md").unwrap_or(&path);
             let pr_boost = pagerank.get(pr_key).copied().unwrap_or(0.0) as f32;
             let score = similarity * (1.0 + Self::PAGERANK_WEIGHT * pr_boost);
             let entry = by_path.entry(path).or_insert(0.0);

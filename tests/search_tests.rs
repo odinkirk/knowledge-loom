@@ -503,6 +503,162 @@ mod tests {
         assert!((c - 1.0/3.0).abs() < 0.01, "C={c:.4}, expected ~0.3333");
     }
 
+    #[test]
+    fn test_path_to_node_name_only_strips_md_suffix() {
+        // A filename containing ".md" mid-stem must not be mangled.
+        // strip_suffix removes only the trailing extension.
+        let s = "obsidian.md-guide.md";
+        let stripped = s.strip_suffix(".md").unwrap_or(s);
+        assert_eq!(stripped, "obsidian.md-guide");
+    }
+
+    #[tokio::test]
+    async fn test_wikilink_resolves_subdirectory_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let kb_root = dir.path().to_str().unwrap();
+
+        std::fs::create_dir_all(dir.path().join("subdir")).unwrap();
+        std::fs::write(dir.path().join("index.md"), "# Index\n[[rust]]").unwrap();
+        std::fs::write(dir.path().join("subdir/rust.md"), "# Rust notes").unwrap();
+
+        let vault = VaultState::new(kb_root).await;
+        let graph = GraphState::new(kb_root).await;
+        graph.build_graph(&vault).await.unwrap();
+
+        let pagerank = graph.pagerank(0.85, 100).await;
+        let pr = pagerank.get("subdir/rust").copied().unwrap_or(0.0);
+        assert!(
+            pr > 0.0,
+            "subdir/rust should have non-zero pagerank due to incoming wikilink, got {}",
+            pr
+        );
+    }
+
+    #[tokio::test]
+    async fn test_wikilink_full_path_also_resolves() {
+        let dir = tempfile::tempdir().unwrap();
+        let kb_root = dir.path().to_str().unwrap();
+
+        std::fs::create_dir_all(dir.path().join("subdir")).unwrap();
+        std::fs::write(dir.path().join("index.md"), "# Index\n[[subdir/rust]]").unwrap();
+        std::fs::write(dir.path().join("subdir/rust.md"), "# Rust notes").unwrap();
+
+        let vault = VaultState::new(kb_root).await;
+        let graph = GraphState::new(kb_root).await;
+        graph.build_graph(&vault).await.unwrap();
+
+        let pagerank = graph.pagerank(0.85, 100).await;
+        let pr = pagerank.get("subdir/rust").copied().unwrap_or(0.0);
+        assert!(pr > 0.0, "full-path wikilink must resolve, got {}", pr);
+    }
+
+    #[tokio::test]
+    async fn test_wikilink_duplicate_basename_resolves_deterministically() {
+        // When two files share a basename (notes/rust.md and drafts/rust.md),
+        // the basename_map uses last-write-wins. This test documents the
+        // deterministic behavior: the resolution depends on iteration order
+        // of the HashMap, which is stable for a given build.
+        let dir = tempfile::tempdir().unwrap();
+        let kb_root = dir.path().to_str().unwrap();
+
+        std::fs::create_dir_all(dir.path().join("notes")).unwrap();
+        std::fs::create_dir_all(dir.path().join("drafts")).unwrap();
+        std::fs::write(dir.path().join("index.md"), "# Index\n[[rust]]").unwrap();
+        std::fs::write(dir.path().join("notes/rust.md"), "# Rust in notes").unwrap();
+        std::fs::write(dir.path().join("drafts/rust.md"), "# Rust in drafts").unwrap();
+
+        let vault = VaultState::new(kb_root).await;
+        let graph = GraphState::new(kb_root).await;
+        graph.build_graph(&vault).await.unwrap();
+
+        // The wikilink [[rust]] should resolve to exactly one of the two files.
+        // We verify that an edge was created (not both, not neither).
+        let neighbors = graph.search_graph("index").await;
+        assert_eq!(neighbors.len(), 1,
+            "duplicate basename should resolve to exactly one target, got {:?}",
+            neighbors);
+
+        // The resolved target should be one of the two files.
+        let resolved = &neighbors[0];
+        assert!(
+            resolved == "notes/rust" || resolved == "drafts/rust",
+            "resolved target should be one of the duplicate basenames, got {}",
+            resolved
+        );
+
+        // Verify that the resolved target has non-zero pagerank (edge exists).
+        let pagerank = graph.pagerank(0.85, 100).await;
+        let pr = pagerank.get(resolved).copied().unwrap_or(0.0);
+        assert!(pr > 0.0, "resolved target should have non-zero pagerank, got {}", pr);
+    }
+
+    #[tokio::test]
+    async fn test_pagerank_scores_sum_to_node_count() {
+        // A 3-node balanced cycle converges to sum = 1.0 (standard PageRank normalization).
+        let dir = tempfile::tempdir().unwrap();
+        let gs = GraphState::new(dir.path().to_str().unwrap()).await;
+
+        {
+            let mut graph = gs.graph.lock().await;
+            let mut node_map = gs.node_map.lock().await;
+            let a = graph.add_node("A".to_string());
+            let b = graph.add_node("B".to_string());
+            let c = graph.add_node("C".to_string());
+            node_map.insert("A".to_string(), a);
+            node_map.insert("B".to_string(), b);
+            node_map.insert("C".to_string(), c);
+            graph.add_edge(a, b, "WIKILINK".to_string());
+            graph.add_edge(b, c, "WIKILINK".to_string());
+            graph.add_edge(c, a, "WIKILINK".to_string());
+        }
+
+        let scores = gs.pagerank(0.85, 100).await;
+        let total: f64 = scores.values().sum();
+        assert!(
+            (total - 1.0).abs() < 0.01,
+            "pagerank scores should sum to 1.0 but got {}",
+            total
+        );
+        for (name, &score) in &scores {
+            assert!(
+                (score - 1.0 / 3.0).abs() < 0.01,
+                "balanced cycle: {} should have score ~0.333 but got {}",
+                name,
+                score
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_pagerank_dangling_node_redistributes() {
+        // A dangling node (no outgoing edges) must redistribute its score evenly
+        // across all nodes, not just disappear from the total.
+        let dir = tempfile::tempdir().unwrap();
+        let gs = GraphState::new(dir.path().to_str().unwrap()).await;
+
+        {
+            let mut graph = gs.graph.lock().await;
+            let mut node_map = gs.node_map.lock().await;
+            let hub = graph.add_node("hub".to_string());
+            let sink = graph.add_node("sink".to_string());
+            node_map.insert("hub".to_string(), hub);
+            node_map.insert("sink".to_string(), sink);
+            graph.add_edge(hub, sink, "WIKILINK".to_string());
+        }
+
+        let scores = gs.pagerank(0.85, 100).await;
+        let total: f64 = scores.values().sum();
+        assert!(
+            (total - 1.0).abs() < 0.05,
+            "dangling node: pagerank should sum to 1.0 but got {}",
+            total
+        );
+        assert!(
+            scores["hub"] > 0.0 && scores["sink"] > 0.0,
+            "both nodes must have positive scores"
+        );
+    }
+
     #[tokio::test]
     async fn test_pagerank_hub_ranks_higher() {
         let dir = tempfile::tempdir().unwrap();

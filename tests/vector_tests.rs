@@ -13,7 +13,7 @@ mod tests {
         let _index = VectorIndex::new(kb_root.to_str().unwrap()).await;
         
         // Verify database was created
-        assert!(kb_root.join(".loom-index/embeddings.db").exists());
+        assert!(kb_root.join(".knowledge-loom-index/embeddings.db").exists());
     }
 
     #[tokio::test]

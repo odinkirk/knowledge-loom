@@ -86,6 +86,18 @@ impl GraphState {
             node_map_lock.insert(file_name, idx);
         }
 
+        // Build basename → node_name index for Obsidian-style wikilink resolution.
+        // Wikilinks like [[note]] must resolve to "subdir/note" if that is the only
+        // node whose stem is "note". Last-write wins on duplicate basenames.
+        // TODO: prefer closest-path on duplicate basenames
+        let basename_map: HashMap<String, String> = node_map_lock
+            .keys()
+            .map(|name| {
+                let bare = name.rsplit('/').next().unwrap_or(name).to_string();
+                (bare, name.clone())
+            })
+            .collect();
+
         // Second pass: parse wikilinks from all chunks and add edges at file level
         for file_path in &files {
             if let Some(content) = vault_state.read_file(file_path).await {
@@ -94,7 +106,16 @@ impl GraphState {
                 for (_, chunk_content) in chunks {
                     let wikilinks = self.extract_wikilinks(&chunk_content);
                     for target in wikilinks {
-                        if let Some(&target_idx) = node_map_lock.get(&target) {
+                        let resolved = node_map_lock
+                            .get(&target)
+                            .copied()
+                            .or_else(|| {
+                                basename_map
+                                    .get(&target)
+                                    .and_then(|full| node_map_lock.get(full))
+                                    .copied()
+                            });
+                        if let Some(target_idx) = resolved {
                             if let Some(&source_idx) = node_map_lock.get(&source_node) {
                                 graph_lock.add_edge(source_idx, target_idx, "WIKILINK".to_string());
                             }
@@ -132,12 +153,30 @@ impl GraphState {
                 graph_lock.remove_edge(edge_id);
             }
 
+            // Build basename index for wikilink resolution (same two-step resolve as build_graph)
+            let basename_map: HashMap<String, String> = node_map_lock
+                .keys()
+                .map(|name| {
+                    let bare = name.rsplit('/').next().unwrap_or(name).to_string();
+                    (bare, name.clone())
+                })
+                .collect();
+
             // Re-add edges from updated content (all chunks)
             let chunks = self.chunk_content(content);
             for (_, chunk_content) in chunks {
                 let wikilinks = self.extract_wikilinks(&chunk_content);
                 for target in wikilinks {
-                    if let Some(&target_idx) = node_map_lock.get(&target) {
+                    let resolved = node_map_lock
+                        .get(&target)
+                        .copied()
+                        .or_else(|| {
+                            basename_map
+                                .get(&target)
+                                .and_then(|full| node_map_lock.get(full))
+                                .copied()
+                        });
+                    if let Some(target_idx) = resolved {
                         graph_lock.add_edge(source_idx, target_idx, "WIKILINK".to_string());
                     }
                 }
@@ -157,7 +196,8 @@ impl GraphState {
     fn path_to_node_name(&self, path: &Path) -> String {
         // Convert file path to a node name (relative to kb_root, without extension)
         let relative = path.strip_prefix(&self.kb_root).unwrap_or(path);
-        relative.to_string_lossy().to_string().replace(".md", "")
+        let s = relative.to_string_lossy();
+        s.strip_suffix(".md").unwrap_or(&s).to_string()
     }
     
     fn extract_wikilinks(&self, content: &str) -> HashSet<String> {

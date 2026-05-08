@@ -94,9 +94,9 @@ async fn test_graph_update_file_invalidates_analytics_cache() {
 
     // Update a.md — cache should be invalidated
     graph.update_file(&dir.path().join("a.md"), "# A\nno links now").await.unwrap();
-    let (pr_after, _) = graph.get_cached_analytics().await;
-    // After invalidation, get_cached_analytics returns empty (unwrap_or_default)
-    assert!(pr_after.is_empty(), "pagerank cache should be invalidated after update_file");
+    let cache_after = graph.cached_pagerank.lock().await;
+    assert!(cache_after.is_none(),
+        "cached_pagerank should be None immediately after update_file invalidates it");
 }
 
 use knowledge_loom::search::SearchEngine;
@@ -152,4 +152,105 @@ async fn test_graph_fused_empty_vector_index_returns_no_fused_results() {
     // Should return empty without error
     let results = engine.search("anything", 5).await;
     assert!(results.is_empty());
+}
+
+#[tokio::test]
+async fn test_graph_fused_pagerank_key_alignment() {
+    // Pagerank map uses bare-stem keys (as GraphState produces via path_to_node_name).
+    let mut pagerank: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
+    pagerank.insert("important_note".to_string(), 0.9);
+
+    // VectorIndex returns paths with .md suffix.
+    let vector_path = "important_note.md";
+    let pr_key = vector_path.strip_suffix(".md").unwrap_or(vector_path);
+
+    assert_eq!(pr_key, "important_note",
+        "strip_suffix('.md') must yield the bare stem used as a pagerank key");
+    assert!(pagerank.contains_key(pr_key),
+        "pagerank lookup must find the key after .md stripping");
+
+    // Nested paths: only the .md suffix is removed, directory component stays.
+    let nested = "subdir/important_note.md";
+    let nested_key = nested.strip_suffix(".md").unwrap_or(nested);
+    assert_eq!(nested_key, "subdir/important_note");
+}
+
+#[tokio::test]
+async fn test_graph_fused_inner_reranks_by_pagerank() {
+    let dir = tempfile::tempdir().unwrap();
+    let kb_root = dir.path().to_str().unwrap();
+
+    let embed = Arc::new(Mutex::new(EmbedProviderEnum::new(kb_root).await));
+    let vector = Arc::new(Mutex::new(VectorIndex::new(kb_root).await));
+
+    // Index two docs with the same content so vector similarity is comparable
+    {
+        let e = embed.lock().await;
+        let v = vector.lock().await;
+        v.index_file(&dir.path().join("high_pr.md"), "async futures in rust", &*e).await.unwrap();
+        v.index_file(&dir.path().join("low_pr.md"),  "async futures in rust", &*e).await.unwrap();
+    }
+
+    let engine = SearchEngine::from_components(
+        Arc::new(Mutex::new(knowledge_loom::bm25::BM25Index::new(kb_root).await)),
+        vector.clone(),
+        embed.clone(),
+        Arc::new(Mutex::new(GraphState::new(kb_root).await)),
+    );
+
+    let query_vec = {
+        let emb = embed.lock().await;
+        emb.embed("async futures").await
+    };
+
+    // Build a pagerank map where high_pr dominates
+    let mut pagerank: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
+    pagerank.insert("high_pr".to_string(), 0.9_f64);
+    pagerank.insert("low_pr".to_string(),  0.1_f64);
+
+    let results = engine.search_graph_fused_inner(&query_vec, &pagerank, 5).await.unwrap();
+
+    assert!(!results.is_empty(), "should return results");
+    let high_idx = results.iter().position(|p| p.contains("high_pr"));
+    let low_idx  = results.iter().position(|p| p.contains("low_pr"));
+
+    // Assert both files appear in results — prevents vacuous pass if stub embed returns zero vectors
+    assert!(high_idx.is_some() && low_idx.is_some(),
+        "both indexed files should appear in results; high_pr: {:?}, low_pr: {:?}",
+        high_idx, low_idx);
+
+    // Now check ordering: high-pagerank doc must rank before low-pagerank doc
+    assert!(high_idx.unwrap() < low_idx.unwrap(),
+        "high-pagerank doc must rank before low-pagerank doc with equal similarity");
+}
+
+#[tokio::test]
+async fn test_index_vault_removes_stale_embeddings() {
+    // Test that index_vault (not just index_file) removes stale embeddings
+    // when a file is modified between calls.
+    let dir = tempfile::tempdir().unwrap();
+    let kb_root = dir.path().to_str().unwrap();
+    let index = VectorIndex::new(kb_root).await;
+    let embed = EmbedProviderEnum::new(kb_root).await;
+    let vault = VaultState::new(kb_root).await;
+
+    // First vault state: file contains "Old Section"
+    let note_path = dir.path().join("note.md");
+    std::fs::write(&note_path, "# Old Section\noriginal content").unwrap();
+    index.index_vault(&vault, &embed).await.unwrap();
+
+    // Second vault state: file contains only "New Section" (Old Section removed)
+    std::fs::write(&note_path, "# New Section\nreplacement content").unwrap();
+    index.index_vault(&vault, &embed).await.unwrap();
+
+    // Query for content from the removed section — should return no results
+    let query_vec = embed.embed("original content").await;
+    let results = index.search_similar(&query_vec, 10).await.unwrap();
+    assert!(
+        results.iter().all(|(path, heading, content, _)| {
+            !path.contains("note") || (heading.as_deref() != Some("Old Section")
+                && !content.contains("original content"))
+        }),
+        "index_vault must remove stale chunks: 'original content' should not appear after re-index"
+    );
 }
