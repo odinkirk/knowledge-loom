@@ -1,17 +1,17 @@
 #[cfg(test)]
 mod tests {
-    
+
     use tempfile::TempDir;
-    
-    use knowledge_loom::bm25::{BM25Index, extract_title, parse_chunks, truncate_at_whitespace};
+
+    use knowledge_loom::bm25::{extract_title, parse_chunks, truncate_at_whitespace, BM25Index};
 
     #[tokio::test]
     async fn test_bm25_create_index() {
         let temp_dir = TempDir::new().unwrap();
         let kb_root = temp_dir.path();
-        
+
         let index = BM25Index::new(kb_root.to_str().unwrap()).await;
-        
+
         assert!(index.index_path.exists());
     }
 
@@ -23,7 +23,12 @@ mod tests {
         let mut index = BM25Index::new(kb_root.to_str().unwrap()).await;
 
         let test_path = kb_root.join("test.md");
-        index.index_file(&test_path, "# Test Document\n\nThis is test content about testing").await
+        index
+            .index_file(
+                &test_path,
+                "# Test Document\n\nThis is test content about testing",
+            )
+            .await
             .unwrap();
 
         {
@@ -44,7 +49,10 @@ mod tests {
         let mut index = BM25Index::new(kb_root.to_str().unwrap()).await;
 
         let test_path = kb_root.join("test.md");
-        index.index_file(&test_path, "# Test\n\nTest content").await.unwrap();
+        index
+            .index_file(&test_path, "# Test\n\nTest content")
+            .await
+            .unwrap();
 
         {
             let mut writer = index.writer.lock().await;
@@ -77,7 +85,11 @@ mod tests {
         let results = index.search_and_retrieve("test", 10).await.unwrap();
         assert!(!results.is_empty());
         let (_score, chunk) = &results[0];
-        assert!(chunk.heading.as_deref().unwrap_or("").contains("Test Title"));
+        assert!(chunk
+            .heading
+            .as_deref()
+            .unwrap_or("")
+            .contains("Test Title"));
         assert!(chunk.content.contains("test content"));
     }
 
@@ -85,7 +97,7 @@ mod tests {
     fn test_extract_title() {
         let content = "# Main Title\n\nSome content\n\n## Subtitle\n\nMore content";
         let title = extract_title(content);
-        
+
         assert_eq!(title, Some("Main Title".to_string()));
     }
 
@@ -93,7 +105,7 @@ mod tests {
     fn test_extract_title_no_heading() {
         let content = "Just some content without headings";
         let title = extract_title(content);
-        
+
         assert_eq!(title, None);
     }
 
@@ -107,13 +119,17 @@ mod tests {
 
     #[test]
     fn test_parse_chunks_two_sections() {
-        let content = "# Introduction\n\nSome intro text here.\n\n## Background\n\nBackground details.";
+        let content =
+            "# Introduction\n\nSome intro text here.\n\n## Background\n\nBackground details.";
         let chunks = parse_chunks(content);
         assert_eq!(chunks.len(), 2);
         assert_eq!(chunks[0].heading, Some("Introduction".to_string()));
         assert_eq!(chunks[0].line_start, 1);
         assert!(chunks[0].content.contains("intro text"));
-        assert_eq!(chunks[1].heading, Some("Introduction > Background".to_string()));
+        assert_eq!(
+            chunks[1].heading,
+            Some("Introduction > Background".to_string())
+        );
         assert!(chunks[1].content.contains("Background details"));
     }
 
@@ -138,7 +154,8 @@ mod tests {
 
     #[test]
     fn test_parse_chunks_breadcrumb() {
-        let content = "# Top\n\nTop content.\n\n## Sub\n\nSub content.\n\n### DeepSub\n\nDeep content.";
+        let content =
+            "# Top\n\nTop content.\n\n## Sub\n\nSub content.\n\n### DeepSub\n\nDeep content.";
         let chunks = parse_chunks(content);
         assert_eq!(chunks.len(), 3);
         assert_eq!(chunks[0].heading, Some("Top".to_string()));
@@ -186,7 +203,10 @@ mod tests {
             writer.commit().unwrap();
         }
 
-        let chunks = index.get_chunks_for_path(path.to_str().unwrap()).await.unwrap();
+        let chunks = index
+            .get_chunks_for_path(path.to_str().unwrap())
+            .await
+            .unwrap();
         assert_eq!(chunks.len(), 2);
     }
 
@@ -198,19 +218,28 @@ mod tests {
         let mut index = BM25Index::new(kb_root.to_str().unwrap()).await;
         let path = kb_root.join("note.md");
 
-        index.index_file(&path, "# Old\n\nOld content.").await.unwrap();
+        index
+            .index_file(&path, "# Old\n\nOld content.")
+            .await
+            .unwrap();
         {
             let mut writer = index.writer.lock().await;
             writer.commit().unwrap();
         }
 
-        index.index_file(&path, "# New\n\nNew content.").await.unwrap();
+        index
+            .index_file(&path, "# New\n\nNew content.")
+            .await
+            .unwrap();
         {
             let mut writer = index.writer.lock().await;
             writer.commit().unwrap();
         }
 
-        let chunks = index.get_chunks_for_path(path.to_str().unwrap()).await.unwrap();
+        let chunks = index
+            .get_chunks_for_path(path.to_str().unwrap())
+            .await
+            .unwrap();
         assert_eq!(chunks.len(), 1);
         assert!(chunks[0].content.contains("New content"));
     }

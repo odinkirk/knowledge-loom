@@ -1,7 +1,7 @@
+use knowledge_loom::search::SearchEngine;
+use knowledge_loom::vault::VaultState;
 use std::fs;
 use tempfile::TempDir;
-use knowledge_loom::vault::VaultState;
-use knowledge_loom::search::SearchEngine;
 
 #[tokio::test]
 async fn behavioral_error_handling_invalid_file_path() {
@@ -23,7 +23,7 @@ async fn behavioral_error_handling_corrupted_index() {
     let kb_root = temp_dir.path();
 
     // Create a corrupted index file
-    let index_path = kb_root.join(".loom-index/tantivy/meta.json");
+    let index_path = kb_root.join(".knowledge-loom-index/tantivy/meta.json");
     fs::create_dir_all(index_path.parent().unwrap()).unwrap();
     fs::write(&index_path, "invalid json content").unwrap();
 
@@ -74,7 +74,10 @@ async fn behavioral_edge_case_very_large_file() {
     // Create a large file with many sections
     let mut content = String::new();
     for i in 0..1000 {
-        content.push_str(&format!("# Section {}\n\nContent for section {}.\n\n", i, i));
+        content.push_str(&format!(
+            "# Section {}\n\nContent for section {}.\n\n",
+            i, i
+        ));
     }
     fs::write(kb_root.join("large.md"), content).unwrap();
 
@@ -148,8 +151,11 @@ async fn behavioral_concurrent_search_operations() {
 
     // Create test files
     for i in 0..10 {
-        fs::write(kb_root.join(format!("file{}.md", i)),
-                 format!("# File {}\nContent {}", i, i)).unwrap();
+        fs::write(
+            kb_root.join(format!("file{}.md", i)),
+            format!("# File {}\nContent {}", i, i),
+        )
+        .unwrap();
     }
 
     let vault = VaultState::new(kb_root.to_str().unwrap()).await;
@@ -165,9 +171,7 @@ async fn behavioral_concurrent_search_operations() {
     let mut handles = vec![];
     for i in 0..10 {
         let engine = engine_arc.clone();
-        let handle = tokio::spawn(async move {
-            engine.search(&format!("content {}", i), 5).await
-        });
+        let handle = tokio::spawn(async move { engine.search(&format!("content {}", i), 5).await });
         handles.push(handle);
     }
 
@@ -191,8 +195,11 @@ async fn behavioral_concurrent_index_operations() {
     for i in 0..10 {
         let kb_root = kb_root.to_path_buf();
         let handle = tokio::spawn(async move {
-            fs::write(kb_root.join(format!("file{}.md", i)),
-                     format!("# File {}\nContent {}", i, i)).unwrap();
+            fs::write(
+                kb_root.join(format!("file{}.md", i)),
+                format!("# File {}\nContent {}", i, i),
+            )
+            .unwrap();
         });
         handles.push(handle);
     }
@@ -271,7 +278,10 @@ async fn behavioral_performance_large_dataset_search() {
 
     println!("Indexing 50 files took: {:?}", index_time);
     // Just log the time, don't assert strict limits as performance varies
-    assert!(index_time.as_secs() < 300, "Indexing should complete eventually");
+    assert!(
+        index_time.as_secs() < 300,
+        "Indexing should complete eventually"
+    );
 
     // Time the search
     let start = std::time::Instant::now();
@@ -280,7 +290,10 @@ async fn behavioral_performance_large_dataset_search() {
 
     println!("Search took: {:?}", search_time);
     assert!(!results.is_empty());
-    assert!(search_time.as_millis() < 5000, "Search should complete reasonably quickly");
+    assert!(
+        search_time.as_millis() < 5000,
+        "Search should complete reasonably quickly"
+    );
 }
 
 #[tokio::test]
@@ -392,8 +405,16 @@ async fn behavioral_integration_search_file_specificity() {
     let kb_root = temp_dir.path();
 
     // Create multiple files with overlapping content
-    fs::write(kb_root.join("file1.md"), "# File 1\nmachine learning algorithms").unwrap();
-    fs::write(kb_root.join("file2.md"), "# File 2\nmachine learning applications").unwrap();
+    fs::write(
+        kb_root.join("file1.md"),
+        "# File 1\nmachine learning algorithms",
+    )
+    .unwrap();
+    fs::write(
+        kb_root.join("file2.md"),
+        "# File 2\nmachine learning applications",
+    )
+    .unwrap();
     fs::write(kb_root.join("file3.md"), "# File 3\ndeep learning networks").unwrap();
 
     let vault = VaultState::new(kb_root.to_str().unwrap()).await;
@@ -405,11 +426,13 @@ async fn behavioral_integration_search_file_specificity() {
     }
 
     // Search within specific file
-    let results = search_engine.bm25.lock().await.search_file(
-        "file1.md",
-        "machine learning",
-        5
-    ).await.unwrap();
+    let results = search_engine
+        .bm25
+        .lock()
+        .await
+        .search_file("file1.md", "machine learning", 5)
+        .await
+        .unwrap();
 
     assert!(!results.is_empty());
     // All results should be from file1.md
@@ -428,12 +451,17 @@ async fn test_edit_reindexes_vector_backend() {
     let server = LoomServer::new(tmp.path().to_str().unwrap()).await;
 
     // Edit the file through the server - this should trigger reindex_file
-    let result = server.dispatch_tool("replace_lines", &serde_json::json!({
-        "file": "note.md",
-        "start": 2,
-        "end": 2,
-        "content": "updated vector content"
-    })).await;
+    let result = server
+        .dispatch_tool(
+            "replace_lines",
+            &serde_json::json!({
+                "file": "note.md",
+                "start": 2,
+                "end": 2,
+                "content": "updated vector content"
+            }),
+        )
+        .await;
 
     // The edit should succeed
     assert!(result.is_ok(), "edit should succeed: {:?}", result);

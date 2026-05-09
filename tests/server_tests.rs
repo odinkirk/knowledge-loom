@@ -1,6 +1,6 @@
 use knowledge_loom::server::LoomServer;
-use tempfile::TempDir;
 use rmcp::handler::server::ServerHandler;
+use tempfile::TempDir;
 
 #[tokio::test]
 async fn test_list_tools_returns_23_entries() {
@@ -9,7 +9,13 @@ async fn test_list_tools_returns_23_entries() {
     let server = LoomServer::new(kb_root).await;
     let tools = server.tool_list();
     let names: Vec<&str> = tools.iter().map(|t| t.name.as_ref()).collect();
-    assert_eq!(tools.len(), 24, "Expected 24 tools, got {}: {:?}", tools.len(), names);
+    assert_eq!(
+        tools.len(),
+        23,
+        "Expected 23 tools, got {}: {:?}",
+        tools.len(),
+        names
+    );
 }
 
 #[tokio::test]
@@ -20,18 +26,33 @@ async fn test_list_tools_has_expected_names() {
     let tools = server.tool_list();
     let names: Vec<&str> = tools.iter().map(|t| t.name.as_ref()).collect();
     for expected in &[
-        "search", "list_files", "outline",
-        "grep", "read_section", "read_lines",
-        "replace_lines", "insert_after_heading", "append_to_file",
-        "reindex", "index_status", "search_file", "search_graph",
-        "search_smart", "rank_notes", "find_connections", "find_path_between",
-        "detect_themes", "create_note", "edit_note", "apply_edit_preview",
-        "link_notes", "move_note", "delete_note"
+        "search",
+        "list_files",
+        "outline",
+        "grep",
+        "read_section",
+        "read_lines",
+        "replace_lines",
+        "insert_after_heading",
+        "append_to_file",
+        "reindex",
+        "index_status",
+        "search_file",
+        "search_graph",
+        "rank_notes",
+        "find_connections",
+        "find_path_between",
+        "detect_themes",
+        "create_note",
+        "edit_note",
+        "apply_edit_preview",
+        "link_notes",
+        "move_note",
+        "delete_note",
     ] {
         assert!(names.contains(expected), "Missing tool: {expected}");
     }
 }
-
 
 #[tokio::test]
 async fn test_call_loom_list_files() {
@@ -39,7 +60,9 @@ async fn test_call_loom_list_files() {
     let root = tmp.path().to_str().unwrap();
     std::fs::write(tmp.path().join("note.md"), "# Test\nHello").unwrap();
     let server = LoomServer::new(root).await;
-    let result = server.dispatch_tool("list_files", &serde_json::json!({})).await;
+    let result = server
+        .dispatch_tool("list_files", &serde_json::json!({}))
+        .await;
     assert!(result.is_ok(), "list_files failed: {:?}", result);
 }
 
@@ -48,7 +71,9 @@ async fn test_call_loom_index_status() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path().to_str().unwrap();
     let server = LoomServer::new(root).await;
-    let result = server.dispatch_tool("index_status", &serde_json::json!({})).await;
+    let result = server
+        .dispatch_tool("index_status", &serde_json::json!({}))
+        .await;
     assert!(result.is_ok(), "index_status failed: {:?}", result);
 }
 
@@ -62,7 +87,9 @@ async fn test_edit_then_search_finds_new_content() {
     let server = LoomServer::new(tmp.path().to_str().unwrap()).await;
 
     // Build the index initially
-    let _ = server.dispatch_tool("reindex", &serde_json::json!({})).await;
+    let _ = server
+        .dispatch_tool("reindex", &serde_json::json!({}))
+        .await;
 
     // Trigger an append via the server dispatch layer
     let append_args = serde_json::json!({
@@ -92,7 +119,9 @@ async fn test_call_loom_outline() {
     let note = tmp.path().join("note.md");
     std::fs::write(&note, "# Heading One\n\nContent\n\n## Sub\n\nMore\n").unwrap();
     let server = LoomServer::new(root).await;
-    let result = server.dispatch_tool("outline", &serde_json::json!({"file": "note.md"})).await;
+    let result = server
+        .dispatch_tool("outline", &serde_json::json!({"file": "note.md"}))
+        .await;
     assert!(result.is_ok());
     let text = result.unwrap();
     assert!(text.contains("Heading One"));
@@ -105,10 +134,15 @@ async fn test_call_loom_append_to_file() {
     let note = tmp.path().join("note.md");
     std::fs::write(&note, "# Existing\n").unwrap();
     let server = LoomServer::new(root).await;
-    let result = server.dispatch_tool("append_to_file", &serde_json::json!({
-        "file": "note.md",
-        "content": "New line"
-    })).await;
+    let result = server
+        .dispatch_tool(
+            "append_to_file",
+            &serde_json::json!({
+                "file": "note.md",
+                "content": "New line"
+            }),
+        )
+        .await;
     assert!(result.is_ok());
     let content = std::fs::read_to_string(&note).unwrap();
     assert!(content.contains("New line"));
@@ -118,7 +152,9 @@ async fn test_call_loom_append_to_file() {
 async fn test_call_unknown_tool_returns_error() {
     let tmp = TempDir::new().unwrap();
     let server = LoomServer::new(tmp.path().to_str().unwrap()).await;
-    let result = server.dispatch_tool("loom_does_not_exist", &serde_json::json!({})).await;
+    let result = server
+        .dispatch_tool("loom_does_not_exist", &serde_json::json!({}))
+        .await;
     assert!(result.is_err());
 }
 
@@ -135,10 +171,11 @@ async fn test_dispatch_tool_missing_required_argument() {
 async fn test_dispatch_tool_search_with_valid_args() {
     let tmp = TempDir::new().unwrap();
     let server = LoomServer::new(tmp.path().to_str().unwrap()).await;
-    let result = server.dispatch_tool("search", &serde_json::json!({"query": "test"})).await;
+    let result = server
+        .dispatch_tool("search", &serde_json::json!({"query": "test"}))
+        .await;
     assert!(result.is_ok());
 }
-
 
 #[tokio::test]
 async fn test_dispatch_tool_grep_with_pattern() {
@@ -147,7 +184,9 @@ async fn test_dispatch_tool_grep_with_pattern() {
     let note = tmp.path().join("note.md");
     std::fs::write(&note, "# Test\nHello world").unwrap();
     let server = LoomServer::new(root).await;
-    let result = server.dispatch_tool("grep", &serde_json::json!({"pattern": "Hello"})).await;
+    let result = server
+        .dispatch_tool("grep", &serde_json::json!({"pattern": "Hello"}))
+        .await;
     assert!(result.is_ok());
 }
 
@@ -158,7 +197,12 @@ async fn test_dispatch_tool_read_section() {
     let note = tmp.path().join("note.md");
     std::fs::write(&note, "# Test\nContent here").unwrap();
     let server = LoomServer::new(root).await;
-    let result = server.dispatch_tool("read_section", &serde_json::json!({"file": "note.md", "heading": "Test"})).await;
+    let result = server
+        .dispatch_tool(
+            "read_section",
+            &serde_json::json!({"file": "note.md", "heading": "Test"}),
+        )
+        .await;
     assert!(result.is_ok());
 }
 
@@ -169,7 +213,12 @@ async fn test_dispatch_tool_read_lines() {
     let note = tmp.path().join("note.md");
     std::fs::write(&note, "# Test\nLine 1\nLine 2").unwrap();
     let server = LoomServer::new(root).await;
-    let result = server.dispatch_tool("read_lines", &serde_json::json!({"file": "note.md", "start": 1, "end": 2})).await;
+    let result = server
+        .dispatch_tool(
+            "read_lines",
+            &serde_json::json!({"file": "note.md", "start": 1, "end": 2}),
+        )
+        .await;
     assert!(result.is_ok());
 }
 
@@ -180,7 +229,12 @@ async fn test_dispatch_tool_replace_lines() {
     let note = tmp.path().join("note.md");
     std::fs::write(&note, "# Test\nLine 1\nLine 2").unwrap();
     let server = LoomServer::new(root).await;
-    let result = server.dispatch_tool("replace_lines", &serde_json::json!({"file": "note.md", "start": 2, "end": 2, "content": "New line"})).await;
+    let result = server
+        .dispatch_tool(
+            "replace_lines",
+            &serde_json::json!({"file": "note.md", "start": 2, "end": 2, "content": "New line"}),
+        )
+        .await;
     assert!(result.is_ok());
 }
 
@@ -191,7 +245,12 @@ async fn test_dispatch_tool_insert_after_heading() {
     let note = tmp.path().join("note.md");
     std::fs::write(&note, "# Test\nContent").unwrap();
     let server = LoomServer::new(root).await;
-    let result = server.dispatch_tool("insert_after_heading", &serde_json::json!({"file": "note.md", "heading": "Test", "content": "New content"})).await;
+    let result = server
+        .dispatch_tool(
+            "insert_after_heading",
+            &serde_json::json!({"file": "note.md", "heading": "Test", "content": "New content"}),
+        )
+        .await;
     assert!(result.is_ok());
 }
 
@@ -200,7 +259,12 @@ async fn test_dispatch_tool_create_note() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path().to_str().unwrap();
     let server = LoomServer::new(root).await;
-    let result = server.dispatch_tool("create_note", &serde_json::json!({"title": "New Note", "content": "Content"})).await;
+    let result = server
+        .dispatch_tool(
+            "create_note",
+            &serde_json::json!({"title": "New Note", "content": "Content"}),
+        )
+        .await;
     assert!(result.is_ok());
 }
 
@@ -211,7 +275,12 @@ async fn test_dispatch_tool_edit_note() {
     let note = tmp.path().join("note.md");
     std::fs::write(&note, "# Test\nOld content").unwrap();
     let server = LoomServer::new(root).await;
-    let result = server.dispatch_tool("edit_note", &serde_json::json!({"file": "note.md", "content": "# Test\nNew content"})).await;
+    let result = server
+        .dispatch_tool(
+            "edit_note",
+            &serde_json::json!({"file": "note.md", "content": "# Test\nNew content"}),
+        )
+        .await;
     assert!(result.is_ok());
 }
 
@@ -222,7 +291,12 @@ async fn test_dispatch_tool_apply_edit_preview() {
     let note = tmp.path().join("note.md");
     std::fs::write(&note, "# Test\nOld content").unwrap();
     let server = LoomServer::new(root).await;
-    let result = server.dispatch_tool("apply_edit_preview", &serde_json::json!({"file": "note.md", "heading": "Test", "proposed": "New content"})).await;
+    let result = server
+        .dispatch_tool(
+            "apply_edit_preview",
+            &serde_json::json!({"file": "note.md", "heading": "Test", "proposed": "New content"}),
+        )
+        .await;
     assert!(result.is_ok());
 }
 
@@ -235,7 +309,12 @@ async fn test_dispatch_tool_link_notes() {
     std::fs::write(&note1, "# Note 1\nContent").unwrap();
     std::fs::write(&note2, "# Note 2\nContent").unwrap();
     let server = LoomServer::new(root).await;
-    let result = server.dispatch_tool("link_notes", &serde_json::json!({"from": "note1.md", "to": "note2.md"})).await;
+    let result = server
+        .dispatch_tool(
+            "link_notes",
+            &serde_json::json!({"from": "note1.md", "to": "note2.md"}),
+        )
+        .await;
     assert!(result.is_ok());
 }
 
@@ -246,7 +325,12 @@ async fn test_dispatch_tool_move_note() {
     let note = tmp.path().join("note.md");
     std::fs::write(&note, "# Test\nContent").unwrap();
     let server = LoomServer::new(root).await;
-    let result = server.dispatch_tool("move_note", &serde_json::json!({"from": "note.md", "to": "moved.md"})).await;
+    let result = server
+        .dispatch_tool(
+            "move_note",
+            &serde_json::json!({"from": "note.md", "to": "moved.md"}),
+        )
+        .await;
     assert!(result.is_ok());
 }
 
@@ -257,7 +341,9 @@ async fn test_dispatch_tool_delete_note() {
     let note = tmp.path().join("note.md");
     std::fs::write(&note, "# Test\nContent").unwrap();
     let server = LoomServer::new(root).await;
-    let result = server.dispatch_tool("delete_note", &serde_json::json!({"file": "note.md"})).await;
+    let result = server
+        .dispatch_tool("delete_note", &serde_json::json!({"file": "note.md"}))
+        .await;
     assert!(result.is_ok());
 }
 
@@ -265,7 +351,9 @@ async fn test_dispatch_tool_delete_note() {
 async fn test_dispatch_tool_rank_notes() {
     let tmp = TempDir::new().unwrap();
     let server = LoomServer::new(tmp.path().to_str().unwrap()).await;
-    let result = server.dispatch_tool("rank_notes", &serde_json::json!({})).await;
+    let result = server
+        .dispatch_tool("rank_notes", &serde_json::json!({}))
+        .await;
     assert!(result.is_ok());
 }
 
@@ -273,7 +361,9 @@ async fn test_dispatch_tool_rank_notes() {
 async fn test_dispatch_tool_detect_themes() {
     let tmp = TempDir::new().unwrap();
     let server = LoomServer::new(tmp.path().to_str().unwrap()).await;
-    let result = server.dispatch_tool("detect_themes", &serde_json::json!({})).await;
+    let result = server
+        .dispatch_tool("detect_themes", &serde_json::json!({}))
+        .await;
     assert!(result.is_ok());
 }
 
@@ -281,7 +371,9 @@ async fn test_dispatch_tool_detect_themes() {
 async fn test_dispatch_tool_find_connections() {
     let tmp = TempDir::new().unwrap();
     let server = LoomServer::new(tmp.path().to_str().unwrap()).await;
-    let result = server.dispatch_tool("find_connections", &serde_json::json!({"note": "test"})).await;
+    let result = server
+        .dispatch_tool("find_connections", &serde_json::json!({"note": "test"}))
+        .await;
     assert!(result.is_ok());
 }
 
@@ -289,7 +381,12 @@ async fn test_dispatch_tool_find_connections() {
 async fn test_dispatch_tool_find_path_between() {
     let tmp = TempDir::new().unwrap();
     let server = LoomServer::new(tmp.path().to_str().unwrap()).await;
-    let result = server.dispatch_tool("find_path_between", &serde_json::json!({"note_a": "test1", "note_b": "test2"})).await;
+    let result = server
+        .dispatch_tool(
+            "find_path_between",
+            &serde_json::json!({"note_a": "test1", "note_b": "test2"}),
+        )
+        .await;
     assert!(result.is_ok());
 }
 
@@ -297,16 +394,19 @@ async fn test_dispatch_tool_find_path_between() {
 async fn test_dispatch_tool_search_graph() {
     let tmp = TempDir::new().unwrap();
     let server = LoomServer::new(tmp.path().to_str().unwrap()).await;
-    let result = server.dispatch_tool("search_graph", &serde_json::json!({"note": "test"})).await;
+    let result = server
+        .dispatch_tool("search_graph", &serde_json::json!({"note": "test"}))
+        .await;
     assert!(result.is_ok());
 }
-
 
 #[tokio::test]
 async fn test_dispatch_tool_reindex() {
     let tmp = TempDir::new().unwrap();
     let server = LoomServer::new(tmp.path().to_str().unwrap()).await;
-    let result = server.dispatch_tool("reindex", &serde_json::json!({})).await;
+    let result = server
+        .dispatch_tool("reindex", &serde_json::json!({}))
+        .await;
     assert!(result.is_ok());
 }
 
@@ -324,7 +424,7 @@ async fn test_server_tool_list_count() {
     let tmp = TempDir::new().unwrap();
     let server = LoomServer::new(tmp.path().to_str().unwrap()).await;
     let tools = server.tool_list();
-    assert_eq!(tools.len(), 24);
+    assert_eq!(tools.len(), 23);
 }
 
 #[tokio::test]

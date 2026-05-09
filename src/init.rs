@@ -1,7 +1,7 @@
+use serde_json::Value;
 use std::fs;
 use std::io::Write;
 use std::path::Path;
-use serde_json::Value;
 
 pub fn run_init(mut args: impl Iterator<Item = String>) -> Result<(), Box<dyn std::error::Error>> {
     let _ = args.next(); // skip "init"
@@ -23,7 +23,8 @@ pub fn run_init(mut args: impl Iterator<Item = String>) -> Result<(), Box<dyn st
         Some(d) => std::path::PathBuf::from(d),
         None => std::env::current_dir()?,
     };
-    let dir = dir.canonicalize()
+    let dir = dir
+        .canonicalize()
         .map_err(|e| format!("Cannot resolve directory '{}': {e}", dir.display()))?;
 
     // Resolve binary (existing logic)
@@ -61,7 +62,10 @@ fn write_opencode_json(dir: &Path, binary_path: &Path) -> Result<(), Box<dyn std
     Ok(())
 }
 
-pub fn run_init_with_binary(dir: &Path, binary_src: &Path) -> Result<(), Box<dyn std::error::Error>> {
+pub fn run_init_with_binary(
+    dir: &Path,
+    binary_src: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
     // 1. Copy binary
     let bin_dir = dir.join(".knowledge-loom/bin");
     fs::create_dir_all(&bin_dir)?;
@@ -78,10 +82,8 @@ pub fn run_init_with_binary(dir: &Path, binary_src: &Path) -> Result<(), Box<dyn
     // 1.5. Emit loom-shell.sh
     let script_path = dir.join("loom-shell.sh");
     let kb_root_placeholder = dir.to_string_lossy();
-    let script_content = crate::shell::make_shell_script(
-        &dest.to_string_lossy(),
-        &kb_root_placeholder,
-    );
+    let script_content =
+        crate::shell::make_shell_script(&dest.to_string_lossy(), &kb_root_placeholder);
     let tmp_script = script_path.with_extension("tmp");
     std::fs::write(&tmp_script, &script_content)?;
     #[cfg(unix)]
@@ -135,12 +137,18 @@ pub fn run_init_with_binary(dir: &Path, binary_src: &Path) -> Result<(), Box<dyn
     if !existing_gi.lines().any(|l| l.trim() == ".knowledge-loom/") {
         additions.push(".knowledge-loom/");
     }
-    if !existing_gi.lines().any(|l| l.trim() == ".knowledge-loom-index/") {
+    if !existing_gi
+        .lines()
+        .any(|l| l.trim() == ".knowledge-loom-index/")
+    {
         additions.push(".knowledge-loom-index/");
     }
 
     if !additions.is_empty() {
-        let mut f = fs::OpenOptions::new().create(true).append(true).open(&gi_path)?;
+        let mut f = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&gi_path)?;
         if !existing_gi.is_empty() && !existing_gi.ends_with('\n') {
             writeln!(f)?;
         }

@@ -27,11 +27,12 @@ fn test_init_happy_path() {
     assert!(dir.join(".knowledge-loom/bin/loom").exists());
 
     // .mcp.json written with knowledge-loom key
-    let mcp: serde_json::Value = serde_json::from_str(
-        &fs::read_to_string(dir.join(".mcp.json")).unwrap()
-    ).unwrap();
+    let mcp: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(dir.join(".mcp.json")).unwrap()).unwrap();
     assert!(mcp["mcpServers"]["knowledge-loom"]["command"].is_string());
-    let kb_root = mcp["mcpServers"]["knowledge-loom"]["env"]["KB_ROOT"].as_str().unwrap();
+    let kb_root = mcp["mcpServers"]["knowledge-loom"]["env"]["KB_ROOT"]
+        .as_str()
+        .unwrap();
     assert_eq!(kb_root, dir.to_str().unwrap());
 
     // .gitignore updated
@@ -53,13 +54,16 @@ fn test_init_preserves_existing_mcp_servers() {
             "other-server": { "command": "other", "args": [] }
         }
     });
-    fs::write(dir.join(".mcp.json"), serde_json::to_string_pretty(&existing).unwrap()).unwrap();
+    fs::write(
+        dir.join(".mcp.json"),
+        serde_json::to_string_pretty(&existing).unwrap(),
+    )
+    .unwrap();
 
     knowledge_loom::init::run_init_with_binary(dir, &binary_src).unwrap();
 
-    let mcp: serde_json::Value = serde_json::from_str(
-        &fs::read_to_string(dir.join(".mcp.json")).unwrap()
-    ).unwrap();
+    let mcp: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(dir.join(".mcp.json")).unwrap()).unwrap();
     // Original server preserved
     assert!(mcp["mcpServers"]["other-server"]["command"].is_string());
     // Knowledge-loom server added
@@ -76,12 +80,17 @@ fn test_init_idempotent() {
     knowledge_loom::init::run_init_with_binary(dir, &binary_src).unwrap();
     knowledge_loom::init::run_init_with_binary(dir, &binary_src).unwrap();
 
-    let mcp: serde_json::Value = serde_json::from_str(
-        &fs::read_to_string(dir.join(".mcp.json")).unwrap()
-    ).unwrap();
+    let mcp: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(dir.join(".mcp.json")).unwrap()).unwrap();
     let servers = mcp["mcpServers"].as_object().unwrap();
     // Exactly one "knowledge-loom" key, no duplicates
-    assert_eq!(servers.keys().filter(|k| k.as_str() == "knowledge-loom").count(), 1);
+    assert_eq!(
+        servers
+            .keys()
+            .filter(|k| k.as_str() == "knowledge-loom")
+            .count(),
+        1
+    );
 
     let gi = fs::read_to_string(dir.join(".gitignore")).unwrap();
     assert_eq!(gi.matches(".knowledge-loom/").count(), 1);
@@ -97,7 +106,7 @@ fn test_run_init_with_no_args_uses_current_dir() {
 
     // Change to temp directory
     let _ = env::set_current_dir(&dir);
-    
+
     // Call run_init with just "init" arg (simulating command line)
     knowledge_loom::init::run_init(std::iter::once("init".to_string())).unwrap();
 
@@ -118,8 +127,9 @@ fn test_run_init_with_explicit_dir() {
     // Call run_init with "init" and target directory
     knowledge_loom::init::run_init(
         std::iter::once("init".to_string())
-            .chain(std::iter::once(target_dir.to_string_lossy().to_string()))
-    ).unwrap();
+            .chain(std::iter::once(target_dir.to_string_lossy().to_string())),
+    )
+    .unwrap();
 
     // Binary should be copied to target directory
     assert!(target_dir.join(".knowledge-loom/bin/loom").exists());
@@ -128,10 +138,9 @@ fn test_run_init_with_explicit_dir() {
 #[test]
 fn test_run_init_handles_invalid_directory() {
     let result = knowledge_loom::init::run_init(
-        std::iter::once("init".to_string())
-            .chain(std::iter::once("/nonexistent/path".to_string()))
+        std::iter::once("init".to_string()).chain(std::iter::once("/nonexistent/path".to_string())),
     );
-    
+
     // Should return an error
     assert!(result.is_err());
 }

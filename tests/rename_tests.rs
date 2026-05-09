@@ -1,11 +1,18 @@
-use knowledge_loom::{INDEX_DIR, BIN_DIR, IGNORE_FILE, MCP_CONFIG_KEY,
-                     GITIGNORE_ENTRY_BIN, GITIGNORE_ENTRY_INDEX};
+use knowledge_loom::{
+    BIN_DIR, GITIGNORE_ENTRY_BIN, GITIGNORE_ENTRY_INDEX, IGNORE_FILE, INDEX_DIR, MCP_CONFIG_KEY,
+};
 
 #[test]
 fn test_constants_have_new_names() {
-    assert!(INDEX_DIR.contains("knowledge-loom"), "INDEX_DIR: {INDEX_DIR}");
+    assert!(
+        INDEX_DIR.contains("knowledge-loom"),
+        "INDEX_DIR: {INDEX_DIR}"
+    );
     assert!(BIN_DIR.contains("knowledge-loom"), "BIN_DIR: {BIN_DIR}");
-    assert!(IGNORE_FILE.contains("knowledge-loom"), "IGNORE_FILE: {IGNORE_FILE}");
+    assert!(
+        IGNORE_FILE.contains("knowledge-loom"),
+        "IGNORE_FILE: {IGNORE_FILE}"
+    );
     assert_eq!(MCP_CONFIG_KEY, "knowledge-loom");
     assert!(GITIGNORE_ENTRY_BIN.contains("knowledge-loom"));
     assert!(GITIGNORE_ENTRY_INDEX.contains("knowledge-loom"));
@@ -29,7 +36,8 @@ fn test_init_uses_new_paths() {
     let dir = tmp.path();
     let bin = dir.join("fake_loom");
     std::fs::write(&bin, b"#!/bin/sh\necho loom").unwrap();
-    #[cfg(unix)] {
+    #[cfg(unix)]
+    {
         use std::os::unix::fs::PermissionsExt;
         let mut p = std::fs::metadata(&bin).unwrap().permissions();
         p.set_mode(0o755);
@@ -45,13 +53,18 @@ fn test_init_uses_new_paths() {
     // .gitignore entries
     let gi = std::fs::read_to_string(dir.join(".gitignore")).unwrap();
     assert!(gi.contains(".knowledge-loom/"), "gitignore bin: {gi}");
-    assert!(gi.contains(".knowledge-loom-index/"), "gitignore index: {gi}");
+    assert!(
+        gi.contains(".knowledge-loom-index/"),
+        "gitignore index: {gi}"
+    );
     assert!(!gi.contains(".loom/"), "old entry present: {gi}");
 
     // MCP config key
-    let mcp: serde_json::Value = serde_json::from_str(
-        &std::fs::read_to_string(dir.join(".mcp.json")).unwrap()
-    ).unwrap();
+    let mcp: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(dir.join(".mcp.json")).unwrap()).unwrap();
     assert!(mcp["mcpServers"]["knowledge-loom"]["command"].is_string());
-    assert!(mcp["mcpServers"].get("loom").is_none(), "old key still present");
+    assert!(
+        mcp["mcpServers"].get("loom").is_none(),
+        "old key still present"
+    );
 }

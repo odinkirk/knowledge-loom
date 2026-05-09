@@ -1,6 +1,6 @@
-use std::process::{Command, Stdio};
-use std::io::{Write, BufRead};
 use serde_json::{json, Value};
+use std::io::{BufRead, Write};
+use std::process::{Command, Stdio};
 
 #[tokio::test]
 async fn test_mcp_protocol_initialization() {
@@ -11,14 +11,17 @@ async fn test_mcp_protocol_initialization() {
     std::fs::write(temp_dir.path().join("test.md"), "# Test\nContent").unwrap();
 
     // Start the MCP server
-    let mut child = Command::new(&std::env::var("CARGO_BIN_EXE_loom").unwrap_or_else(|_| format!("{}/target/debug/loom", env!("CARGO_MANIFEST_DIR"))))
-        .arg("serve")
-        .env("KB_ROOT", kb_root)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("Failed to start loom server");
+    let mut child = Command::new(
+        &std::env::var("CARGO_BIN_EXE_loom")
+            .unwrap_or_else(|_| format!("{}/target/debug/loom", env!("CARGO_MANIFEST_DIR"))),
+    )
+    .arg("serve")
+    .env("KB_ROOT", kb_root)
+    .stdin(Stdio::piped())
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped())
+    .spawn()
+    .expect("Failed to start loom server");
 
     // Get stdin and stdout immediately
     let stdin = child.stdin.as_mut().expect("Failed to get stdin");
@@ -52,7 +55,10 @@ async fn test_mcp_protocol_initialization() {
         assert_eq!(response["jsonrpc"], "2.0");
         assert_eq!(response["id"], 1);
         assert!(response["result"].is_object());
-        println!("Initialize response: {}", serde_json::to_string_pretty(&response).unwrap());
+        println!(
+            "Initialize response: {}",
+            serde_json::to_string_pretty(&response).unwrap()
+        );
     } else {
         // Check stderr for errors
         let mut stderr_lines = std::io::BufReader::new(stderr).lines();
@@ -91,7 +97,8 @@ async fn test_mcp_protocol_initialization() {
     while start.elapsed() < std::time::Duration::from_secs(5) {
         if let Some(Ok(line)) = lines.next() {
             println!("Received: {}", line);
-            let response: Value = serde_json::from_str(&line).expect("Failed to parse tools response");
+            let response: Value =
+                serde_json::from_str(&line).expect("Failed to parse tools response");
 
             if response["id"] == 2 {
                 found_response = true;
@@ -103,12 +110,16 @@ async fn test_mcp_protocol_initialization() {
                         assert!(!tools.is_empty(), "Should have at least one tool");
 
                         // Check for expected tools
-                        let tool_names: Vec<&str> = tools.iter()
+                        let tool_names: Vec<&str> = tools
+                            .iter()
                             .filter_map(|t| t.get("name").and_then(|n| n.as_str()))
                             .collect();
 
                         assert!(tool_names.contains(&"search"), "Should have search tool");
-                        assert!(tool_names.contains(&"list_files"), "Should have list_files tool");
+                        assert!(
+                            tool_names.contains(&"list_files"),
+                            "Should have list_files tool"
+                        );
                     } else {
                         panic!("No tools array in response");
                     }
@@ -137,14 +148,17 @@ async fn test_mcp_tool_call() {
     std::fs::write(temp_dir.path().join("test.md"), "# Test\nContent").unwrap();
 
     // Start the MCP server
-    let mut child = Command::new(&std::env::var("CARGO_BIN_EXE_loom").unwrap_or_else(|_| format!("{}/target/debug/loom", env!("CARGO_MANIFEST_DIR"))))
-        .arg("serve")
-        .env("KB_ROOT", kb_root)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("Failed to start loom server");
+    let mut child = Command::new(
+        &std::env::var("CARGO_BIN_EXE_loom")
+            .unwrap_or_else(|_| format!("{}/target/debug/loom", env!("CARGO_MANIFEST_DIR"))),
+    )
+    .arg("serve")
+    .env("KB_ROOT", kb_root)
+    .stdin(Stdio::piped())
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped())
+    .spawn()
+    .expect("Failed to start loom server");
 
     let stdin = child.stdin.as_mut().expect("Failed to get stdin");
     let stdout = child.stdout.as_mut().expect("Failed to get stdout");
@@ -152,37 +166,52 @@ async fn test_mcp_tool_call() {
     let mut lines = reader.lines();
 
     // Send initialize request immediately
-    writeln!(stdin, "{}", json!({
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "initialize",
-        "params": {
-            "protocolVersion": "2024-11-05",
-            "capabilities": {},
-            "clientInfo": {"name": "test", "version": "1.0"}
-        }
-    })).unwrap();
+    writeln!(
+        stdin,
+        "{}",
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {"name": "test", "version": "1.0"}
+            }
+        })
+    )
+    .unwrap();
     stdin.flush().expect("Failed to flush stdin");
 
     lines.next(); // Skip init response
 
     // Send initialized
-    writeln!(stdin, "{}", json!({
-        "jsonrpc": "2.0",
-        "method": "notifications/initialized"
-    })).unwrap();
+    writeln!(
+        stdin,
+        "{}",
+        json!({
+            "jsonrpc": "2.0",
+            "method": "notifications/initialized"
+        })
+    )
+    .unwrap();
     stdin.flush().expect("Failed to flush stdin");
 
     // Call list_files
-    writeln!(stdin, "{}", json!({
-        "jsonrpc": "2.0",
-        "id": 2,
-        "method": "tools/call",
-        "params": {
-            "name": "list_files",
-            "arguments": {}
-        }
-    })).unwrap();
+    writeln!(
+        stdin,
+        "{}",
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/call",
+            "params": {
+                "name": "list_files",
+                "arguments": {}
+            }
+        })
+    )
+    .unwrap();
     stdin.flush().expect("Failed to flush stdin");
 
     // Read response with timeout
@@ -201,7 +230,10 @@ async fn test_mcp_tool_call() {
                 if let Some(result) = response.get("result") {
                     if let Some(content) = result.get("content").and_then(|c| c.as_array()) {
                         assert!(!content.is_empty(), "Should have content");
-                        println!("Tool call result: {}", serde_json::to_string_pretty(&result).unwrap());
+                        println!(
+                            "Tool call result: {}",
+                            serde_json::to_string_pretty(&result).unwrap()
+                        );
                     } else {
                         panic!("No content in tool result");
                     }

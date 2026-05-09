@@ -1,0 +1,17 @@
+# Rust formatting configuration for Knowledge Loom
+
+# Maximum line width
+max_width = 100
+
+# Use spaces instead of tabs
+hard_tabs = false
+
+# Edition to use
+edition = "2021"
+
+# Use field init shorthand if possible
+use_field_init_shorthand = true
+
+# Use try shorthand
+use_try_shorthand = true
+

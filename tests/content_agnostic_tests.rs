@@ -1,9 +1,9 @@
 #[cfg(test)]
 mod tests {
-    use tempfile::TempDir;
-    use std::fs;
     use knowledge_loom::search::SearchEngine;
     use knowledge_loom::vault::VaultState;
+    use std::fs;
+    use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_search_basic_functionality() {
@@ -35,7 +35,10 @@ mod tests {
         // Test results have proper structure
         for result in &results {
             assert!(!result.path.is_empty(), "Result should have a path");
-            assert!(result.score >= 0.0, "Result should have a non-negative score");
+            assert!(
+                result.score >= 0.0,
+                "Result should have a non-negative score"
+            );
         }
     }
 
@@ -58,8 +61,11 @@ mod tests {
 
         // Create multiple files
         for i in 0..10 {
-            fs::write(kb_root.join(format!("file{}.md", i)),
-                     format!("# File {}\nContent {}", i, i)).unwrap();
+            fs::write(
+                kb_root.join(format!("file{}.md", i)),
+                format!("# File {}\nContent {}", i, i),
+            )
+            .unwrap();
         }
 
         let search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
@@ -86,8 +92,16 @@ mod tests {
         let kb_root = temp_dir.path();
 
         // Create files with different relevance
-        fs::write(kb_root.join("relevant.md"), "# Relevant\nTarget word appears multiple times").unwrap();
-        fs::write(kb_root.join("less_relevant.md"), "# Less Relevant\nTarget word appears once").unwrap();
+        fs::write(
+            kb_root.join("relevant.md"),
+            "# Relevant\nTarget word appears multiple times",
+        )
+        .unwrap();
+        fs::write(
+            kb_root.join("less_relevant.md"),
+            "# Less Relevant\nTarget word appears once",
+        )
+        .unwrap();
 
         let search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
 
@@ -106,8 +120,10 @@ mod tests {
 
         // Results should be sorted by score
         for i in 0..results.len().saturating_sub(1) {
-            assert!(results[i].score >= results[i + 1].score,
-                   "Results should be sorted by score");
+            assert!(
+                results[i].score >= results[i + 1].score,
+                "Results should be sorted by score"
+            );
         }
     }
 
@@ -139,7 +155,10 @@ mod tests {
         // The important thing is that the search doesn't crash and returns a valid result structure
         for result in &results {
             assert!(!result.path.is_empty(), "Result should have a path");
-            assert!(result.score >= 0.0, "Result should have a non-negative score");
+            assert!(
+                result.score >= 0.0,
+                "Result should have a non-negative score"
+            );
         }
     }
 
@@ -168,8 +187,14 @@ mod tests {
         let results_lower = search_engine.search("targetword", 5).await;
         let results_upper = search_engine.search("TARGETWORD", 5).await;
 
-        assert!(!results_lower.is_empty(), "Lowercase search should find results");
-        assert!(!results_upper.is_empty(), "Uppercase search should find results");
+        assert!(
+            !results_lower.is_empty(),
+            "Lowercase search should find results"
+        );
+        assert!(
+            !results_upper.is_empty(),
+            "Uppercase search should find results"
+        );
     }
 
     #[tokio::test]
@@ -178,7 +203,11 @@ mod tests {
         let kb_root = temp_dir.path();
 
         // Create file with multiple terms
-        fs::write(kb_root.join("file.md"), "# File\nFirst term and second term together").unwrap();
+        fs::write(
+            kb_root.join("file.md"),
+            "# File\nFirst term and second term together",
+        )
+        .unwrap();
 
         let search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
 
@@ -204,7 +233,11 @@ mod tests {
         let kb_root = temp_dir.path();
 
         // Create file with special characters
-        fs::write(kb_root.join("file.md"), "# File\nContent with @ # $ % symbols").unwrap();
+        fs::write(
+            kb_root.join("file.md"),
+            "# File\nContent with @ # $ % symbols",
+        )
+        .unwrap();
 
         let search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
 
@@ -221,7 +254,10 @@ mod tests {
 
         // Search should handle special characters
         let results = search_engine.search("Content", 5).await;
-        assert!(!results.is_empty(), "Search should handle special characters");
+        assert!(
+            !results.is_empty(),
+            "Search should handle special characters"
+        );
     }
 
     #[tokio::test]
@@ -230,7 +266,11 @@ mod tests {
         let kb_root = temp_dir.path();
 
         // Create file with unicode content
-        fs::write(kb_root.join("file.md"), "# File\nUnicode content: café, naïve, résumé").unwrap();
+        fs::write(
+            kb_root.join("file.md"),
+            "# File\nUnicode content: café, naïve, résumé",
+        )
+        .unwrap();
 
         let search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
 
@@ -257,11 +297,23 @@ mod tests {
 
         // Create files that will be found by different search sources
         // File 1: Good for BM25 (exact term match)
-        fs::write(kb_root.join("bm25_match.md"), "# BM25 Match\nmachine learning algorithms").unwrap();
+        fs::write(
+            kb_root.join("bm25_match.md"),
+            "# BM25 Match\nmachine learning algorithms",
+        )
+        .unwrap();
         // File 2: Good for vector search (semantic similarity)
-        fs::write(kb_root.join("vector_match.md"), "# Vector Match\nartificial intelligence and neural networks").unwrap();
+        fs::write(
+            kb_root.join("vector_match.md"),
+            "# Vector Match\nartificial intelligence and neural networks",
+        )
+        .unwrap();
         // File 3: Good for graph search (linked to other files)
-        fs::write(kb_root.join("graph_match.md"), "# Graph Match\n[[bm25_match]] [[vector_match]]").unwrap();
+        fs::write(
+            kb_root.join("graph_match.md"),
+            "# Graph Match\n[[bm25_match]] [[vector_match]]",
+        )
+        .unwrap();
 
         let search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
 
@@ -286,7 +338,10 @@ mod tests {
 
         // Verify results are from different sources (RRF merging)
         let paths: Vec<_> = results.iter().map(|r| &r.path).collect();
-        assert!(paths.iter().any(|p| p.ends_with("bm25_match.md")), "Should include BM25 match");
+        assert!(
+            paths.iter().any(|p| p.ends_with("bm25_match.md")),
+            "Should include BM25 match"
+        );
     }
 
     #[tokio::test]
@@ -296,8 +351,11 @@ mod tests {
 
         // Create multiple files to test parallel execution
         for i in 0..20 {
-            fs::write(kb_root.join(format!("file{}.md", i)),
-                     format!("# File {}\nContent {}", i, i)).unwrap();
+            fs::write(
+                kb_root.join(format!("file{}.md", i)),
+                format!("# File {}\nContent {}", i, i),
+            )
+            .unwrap();
         }
 
         let search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
@@ -320,7 +378,10 @@ mod tests {
 
         assert!(!results.is_empty(), "Parallel search should return results");
         // Parallel execution should be reasonably fast
-        assert!(duration.as_millis() < 5000, "Parallel search should complete in reasonable time");
+        assert!(
+            duration.as_millis() < 5000,
+            "Parallel search should complete in reasonable time"
+        );
     }
 
     #[tokio::test]
@@ -330,8 +391,16 @@ mod tests {
 
         // Create files with wikilinks to test graph integration
         fs::write(kb_root.join("main.md"), "# Main\n[[topic1]] [[topic2]]").unwrap();
-        fs::write(kb_root.join("topic1.md"), "# Topic 1\nContent about topic 1").unwrap();
-        fs::write(kb_root.join("topic2.md"), "# Topic 2\nContent about topic 2").unwrap();
+        fs::write(
+            kb_root.join("topic1.md"),
+            "# Topic 1\nContent about topic 1",
+        )
+        .unwrap();
+        fs::write(
+            kb_root.join("topic2.md"),
+            "# Topic 2\nContent about topic 2",
+        )
+        .unwrap();
 
         let search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
 
@@ -352,11 +421,17 @@ mod tests {
 
         // Search for "main" should find related topics via graph
         let results = search_engine.search("main", 5).await;
-        assert!(!results.is_empty(), "Graph-integrated search should return results");
+        assert!(
+            !results.is_empty(),
+            "Graph-integrated search should return results"
+        );
 
         // Should include the main file and potentially related files
         let paths: Vec<_> = results.iter().map(|r| &r.path).collect();
-        assert!(paths.iter().any(|p| p.ends_with("main.md")), "Should include main file");
+        assert!(
+            paths.iter().any(|p| p.ends_with("main.md")),
+            "Should include main file"
+        );
     }
 
     #[tokio::test]
@@ -365,9 +440,21 @@ mod tests {
         let kb_root = temp_dir.path();
 
         // Create files with different relevance levels
-        fs::write(kb_root.join("high_relevance.md"), "# High Relevance\nmachine learning algorithms and neural networks").unwrap();
-        fs::write(kb_root.join("medium_relevance.md"), "# Medium Relevance\nsome content about algorithms").unwrap();
-        fs::write(kb_root.join("low_relevance.md"), "# Low Relevance\nrandom content").unwrap();
+        fs::write(
+            kb_root.join("high_relevance.md"),
+            "# High Relevance\nmachine learning algorithms and neural networks",
+        )
+        .unwrap();
+        fs::write(
+            kb_root.join("medium_relevance.md"),
+            "# Medium Relevance\nsome content about algorithms",
+        )
+        .unwrap();
+        fs::write(
+            kb_root.join("low_relevance.md"),
+            "# Low Relevance\nrandom content",
+        )
+        .unwrap();
 
         let search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
 
@@ -386,10 +473,11 @@ mod tests {
 
         // Results should be sorted by RRF score
         for i in 0..results.len().saturating_sub(1) {
-            assert!(results[i].score >= results[i + 1].score,
-                   "Results should be sorted by RRF score");
+            assert!(
+                results[i].score >= results[i + 1].score,
+                "Results should be sorted by RRF score"
+            );
         }
-
     }
 
     #[tokio::test]
@@ -399,7 +487,11 @@ mod tests {
 
         // Create files that will be found by different search sources
         fs::write(kb_root.join("file1.md"), "# File 1\nmachine learning").unwrap();
-        fs::write(kb_root.join("file2.md"), "# File 2\nartificial intelligence").unwrap();
+        fs::write(
+            kb_root.join("file2.md"),
+            "# File 2\nartificial intelligence",
+        )
+        .unwrap();
         fs::write(kb_root.join("file3.md"), "# File 3\n[[file1]] [[file2]]").unwrap();
 
         let search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
@@ -421,11 +513,17 @@ mod tests {
 
         // Search should use multiple sources
         let results = search_engine.search("machine", 5).await;
-        assert!(!results.is_empty(), "Multi-source search should return results");
+        assert!(
+            !results.is_empty(),
+            "Multi-source search should return results"
+        );
 
         // Results should come from different search sources (verified by RRF scoring)
         let total_score: f32 = results.iter().map(|r| r.score).sum();
-        assert!(total_score > 0.0, "RRF should produce positive scores from multiple sources");
+        assert!(
+            total_score > 0.0,
+            "RRF should produce positive scores from multiple sources"
+        );
     }
 
     #[tokio::test]
@@ -455,13 +553,27 @@ mod tests {
         let results3 = search_engine.search("Test", 5).await;
 
         // Results should be consistent
-        assert_eq!(results1.len(), results2.len(), "Search should be consistent");
-        assert_eq!(results2.len(), results3.len(), "Search should be consistent");
+        assert_eq!(
+            results1.len(),
+            results2.len(),
+            "Search should be consistent"
+        );
+        assert_eq!(
+            results2.len(),
+            results3.len(),
+            "Search should be consistent"
+        );
 
         // Scores should be consistent
         for i in 0..results1.len() {
-            assert_eq!(results1[i].score, results2[i].score, "Scores should be consistent");
-            assert_eq!(results2[i].score, results3[i].score, "Scores should be consistent");
+            assert_eq!(
+                results1[i].score, results2[i].score,
+                "Scores should be consistent"
+            );
+            assert_eq!(
+                results2[i].score, results3[i].score,
+                "Scores should be consistent"
+            );
         }
     }
 
@@ -500,7 +612,10 @@ mod tests {
             // Check if heading is populated (metadata enrichment)
             if result.sections[0].heading.is_some() {
                 let heading = result.sections[0].heading.as_ref().unwrap();
-                assert!(!heading.is_empty(), "Heading should not be empty if present");
+                assert!(
+                    !heading.is_empty(),
+                    "Heading should not be empty if present"
+                );
             }
         }
     }
@@ -511,7 +626,8 @@ mod tests {
         let kb_root = temp_dir.path();
 
         // Create file with specific content
-        let test_content = "# Test File\n\nThis is the target content that should be returned in search results.";
+        let test_content =
+            "# Test File\n\nThis is the target content that should be returned in search results.";
         fs::write(kb_root.join("file.md"), test_content).unwrap();
 
         let search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
@@ -534,9 +650,15 @@ mod tests {
             // Verify content metadata is enriched
             let result = &results[0];
             assert!(!result.sections.is_empty(), "Result should have sections");
-            assert!(!result.sections[0].content.is_empty(), "Result should have content metadata");
-            assert!(result.sections[0].content.contains("target content") || result.sections[0].content.contains("target"),
-                   "Content should contain search terms");
+            assert!(
+                !result.sections[0].content.is_empty(),
+                "Result should have content metadata"
+            );
+            assert!(
+                result.sections[0].content.contains("target content")
+                    || result.sections[0].content.contains("target"),
+                "Content should contain search terms"
+            );
         }
     }
 
@@ -608,12 +730,21 @@ mod tests {
             // Required fields
             assert!(!result.path.is_empty(), "Path should be populated");
             assert!(result.score >= 0.0, "Score should be non-negative");
-            assert!(!result.sections[0].content.is_empty(), "Content should be populated");
-            assert!(result.sections[0].line_start > 0, "Line start should be positive");
+            assert!(
+                !result.sections[0].content.is_empty(),
+                "Content should be populated"
+            );
+            assert!(
+                result.sections[0].line_start > 0,
+                "Line start should be positive"
+            );
 
             // Optional metadata fields (should be populated when available)
             if result.sections[0].heading.is_some() {
-                assert!(!result.sections[0].heading.as_ref().unwrap().is_empty(), "Heading should not be empty");
+                assert!(
+                    !result.sections[0].heading.as_ref().unwrap().is_empty(),
+                    "Heading should not be empty"
+                );
             }
         }
     }
@@ -648,14 +779,22 @@ mod tests {
         for result in &results {
             assert!(!result.path.is_empty(), "Each result should have a path");
             assert!(result.score >= 0.0, "Each result should have a score");
-            assert!(!result.sections.is_empty(), "Each result should have sections");
-            assert!(!result.sections[0].content.is_empty(), "Each result should have content");
+            assert!(
+                !result.sections.is_empty(),
+                "Each result should have sections"
+            );
+            assert!(
+                !result.sections[0].content.is_empty(),
+                "Each result should have content"
+            );
         }
 
         // Results should be sorted by score
         for i in 0..results.len().saturating_sub(1) {
-            assert!(results[i].score >= results[i + 1].score,
-                   "Multiple results should be sorted by score");
+            assert!(
+                results[i].score >= results[i + 1].score,
+                "Multiple results should be sorted by score"
+            );
         }
     }
 }

@@ -1,10 +1,10 @@
+use petgraph::graph::{DiGraph, NodeIndex};
+use petgraph::visit::EdgeRef;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use petgraph::graph::{DiGraph, NodeIndex};
-use petgraph::visit::EdgeRef;
-use serde::{Deserialize, Serialize};
 
 static WIKILINK_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 
@@ -44,7 +44,9 @@ impl GraphState {
 
                         // Add edges
                         for (source_idx, target_idx, edge_label) in &graph_data.edges {
-                            if source_idx < &graph_data.nodes.len() && target_idx < &graph_data.nodes.len() {
+                            if source_idx < &graph_data.nodes.len()
+                                && target_idx < &graph_data.nodes.len()
+                            {
                                 let source_node = NodeIndex::new(*source_idx);
                                 let target_node = NodeIndex::new(*target_idx);
                                 g.add_edge(source_node, target_node, edge_label.clone());
@@ -70,8 +72,11 @@ impl GraphState {
             cached_communities: Arc::new(Mutex::new(None)),
         }
     }
-    
-    pub async fn build_graph(&self, vault_state: &crate::vault::VaultState) -> Result<(), std::io::Error> {
+
+    pub async fn build_graph(
+        &self,
+        vault_state: &crate::vault::VaultState,
+    ) -> Result<(), std::io::Error> {
         let files = vault_state.scan_files().await;
         let mut graph_lock = self.graph.lock().await;
         let mut node_map_lock = self.node_map.lock().await;
@@ -106,15 +111,12 @@ impl GraphState {
                 for (_, chunk_content) in chunks {
                     let wikilinks = self.extract_wikilinks(&chunk_content);
                     for target in wikilinks {
-                        let resolved = node_map_lock
-                            .get(&target)
-                            .copied()
-                            .or_else(|| {
-                                basename_map
-                                    .get(&target)
-                                    .and_then(|full| node_map_lock.get(full))
-                                    .copied()
-                            });
+                        let resolved = node_map_lock.get(&target).copied().or_else(|| {
+                            basename_map
+                                .get(&target)
+                                .and_then(|full| node_map_lock.get(full))
+                                .copied()
+                        });
                         if let Some(target_idx) = resolved {
                             if let Some(&source_idx) = node_map_lock.get(&source_node) {
                                 graph_lock.add_edge(source_idx, target_idx, "WIKILINK".to_string());
@@ -138,17 +140,18 @@ impl GraphState {
         Ok(())
     }
 
-    pub async fn update_file(&self, path: &std::path::Path, content: &str) -> Result<(), std::io::Error> {
+    pub async fn update_file(
+        &self,
+        path: &std::path::Path,
+        content: &str,
+    ) -> Result<(), std::io::Error> {
         let file_name = self.path_to_node_name(path);
         let mut graph_lock = self.graph.lock().await;
         let node_map_lock = self.node_map.lock().await;
 
         if let Some(&source_idx) = node_map_lock.get(&file_name) {
             // Remove all outgoing edges from this node
-            let outgoing: Vec<_> = graph_lock
-                .edges(source_idx)
-                .map(|e| e.id())
-                .collect();
+            let outgoing: Vec<_> = graph_lock.edges(source_idx).map(|e| e.id()).collect();
             for edge_id in outgoing {
                 graph_lock.remove_edge(edge_id);
             }
@@ -167,15 +170,12 @@ impl GraphState {
             for (_, chunk_content) in chunks {
                 let wikilinks = self.extract_wikilinks(&chunk_content);
                 for target in wikilinks {
-                    let resolved = node_map_lock
-                        .get(&target)
-                        .copied()
-                        .or_else(|| {
-                            basename_map
-                                .get(&target)
-                                .and_then(|full| node_map_lock.get(full))
-                                .copied()
-                        });
+                    let resolved = node_map_lock.get(&target).copied().or_else(|| {
+                        basename_map
+                            .get(&target)
+                            .and_then(|full| node_map_lock.get(full))
+                            .copied()
+                    });
                     if let Some(target_idx) = resolved {
                         graph_lock.add_edge(source_idx, target_idx, "WIKILINK".to_string());
                     }
@@ -199,7 +199,7 @@ impl GraphState {
         let s = relative.to_string_lossy();
         s.strip_suffix(".md").unwrap_or(&s).to_string()
     }
-    
+
     fn extract_wikilinks(&self, content: &str) -> HashSet<String> {
         let re = WIKILINK_RE.get_or_init(|| {
             regex::Regex::new(r"\[\[([^\]|]+)(?:\|[^\]]+)?\]\]")
@@ -247,26 +247,26 @@ impl GraphState {
     async fn save_graph(&self, graph: &DiGraph<String, String>) -> Result<(), std::io::Error> {
         let graph_path = self.kb_root.join(".knowledge-loom-index/graph.bin");
         let _ = std::fs::create_dir_all(graph_path.parent().unwrap());
-        
+
         // Convert graph to serializable format
-        let nodes: Vec<String> = graph.node_indices()
-            .map(|idx| graph[idx].clone())
-            .collect();
-        
-        let edges: Vec<(usize, usize, String)> = graph.edge_indices()
+        let nodes: Vec<String> = graph.node_indices().map(|idx| graph[idx].clone()).collect();
+
+        let edges: Vec<(usize, usize, String)> = graph
+            .edge_indices()
             .filter_map(|idx| {
-                graph.edge_endpoints(idx).map(|(source, target)| {
-                    (source.index(), target.index(), graph[idx].clone())
-                })
+                graph
+                    .edge_endpoints(idx)
+                    .map(|(source, target)| (source.index(), target.index(), graph[idx].clone()))
             })
             .collect();
-        
+
         let graph_data = GraphData { nodes, edges };
-        
-        let data = bincode::serialize(&graph_data).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+
+        let data = bincode::serialize(&graph_data)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
         std::fs::write(graph_path, data)
     }
-    
+
     pub async fn search_graph(&self, note: &str) -> Vec<String> {
         let graph_lock = self.graph.lock().await;
         let node_map_lock = self.node_map.lock().await;
@@ -283,22 +283,24 @@ impl GraphState {
 
         neighbors
     }
-    
+
     pub async fn pagerank(&self, damping: f64, max_iter: usize) -> HashMap<String, f64> {
         let graph_lock = self.graph.lock().await;
         let node_map_lock = self.node_map.lock().await;
-        
-        let mut scores: HashMap<String, f64> = node_map_lock.keys()
+
+        let mut scores: HashMap<String, f64> = node_map_lock
+            .keys()
             .map(|name| (name.clone(), 1.0))
             .collect();
-        
+
         let node_count = node_map_lock.len();
         if node_count == 0 {
             return scores;
         }
-        
+
         for _ in 0..max_iter {
-            let mut new_scores: HashMap<String, f64> = node_map_lock.keys()
+            let mut new_scores: HashMap<String, f64> = node_map_lock
+                .keys()
                 .map(|name| (name.clone(), 0.0))
                 .collect();
 
@@ -330,29 +332,29 @@ impl GraphState {
 
             scores = new_scores;
         }
-        
+
         scores
     }
-    
+
     pub async fn bfs_connections(&self, note: &str, max_depth: usize) -> Vec<(String, usize)> {
         let graph_lock = self.graph.lock().await;
         let node_map_lock = self.node_map.lock().await;
-        
+
         let mut result = Vec::new();
-        
+
         if let Some(&start_idx) = node_map_lock.get(note) {
             let mut visited = HashSet::new();
             let mut queue = std::collections::VecDeque::new();
             queue.push_back((start_idx, 0));
             visited.insert(start_idx);
-            
+
             while let Some((node_idx, depth)) = queue.pop_front() {
                 if depth > 0 {
                     if let Some(node_name) = graph_lock.node_weight(node_idx) {
                         result.push((node_name.clone(), depth));
                     }
                 }
-                
+
                 if depth < max_depth {
                     for edge in graph_lock.edges(node_idx) {
                         let neighbor_idx = edge.target();
@@ -363,23 +365,25 @@ impl GraphState {
                 }
             }
         }
-        
+
         result
     }
-    
+
     pub async fn dijkstra_path(&self, note_a: &str, note_b: &str) -> Vec<String> {
         let graph_lock = self.graph.lock().await;
         let node_map_lock = self.node_map.lock().await;
-        
-        if let (Some(&start_idx), Some(&end_idx)) = (node_map_lock.get(note_a), node_map_lock.get(note_b)) {
+
+        if let (Some(&start_idx), Some(&end_idx)) =
+            (node_map_lock.get(note_a), node_map_lock.get(note_b))
+        {
             // For simplicity, we'll use BFS since we don't have weighted edges
             let mut visited = HashSet::new();
             let mut queue = std::collections::VecDeque::new();
             let mut parent: HashMap<NodeIndex, NodeIndex> = HashMap::new();
-            
+
             queue.push_back(start_idx);
             visited.insert(start_idx);
-            
+
             while let Some(node_idx) = queue.pop_front() {
                 if node_idx == end_idx {
                     // Reconstruct path
@@ -397,7 +401,7 @@ impl GraphState {
                     path.reverse();
                     return path;
                 }
-                
+
                 for edge in graph_lock.edges(node_idx) {
                     let neighbor_idx = edge.target();
                     if visited.insert(neighbor_idx) {
@@ -407,42 +411,45 @@ impl GraphState {
                 }
             }
         }
-        
+
         Vec::new()
     }
-    
+
     pub async fn detect_communities(&self) -> HashMap<String, Vec<String>> {
         let graph_lock = self.graph.lock().await;
         let node_map_lock = self.node_map.lock().await;
-        
+
         // Simple community detection: group by connected components
         // In a real implementation, we'd use the Louvain algorithm
         let mut communities: HashMap<usize, Vec<String>> = HashMap::new();
         let mut visited = HashSet::new();
         let mut component_id = 0;
-        
+
         for &node_idx in node_map_lock.values() {
             if visited.contains(&node_idx) {
                 continue;
             }
-            
+
             // BFS to find all nodes in this component
             let mut queue = std::collections::VecDeque::new();
             queue.push_back(node_idx);
             visited.insert(node_idx);
-            
+
             while let Some(current) = queue.pop_front() {
                 if let Some(name) = graph_lock.node_weight(current) {
-                    communities.entry(component_id).or_default().push(name.clone());
+                    communities
+                        .entry(component_id)
+                        .or_default()
+                        .push(name.clone());
                 }
-                
+
                 for edge in graph_lock.edges(current) {
                     let neighbor = edge.target();
                     if visited.insert(neighbor) {
                         queue.push_back(neighbor);
                     }
                 }
-                
+
                 // Also check incoming edges
                 for edge in graph_lock.edges_directed(current, petgraph::Direction::Incoming) {
                     let neighbor = edge.source();
@@ -451,19 +458,32 @@ impl GraphState {
                     }
                 }
             }
-            
+
             component_id += 1;
         }
-        
+
         // Convert to format: community_name -> member_names
-        communities.into_iter()
+        communities
+            .into_iter()
             .map(|(id, members)| (format!("Community_{}", id), members))
             .collect()
     }
-    
-    pub async fn get_cached_analytics(&self) -> (HashMap<String, f64>, HashMap<String, Vec<String>>) {
-        let pagerank = self.cached_pagerank.lock().await.clone().unwrap_or_default();
-        let communities = self.cached_communities.lock().await.clone().unwrap_or_default();
+
+    pub async fn get_cached_analytics(
+        &self,
+    ) -> (HashMap<String, f64>, HashMap<String, Vec<String>>) {
+        let pagerank = self
+            .cached_pagerank
+            .lock()
+            .await
+            .clone()
+            .unwrap_or_default();
+        let communities = self
+            .cached_communities
+            .lock()
+            .await
+            .clone()
+            .unwrap_or_default();
         (pagerank, communities)
     }
 }
