@@ -2,7 +2,6 @@ use crate::vault::VaultState;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tantivy::{
-    collector::TopDocs,
     query::Occur,
     query::TermQuery,
     schema::Document,
