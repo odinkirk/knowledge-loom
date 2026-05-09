@@ -1,6 +1,6 @@
+use knowledge_loom::bm25::BM25Index;
 use std::fs;
 use tempfile::TempDir;
-use knowledge_loom::bm25::BM25Index;
 
 #[tokio::test]
 async fn test_bm25_stale_lock_recovery() {
@@ -12,7 +12,10 @@ async fn test_bm25_stale_lock_recovery() {
 
     // Add a document
     let test_path = temp_dir.path().join("test.md");
-    index1.index_file(&test_path, "# Test\n\nTest content").await.unwrap();
+    index1
+        .index_file(&test_path, "# Test\n\nTest content")
+        .await
+        .unwrap();
 
     // Commit to make searchable
     {
@@ -21,7 +24,11 @@ async fn test_bm25_stale_lock_recovery() {
     }
 
     // Simulate stale lock by creating a lock file
-    let lock_path = temp_dir.path().join(".knowledge-loom-index").join("tantivy").join(".tantivy-writer.lock");
+    let lock_path = temp_dir
+        .path()
+        .join(".knowledge-loom-index")
+        .join("tantivy")
+        .join(".tantivy-writer.lock");
     fs::write(&lock_path, "stale lock").unwrap();
 
     // Create a new index instance - should recover from stale lock
@@ -29,7 +36,10 @@ async fn test_bm25_stale_lock_recovery() {
 
     // Verify we can write to the recovered index
     let test_path2 = temp_dir.path().join("test2.md");
-    index2.index_file(&test_path2, "# Test2\n\nTest content 2").await.unwrap();
+    index2
+        .index_file(&test_path2, "# Test2\n\nTest content 2")
+        .await
+        .unwrap();
 
     // Commit to make searchable
     {
@@ -39,7 +49,10 @@ async fn test_bm25_stale_lock_recovery() {
 
     // Verify we can search
     let results = index2.search("Test", 10).await.unwrap();
-    assert!(!results.is_empty(), "Should find results after lock recovery");
+    assert!(
+        !results.is_empty(),
+        "Should find results after lock recovery"
+    );
 }
 
 #[tokio::test]

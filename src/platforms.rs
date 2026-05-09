@@ -1,6 +1,6 @@
+use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
-use serde_json::Value;
 
 const MCP_CONFIG_KEY: &str = "knowledge-loom";
 const AGENT_INSTRUCTIONS: &str = r#"# Knowledge Loom MCP Tools
@@ -64,23 +64,37 @@ impl PlatformName {
 
     pub fn all() -> Vec<Self> {
         vec![
-            Self::Claude, Self::Cursor, Self::Windsurf, Self::Zed,
-            Self::Continue, Self::OpenCode, Self::Kiro, Self::Codex,
+            Self::Claude,
+            Self::Cursor,
+            Self::Windsurf,
+            Self::Zed,
+            Self::Continue,
+            Self::OpenCode,
+            Self::Kiro,
+            Self::Codex,
         ]
     }
 
     fn is_detected(&self) -> bool {
         match self {
             Self::Claude | Self::OpenCode | Self::Kiro | Self::Codex => true,
-            Self::Cursor => dirs::home_dir().map(|h| h.join(".cursor").exists()).unwrap_or(false),
-            Self::Windsurf => dirs::home_dir().map(|h| h.join(".codeium/windsurf").exists()).unwrap_or(false),
-            Self::Zed => dirs::home_dir().map(|h| {
-                #[cfg(target_os = "macos")]
-                return h.join("Library/Application Support/Zed").exists();
-                #[cfg(not(target_os = "macos"))]
-                return h.join(".config/zed").exists();
-            }).unwrap_or(false),
-            Self::Continue => dirs::home_dir().map(|h| h.join(".continue").exists()).unwrap_or(false),
+            Self::Cursor => dirs::home_dir()
+                .map(|h| h.join(".cursor").exists())
+                .unwrap_or(false),
+            Self::Windsurf => dirs::home_dir()
+                .map(|h| h.join(".codeium/windsurf").exists())
+                .unwrap_or(false),
+            Self::Zed => dirs::home_dir()
+                .map(|h| {
+                    #[cfg(target_os = "macos")]
+                    return h.join("Library/Application Support/Zed").exists();
+                    #[cfg(not(target_os = "macos"))]
+                    return h.join(".config/zed").exists();
+                })
+                .unwrap_or(false),
+            Self::Continue => dirs::home_dir()
+                .map(|h| h.join(".continue").exists())
+                .unwrap_or(false),
         }
     }
 }
@@ -167,7 +181,10 @@ pub fn install_platform(
 pub fn install_all_detected(
     repo_root: &Path,
     binary: &Path,
-) -> Vec<(PlatformName, Result<Vec<PathBuf>, Box<dyn std::error::Error>>)> {
+) -> Vec<(
+    PlatformName,
+    Result<Vec<PathBuf>, Box<dyn std::error::Error>>,
+)> {
     PlatformName::all()
         .into_iter()
         .filter(|p| p.is_detected())
@@ -244,7 +261,11 @@ fn write_toml_entry(path: &Path, binary: &str) -> Result<(), Box<dyn std::error:
         "\n[mcp_servers.{}]\ncommand = \"{}\"\nargs = [\"serve\"]\ntype = \"stdio\"\n",
         MCP_CONFIG_KEY, binary
     );
-    let existing = if path.exists() { fs::read_to_string(path)? } else { String::new() };
+    let existing = if path.exists() {
+        fs::read_to_string(path)?
+    } else {
+        String::new()
+    };
     if !existing.contains(&format!("[mcp_servers.{}]", MCP_CONFIG_KEY)) {
         let tmp = path.with_extension("tmp");
         fs::write(&tmp, existing + &section)?;
@@ -255,7 +276,11 @@ fn write_toml_entry(path: &Path, binary: &str) -> Result<(), Box<dyn std::error:
 
 fn write_instruction_file(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     const MARKER: &str = "<!-- knowledge-loom MCP tools -->";
-    let existing = if path.exists() { fs::read_to_string(path)? } else { String::new() };
+    let existing = if path.exists() {
+        fs::read_to_string(path)?
+    } else {
+        String::new()
+    };
     if existing.contains(MARKER) {
         return Ok(());
     }

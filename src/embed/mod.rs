@@ -24,24 +24,26 @@ impl EmbedProviderEnum {
     pub async fn new(kb_root: &str) -> Self {
         let kb_root_path = PathBuf::from(kb_root);
         let models_dir = kb_root_path.join(".knowledge-loom-index/models");
-        
+
         let local_provider = LocalEmbedProvider::new(&models_dir).await;
         let ollama_url = std::env::var("OLLAMA_URL").ok();
         let use_ollama = ollama_url.is_some();
-        
+
         let ollama_provider = if use_ollama {
-            Some(Arc::new(Mutex::new(OllamaEmbedProvider::new(ollama_url.unwrap()).await)))
+            Some(Arc::new(Mutex::new(
+                OllamaEmbedProvider::new(ollama_url.unwrap()).await,
+            )))
         } else {
             None
         };
-        
+
         Self {
             local: Arc::new(Mutex::new(local_provider)),
             ollama: ollama_provider,
             use_ollama,
         }
     }
-    
+
     pub async fn embed(&self, text: &str) -> Vec<f32> {
         if self.use_ollama {
             if let Some(ref provider) = self.ollama {
@@ -53,7 +55,7 @@ impl EmbedProviderEnum {
         let provider_lock = self.local.lock().await;
         provider_lock.embed(text).await
     }
-    
+
     #[allow(dead_code)]
     pub fn dimension(&self) -> usize {
         // Assuming all models have same dimension for simplicity

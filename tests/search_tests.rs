@@ -1,16 +1,16 @@
 #[cfg(test)]
 mod tests {
-    use std::fs;
-    use tempfile::TempDir;
-    use knowledge_loom::search::SearchEngine;
-    use knowledge_loom::vault::VaultState;
-    use std::sync::Arc;
-    use tokio::sync::Mutex;
     use knowledge_loom::bm25::BM25Index;
-    use knowledge_loom::index::VectorIndex;
+    use knowledge_loom::edits::EditManager;
     use knowledge_loom::embed::EmbedProviderEnum;
     use knowledge_loom::graph::GraphState;
-    use knowledge_loom::edits::EditManager;
+    use knowledge_loom::index::VectorIndex;
+    use knowledge_loom::search::SearchEngine;
+    use knowledge_loom::vault::VaultState;
+    use std::fs;
+    use std::sync::Arc;
+    use tempfile::TempDir;
+    use tokio::sync::Mutex;
 
     async fn make_edit_manager_for_test(kb_root: &str) -> EditManager {
         let vault = Arc::new(Mutex::new(VaultState::new(kb_root).await));
@@ -25,9 +25,9 @@ mod tests {
     async fn test_search_engine_create() {
         let temp_dir = TempDir::new().unwrap();
         let kb_root = temp_dir.path();
-        
+
         let _engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
-        
+
         // Verify components were created
         assert!(kb_root.join(".knowledge-loom-index/tantivy").exists());
         assert!(kb_root.join(".knowledge-loom-index/embeddings.db").exists());
@@ -39,8 +39,16 @@ mod tests {
         let kb_root = temp_dir.path();
 
         // Create test files
-        fs::write(kb_root.join("test1.md"), "# Test 1\nThis is about cats and dogs").unwrap();
-        fs::write(kb_root.join("test2.md"), "# Test 2\nThis is about birds and fish").unwrap();
+        fs::write(
+            kb_root.join("test1.md"),
+            "# Test 1\nThis is about cats and dogs",
+        )
+        .unwrap();
+        fs::write(
+            kb_root.join("test2.md"),
+            "# Test 2\nThis is about birds and fish",
+        )
+        .unwrap();
 
         let engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
 
@@ -70,12 +78,12 @@ mod tests {
     async fn test_search_engine_empty_query() {
         let temp_dir = TempDir::new().unwrap();
         let kb_root = temp_dir.path();
-        
+
         let engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
-        
+
         // Search with empty query
         let results = engine.search("", 5).await;
-        
+
         // Should return empty results or handle gracefully
         assert!(results.is_empty());
     }
@@ -87,8 +95,11 @@ mod tests {
 
         // Create multiple test files
         for i in 0..10 {
-            fs::write(kb_root.join(format!("test{}.md", i)),
-                     format!("# Test {}\nContent {}", i, i)).unwrap();
+            fs::write(
+                kb_root.join(format!("test{}.md", i)),
+                format!("# Test {}\nContent {}", i, i),
+            )
+            .unwrap();
         }
 
         let engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
@@ -117,8 +128,16 @@ mod tests {
         let kb_root = temp_dir.path();
 
         // Create test files with different content
-        fs::write(kb_root.join("relevant.md"), "# Relevant\nThis is highly relevant content").unwrap();
-        fs::write(kb_root.join("less_relevant.md"), "# Less Relevant\nSome other content").unwrap();
+        fs::write(
+            kb_root.join("relevant.md"),
+            "# Relevant\nThis is highly relevant content",
+        )
+        .unwrap();
+        fs::write(
+            kb_root.join("less_relevant.md"),
+            "# Less Relevant\nSome other content",
+        )
+        .unwrap();
 
         let engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
 
@@ -138,7 +157,10 @@ mod tests {
 
         assert!(!results.is_empty());
         // Most relevant result should have highest score
-        let max_score = results.iter().map(|r| r.score).fold(f32::NEG_INFINITY, f32::max);
+        let max_score = results
+            .iter()
+            .map(|r| r.score)
+            .fold(f32::NEG_INFINITY, f32::max);
         assert!(max_score > 0.0);
     }
 
@@ -200,11 +222,13 @@ mod tests {
         }
 
         // Search within the test file for "machine learning"
-        let results = engine.bm25.lock().await.search_file(
-            "test.md", 
-            "machine learning", 
-            5
-        ).await.unwrap();
+        let results = engine
+            .bm25
+            .lock()
+            .await
+            .search_file("test.md", "machine learning", 5)
+            .await
+            .unwrap();
 
         assert!(!results.is_empty());
         // All results should be from test.md
@@ -215,20 +239,24 @@ mod tests {
         }
 
         // Search within the test file for "cooking" should return empty
-        let results = engine.bm25.lock().await.search_file(
-            "test.md", 
-            "cooking", 
-            5
-        ).await.unwrap();
+        let results = engine
+            .bm25
+            .lock()
+            .await
+            .search_file("test.md", "cooking", 5)
+            .await
+            .unwrap();
 
         assert!(results.is_empty(), "Should not find cooking in test.md");
 
         // Search within other.md for "cooking" should return results
-        let results = engine.bm25.lock().await.search_file(
-            "other.md", 
-            "cooking", 
-            5
-        ).await.unwrap();
+        let results = engine
+            .bm25
+            .lock()
+            .await
+            .search_file("other.md", "cooking", 5)
+            .await
+            .unwrap();
 
         assert!(!results.is_empty());
         for (score, chunk) in results {
@@ -261,11 +289,13 @@ mod tests {
         }
 
         // Search with limit 2
-        let results = engine.bm25.lock().await.search_file(
-            "test.md", 
-            "testing", 
-            2
-        ).await.unwrap();
+        let results = engine
+            .bm25
+            .lock()
+            .await
+            .search_file("test.md", "testing", 2)
+            .await
+            .unwrap();
 
         // Should respect limit
         assert!(results.len() <= 2);
@@ -290,11 +320,13 @@ mod tests {
         }
 
         // Search in a file that doesn't exist
-        let results = engine.bm25.lock().await.search_file(
-            "nonexistent.md", 
-            "test", 
-            5
-        ).await.unwrap();
+        let results = engine
+            .bm25
+            .lock()
+            .await
+            .search_file("nonexistent.md", "test", 5)
+            .await
+            .unwrap();
 
         // Should return empty results for nonexistent file
         assert!(results.is_empty());
@@ -305,8 +337,11 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let kb_root = temp_dir.path();
 
-        fs::write(kb_root.join("cats.md"),
-            "# Cats\n\nCats are great pets.\n\n## Persian Cats\n\nPersian cats are fluffy.").unwrap();
+        fs::write(
+            kb_root.join("cats.md"),
+            "# Cats\n\nCats are great pets.\n\n## Persian Cats\n\nPersian cats are fluffy.",
+        )
+        .unwrap();
 
         let engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
         let vault = VaultState::new(kb_root.to_str().unwrap()).await;
@@ -335,8 +370,11 @@ mod tests {
         let kb_root = temp_dir.path();
 
         // Write file with unique content unlikely to BM25-match "zephyr"
-        fs::write(kb_root.join("unrelated.md"),
-            "# Alpha Section\n\nSome alpha content.\n\n# Beta Section\n\nSome beta content.").unwrap();
+        fs::write(
+            kb_root.join("unrelated.md"),
+            "# Alpha Section\n\nSome alpha content.\n\n# Beta Section\n\nSome beta content.",
+        )
+        .unwrap();
 
         let engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
         let vault = VaultState::new(kb_root.to_str().unwrap()).await;
@@ -357,16 +395,25 @@ mod tests {
     async fn test_search_engine_from_components() {
         let temp_dir = TempDir::new().unwrap();
         let kb_root = temp_dir.path();
-        
+
         // Create mock components
         let bm25 = Arc::new(Mutex::new(BM25Index::new(kb_root.to_str().unwrap()).await));
-        let vector = Arc::new(Mutex::new(VectorIndex::new(kb_root.to_str().unwrap()).await));
-        let embed = Arc::new(Mutex::new(EmbedProviderEnum::new(kb_root.to_str().unwrap()).await));
+        let vector = Arc::new(Mutex::new(
+            VectorIndex::new(kb_root.to_str().unwrap()).await,
+        ));
+        let embed = Arc::new(Mutex::new(
+            EmbedProviderEnum::new(kb_root.to_str().unwrap()).await,
+        ));
         let graph = Arc::new(Mutex::new(GraphState::new(kb_root.to_str().unwrap()).await));
-        
+
         // Create engine from components
-        let engine = SearchEngine::from_components(bm25.clone(), vector.clone(), embed.clone(), graph.clone());
-        
+        let engine = SearchEngine::from_components(
+            bm25.clone(),
+            vector.clone(),
+            embed.clone(),
+            graph.clone(),
+        );
+
         // Verify all components are present
         assert!(Arc::ptr_eq(&engine.bm25, &bm25));
         assert!(Arc::ptr_eq(&engine.vector, &vector));
@@ -379,11 +426,11 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let kb_root = temp_dir.path();
         let engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
-        
+
         // Search with empty string
         let results = engine.search("", 5).await;
         assert!(results.is_empty());
-        
+
         // Search with only whitespace
         let results = engine.search("   ", 5).await;
         assert!(results.is_empty());
@@ -397,7 +444,11 @@ mod tests {
 
         // Only lines starting with "foo"
         let results = em.grep("^foo").await;
-        assert_eq!(results.len(), 2, "expected 'foo bar' and 'foo123', got {results:?}");
+        assert_eq!(
+            results.len(),
+            2,
+            "expected 'foo bar' and 'foo123', got {results:?}"
+        );
     }
 
     #[tokio::test]
@@ -441,8 +492,13 @@ mod tests {
             emb.embed("alpha").await
         };
         let pagerank = std::collections::HashMap::new();
-        let result = engine.search_graph_fused_inner(&query_vec, &pagerank, 5).await;
-        assert!(result.is_ok(), "search_graph_fused_inner must compile and succeed");
+        let result = engine
+            .search_graph_fused_inner(&query_vec, &pagerank, 5)
+            .await;
+        assert!(
+            result.is_ok(),
+            "search_graph_fused_inner must compile and succeed"
+        );
     }
 
     #[tokio::test]
@@ -466,10 +522,13 @@ mod tests {
         let query_vec = embed.embed("remove me").await;
         let results = index.search_similar(&query_vec, 10).await.unwrap();
         let has_stale = results.iter().any(|(path, heading, content, _)| {
-            path.contains("stale") && (heading.as_deref() == Some("Obsolete")
-                || content.contains("remove me"))
+            path.contains("stale")
+                && (heading.as_deref() == Some("Obsolete") || content.contains("remove me"))
         });
-        assert!(!has_stale, "stale 'Obsolete' section should be gone after re-indexing");
+        assert!(
+            !has_stale,
+            "stale 'Obsolete' section should be gone after re-indexing"
+        );
     }
 
     #[tokio::test]
@@ -498,9 +557,9 @@ mod tests {
         let b = scores["B"];
         let c = scores["C"];
         // Symmetric cycle: all converge to 1/3
-        assert!((a - 1.0/3.0).abs() < 0.01, "A={a:.4}, expected ~0.3333");
-        assert!((b - 1.0/3.0).abs() < 0.01, "B={b:.4}, expected ~0.3333");
-        assert!((c - 1.0/3.0).abs() < 0.01, "C={c:.4}, expected ~0.3333");
+        assert!((a - 1.0 / 3.0).abs() < 0.01, "A={a:.4}, expected ~0.3333");
+        assert!((b - 1.0 / 3.0).abs() < 0.01, "B={b:.4}, expected ~0.3333");
+        assert!((c - 1.0 / 3.0).abs() < 0.01, "C={c:.4}, expected ~0.3333");
     }
 
     #[test]
@@ -574,9 +633,12 @@ mod tests {
         // The wikilink [[rust]] should resolve to exactly one of the two files.
         // We verify that an edge was created (not both, not neither).
         let neighbors = graph.search_graph("index").await;
-        assert_eq!(neighbors.len(), 1,
+        assert_eq!(
+            neighbors.len(),
+            1,
             "duplicate basename should resolve to exactly one target, got {:?}",
-            neighbors);
+            neighbors
+        );
 
         // The resolved target should be one of the two files.
         let resolved = &neighbors[0];
@@ -589,7 +651,11 @@ mod tests {
         // Verify that the resolved target has non-zero pagerank (edge exists).
         let pagerank = graph.pagerank(0.85, 100).await;
         let pr = pagerank.get(resolved).copied().unwrap_or(0.0);
-        assert!(pr > 0.0, "resolved target should have non-zero pagerank, got {}", pr);
+        assert!(
+            pr > 0.0,
+            "resolved target should have non-zero pagerank, got {}",
+            pr
+        );
     }
 
     #[tokio::test]
@@ -683,12 +749,14 @@ mod tests {
         assert!(
             scores["C"] > scores["A"],
             "C (2 in-edges) should outrank A (dangling): C={:.4}, A={:.4}",
-            scores["C"], scores["A"]
+            scores["C"],
+            scores["A"]
         );
         assert!(
             scores["C"] > scores["B"],
             "C (2 in-edges) should outrank B (dangling): C={:.4}, B={:.4}",
-            scores["C"], scores["B"]
+            scores["C"],
+            scores["B"]
         );
     }
 }

@@ -9,7 +9,7 @@ name = "loom"
 path = "src/main.rs"
 
 [dependencies]
-tantivy = "0.18"  # Using older version with stable API
+tantivy = "0.26"  # Upgraded to fix lz4_flex vulnerability
 petgraph = { version = "0.6", features = ["serde"] }
 rusqlite = { version = "0.31", features = ["bundled"] }
 sqlite-vec = "0.1"
@@ -45,3 +45,8 @@ axum-test = "15"
 
 [features]
 ollama_tests = []
+
+# Clippy configuration
+[lints.clippy]
+# Promote some clippy lints to warnings
+pedantic = "warn"

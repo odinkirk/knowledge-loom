@@ -6,10 +6,12 @@
 
 <p align="center">
   <a href="https://github.com/odinkirk/knowledge-loom/releases"><img src="https://img.shields.io/github/v/release/odinkirk/knowledge-loom?label=release" alt="Release"></a>
-  <a href="https://github.com/odinkirk/knowledge-loom/actions/workflows/test.yml"><img src="https://img.shields.io/github/actions/workflow/status/odinkirk/knowledge-loom/test.yml?label=tests" alt="Tests"></a>
+  <a href="https://github.com/odinkirk/knowledge-loom/actions/workflows/test.yml?query=branch%3Amain"><img src="https://img.shields.io/github/actions/workflow/status/odinkirk/knowledge-loom/test.yml/main?label=tests" alt="Tests"></a>
+  <a href="https://github.com/odinkirk/knowledge-loom/actions/workflows/build.yml?query=branch%3Amain"><img src="https://img.shields.io/github/actions/workflow/status/odinkirk/knowledge-loom/build.yml/main?label=build" alt="Build"></a>
   <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/rust-1.70%2B-orange.svg?style=flat-square" alt="Rust 1.70+"></a>
   <a href="https://choosealicense.com/licenses/mit/"><img src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg?style=flat-square" alt="License"></a>
   <a href="https://modelcontextprotocol.io/"><img src="https://img.shields.io/badge/MCP-compatible-green.svg?style=flat-square" alt="MCP"></a>
+  <a href="https://crates.io/crates/knowledge-loom"><img src="https://img.shields.io/crates/v/knowledge-loom?style=flat-square" alt="Crates.io"></a>
 </p>
 
 ---
@@ -28,146 +30,15 @@ All tools are prefixed `loom_` to avoid namespace collisions.
 
 ---
 
-## Architecture Overview
+## Architecture
 
-### High-Level System Architecture
+For detailed architecture documentation, including system diagrams, component breakdown, and internal implementation details, see [Architecture.md](Architecture.md).
 
-```mermaid
-graph TB
-    subgraph "User Interfaces"
-        A[Claude] --> D[MCP Server]
-        B[Codex] --> D
-        C[OpenCode] --> D
-        D --> E[Web UI :8080]
-        F[Cursor] --> D
-        G[Windsurf] --> D
-        H[Zed] --> D
-        I[Continue] --> D
-        J[Kiro] --> D
-    end
-    
-    subgraph "Knowledge Loom Core"
-        D --> K[Search Engine]
-        K --> L[BM25 Index]
-        K --> M[Vector Store]
-        K --> N[Graph Analytics]
-    end
-    
-    subgraph "Storage Layer"
-        L --> O[Tantivy Index]
-        M --> P[SQLite + sqlite-vec]
-        N --> Q[Petgraph Cache]
-    end
-    
-    subgraph "Data Sources"
-        R[Markdown Files] --> D
-        S[Wikilinks] --> N
-    end
-    
-    subgraph "Background Services"
-        T[Daemon] --> D
-        U[File Watcher] --> T
-    end
-```
-
-### Search Flow (RRF Merging)
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant MCP
-    participant SearchEngine
-    participant BM25
-    participant Vector
-    participant Graph
-    
-    User->>MCP: loom_search("query", top_k=10)
-    MCP->>SearchEngine: search(query, top_k)
-    
-    Note over SearchEngine: Pre-compute shared values<br/>to avoid mutex contention
-    SearchEngine->>SearchEngine: embed(query)
-    SearchEngine->>SearchEngine: get_cached_pagerank()
-    
-    par Parallel Search Execution
-        SearchEngine->>BM25: search_and_retrieve(query, top_k*2)
-        SearchEngine->>Vector: search_similar(embedding, top_k*2)
-        SearchEngine->>Graph: search_graph(query, top_k*2)
-        SearchEngine->>Graph: search_graph_fused(embedding, pagerank, top_k*2)
-    end
-    
-    BM25-->>SearchEngine: BM25 results with chunks
-    Vector-->>SearchEngine: Semantic results
-    Graph-->>SearchEngine: Graph neighbor results
-    Graph-->>SearchEngine: Graph-fused results
-    
-    Note over SearchEngine: RRF Merging<br/>k=60 for all engines
-    SearchEngine->>SearchEngine: Merge and rank results
-    SearchEngine->>SearchEngine: Attach sections from BM25
-    
-    SearchEngine-->>MCP: Ranked results with sections
-    MCP-->>User: Results with line_start/heading
-```
-
-### Data Processing Pipeline
-
-```mermaid
-graph LR
-    A[Markdown Files] --> B[Vault Scanner]
-    B --> C[Chunk Parser]
-    
-    C --> D[BM25 Indexer]
-    C --> E[Embedding Provider]
-    C --> F[Wikilink Extractor]
-    
-    D --> G[Tantivy Store]
-    E --> H[Vector Store]
-    F --> I[Graph Builder]
-    
-    I --> J[PageRank Calculator]
-    I --> K[Community Detector]
-    
-    G --> L[Unified Search]
-    H --> L
-    J --> L
-    K --> L
-    
-    L --> M[RRF Merged Results]
-```
-
-### Component Interaction
-
-```mermaid
-graph TB
-    subgraph "MCP Server Layer"
-        A[LoomServer] --> B[Tool Handler]
-        B --> C[Search Engine]
-        B --> D[Edit Manager]
-        B --> E[Maintenance Manager]
-    end
-    
-    subgraph "Search Engine Components"
-        C --> F[BM25 Index]
-        C --> G[Vector Index]
-        C --> H[Graph State]
-        C --> I[Embed Provider]
-    end
-    
-    subgraph "Storage Backends"
-        F --> J[Tantivy Index]
-        G --> K[SQLite + sqlite-vec]
-        H --> L[Binary Graph Cache]
-    end
-    
-    subgraph "Edit Operations"
-        D --> M[Vault State]
-        D --> N[File Operations]
-    end
-    
-    subgraph "Maintenance"
-        E --> O[Index Health]
-        E --> P[Reindexing]
-    end
-```
+Quick overview:
+- **Search Engine**: RRF-merged BM25 + semantic + graph search
+- **Storage**: Tantivy (BM25) + SQLite/vec (embeddings) + Petgraph (wikilinks)
+- **Integration**: MCP protocol for 8+ coding platforms
+- **Performance**: ~150ms unified search for 10k documents
 
 ---
 
@@ -208,7 +79,7 @@ graph TB
 
 ## Quick Start
 
-### From Source
+### Installation
 
 ```bash
 # Clone the repository
@@ -221,56 +92,41 @@ cargo build --release
 # The binary will be at target/release/loom
 ```
 
-### Using the Installer (Python version)
-
-Run this from your knowledge directory (the folder containing your Markdown notes):
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/odinkirk/knowledge-loom/main/install.sh | bash
-```
-
-This creates `.loom/` with the tool files and a Python virtual environment, then merges
-the `loom` server into `.mcp.json` (other MCP servers are preserved). It also adds `.loom/`
-to `.gitignore` if you're inside a git repo.
-
-To use a different install directory:
-
-```bash
-LOOM_DIR=.knowledge-loom curl -fsSL https://raw.githubusercontent.com/odinkirk/knowledge-loom/main/install.sh | bash
-```
-
-The installer handles macOS/Linux with managed (PEP 668) or unmanaged Python. It tries
-`uv` first, then falls back to `python3 -m venv`, and prints clear guidance if neither works.
-
 ### Setting Up for Coding Agents
 
 ```bash
 # Initialize in current directory (auto-detects all platforms)
-loom init
+./target/release/loom init
 
 # Initialize in specific directory
-loom init /path/to/knowledge
+./target/release/loom init /path/to/knowledge
 
 # Initialize for specific platform only
-loom init --platform claude
-loom init --platform codex
-loom init --platform cursor
-loom init --platform windsurf
-loom init --platform zed
-loom init --platform continue
-loom init --platform opencode
-loom init --platform kiro
+./target/release/loom init --platform claude
+./target/release/loom init --platform codex
+./target/release/loom init --platform cursor
+./target/release/loom init --platform windsurf
+./target/release/loom init --platform zed
+./target/release/loom init --platform continue
+./target/release/loom init --platform opencode
+./target/release/loom init --platform kiro
 
 # Available platforms: claude, cursor, windsurf, zed, continue, opencode, kiro, codex, all
 ```
 
+The `init` command:
+- Copies the binary to `.knowledge-loom/bin/loom`
+- Creates `loom-shell.sh` for easy CLI access
+- Configures MCP settings for detected platforms
+- Adds `.knowledge-loom/` and `.knowledge-loom-index/` to `.gitignore`
+
 ### First Steps
 
-1. Install and configure using one of the methods above
-2. Set environment variables if needed
-3. Index your notes (automatic on first search)
+1. Build and install using the commands above
+2. Run `loom init` in your knowledge directory
+3. Restart your coding agent
 4. Try your first search
-5. Verify installation with `loom_index_status`
+5. Verify installation with `loom-shell.sh index-status`
 
 ---
 
@@ -365,73 +221,6 @@ Add optional vars to the `env` block in `.mcp.json` after installation.
 
 ---
 
-## Architecture Deep Dive
-
-### Component Breakdown
-
-**Vault Scanner (`vault.rs`):**
-- File discovery with `.loomignore` support
-- Markdown file filtering
-- Content reading with error handling
-
-**BM25 Index (`bm25.rs`):**
-- Tantivy-based full-text search
-- Chunking strategy (2000 char max)
-- Heading-aware chunk boundaries
-- Relevance ranking with BM25 algorithm
-
-**Vector Store (`index.rs`):**
-- sqlite-vec for semantic similarity
-- Heading-based chunking
-- Cosine distance search
-- Embedding upsert and removal
-
-**Graph Engine (`graph.rs`):**
-- Petgraph for wikilink analysis
-- Wikilink extraction with regex
-- Basename resolution for wikilink links
-- PageRank computation (damping=0.85, 100 iterations)
-- Community detection (connected components)
-- Path finding (BFS-based)
-
-**Search Engine (`search.rs`):**
-- RRF merging of all search backends
-- Parallel execution via tokio::join!
-- Mutex optimization with pre-computation
-- Result ranking and section attachment
-- Graph-fused search with PageRank boosting
-
-**Edit Manager (`edits.rs`):**
-- Surgical file operations
-- Heading-based navigation
-- Line-level precision
-- Vault-level management
-
-**Maintenance Manager (`maintenance.rs`):**
-- Index health monitoring
-- Incremental reindexing
-- Cache management
-
-### Search Engine Internals
-
-```rust
-// Parallel search execution
-let (bm25_results, semantic_results, graph_results, fused_results) = tokio::join!(
-    async { /* BM25 search */ },
-    async { /* Vector search */ },
-    async { /* Graph search */ },
-    async { /* Graph-fused search */ }
-);
-
-// RRF merging with k=60
-let rrf = 1.0 / (60.0 + rank as f32 + 1.0);
-
-// Graph-fused: similarity * (1 + 0.5 * pagerank)
-let score = similarity * (1.0 + PAGERANK_WEIGHT * pr_boost);
-```
-
----
-
 ## Performance
 
 ### Benchmarks
@@ -507,18 +296,31 @@ let score = similarity * (1.0 + PAGERANK_WEIGHT * pr_boost);
 
 ## CLI Commands
 
+The Rust binary provides CLI commands for testing and development:
+
 ```bash
-loom init [--platform <name>] [dir]  # Initialize for coding agents
-loom serve                          # Start MCP stdio server
-loom shell                          # Interactive shell
-loom daemon start                   # Start background daemon
-loom daemon stop                    # Stop daemon
-loom daemon status                 # Check daemon status
-loom daemon logs                   # View daemon logs
-loom daemon add <path>             # Add repo to daemon
-loom daemon remove <id>            # Remove repo from daemon
-loom reindex                        # Reindex knowledge base
-loom web [--port]                   # Start web UI (default port 8080)
+# Using the installed binary
+./knowledge-loom/bin/loom serve
+./knowledge-loom/bin/loom shell
+./knowledge-loom/bin/loom init [--platform <name>] [dir]
+./knowledge-loom/bin/loom daemon start
+./knowledge-loom/bin/loom daemon stop
+./knowledge-loom/bin/loom daemon status
+./knowledge-loom/bin/loom daemon logs
+./knowledge-loom/bin/loom daemon add <path>
+./knowledge-loom/bin/loom daemon remove <id>
+./knowledge-loom/bin/loom reindex
+./knowledge-loom/bin/loom web [--port]
+
+# Or use the convenience script
+./loom-shell.sh serve
+./loom-shell.sh shell
+./loom-shell.sh search "query" --top-k 10
+./loom-shell.sh list-files
+./loom-shell.sh outline path/to/file.md
+./loom-shell.sh grep "pattern" --file-filter "*.md"
+./loom-shell.sh index-status
+./loom-shell.sh reindex
 
 # Platform options for init: claude, cursor, windsurf, zed, continue, opencode, kiro, codex, all
 ```
@@ -530,6 +332,8 @@ loom web [--port]                   # Start web UI (default port 8080)
 Create a `.loomignore` file in your knowledge directory. It supports the same patterns
 as `.gitignore`: directory patterns (`.venv/`), file globs (`*.dist-info/`), and exact names.
 
+Files matching patterns in `.loomignore` will be excluded from indexing.
+
 ---
 
 ## Troubleshooting
@@ -540,9 +344,9 @@ as `.gitignore`: directory patterns (`.venv/`), file globs (`*.dist-info/`), and
 
 ### Platform-Specific Issues
 
-- **macOS**: Python environment setup
-- **Linux**: System dependencies
-- **Windows**: Path handling
+- **macOS**: File permissions and binary execution
+- **Linux**: System dependencies and library paths
+- **Windows**: Path handling and executable permissions
 
 ---
 
@@ -635,19 +439,29 @@ KB_ROOT=test-vault ./target/release/loom reindex
 
 ### Smoke Test (After Installation)
 
-Run these from your knowledge directory (where `.loom/` was created):
+Run these from your knowledge directory (where `.knowledge-loom/` was created):
 
 ```bash
-# Index health — shows chunk count and KB root
-KB_ROOT=. .loom/.venv/bin/python3 -c \
-  'import sys; sys.path.insert(0,".loom"); import asyncio,loom_mcp; print(asyncio.run(loom_mcp.loom_index_status()))'
+# Use the shell script for easy access
+./loom-shell.sh index-status
 
 # Quick search — should return results from your notes
-KB_ROOT=. .loom/.venv/bin/python3 -c \
-  'import sys; sys.path.insert(0,".loom"); import asyncio,loom_mcp; r=asyncio.run(loom_mcp.loom_search("knowledge")); print(len(r["results"]),"results via",r["engines"])'
+./loom-shell.sh search "knowledge" --top-k 5
+
+# List files
+./loom-shell.sh list-files
+
+# Get outline of a file
+./loom-shell.sh outline SomeNote.md
+
+# Grep for a pattern
+./loom-shell.sh grep "pattern" --file-filter "*.md"
+
+# Reindex
+./loom-shell.sh reindex
 ```
 
-Then restart Claude Code and run `/mcp` — `loom` should appear in the connected server list.
+Then restart your coding agent and verify the MCP server is connected.
 
 ---
 

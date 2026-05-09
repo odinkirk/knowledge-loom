@@ -1,10 +1,10 @@
-use std::sync::Arc;
-use std::collections::HashMap;
-use tokio::sync::Mutex;
 use crate::bm25::BM25Index;
-use crate::index::VectorIndex;
 use crate::embed::EmbedProviderEnum;
 use crate::graph::GraphState;
+use crate::index::VectorIndex;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 pub struct SectionResult {
     pub heading: Option<String>,
@@ -34,7 +34,12 @@ impl SearchEngine {
         let vector = Arc::new(Mutex::new(VectorIndex::new(kb_root).await));
         let embed = Arc::new(Mutex::new(EmbedProviderEnum::new(kb_root).await));
         let graph = Arc::new(Mutex::new(GraphState::new(kb_root).await));
-        Self { bm25, vector, embed, graph }
+        Self {
+            bm25,
+            vector,
+            embed,
+            graph,
+        }
     }
 
     pub fn from_components(
@@ -43,9 +48,14 @@ impl SearchEngine {
         embed: Arc<Mutex<EmbedProviderEnum>>,
         graph: Arc<Mutex<GraphState>>,
     ) -> Self {
-        Self { bm25, vector, embed, graph }
+        Self {
+            bm25,
+            vector,
+            embed,
+            graph,
+        }
     }
-    
+
     /// Combined search using RRF (Reciprocal Rank Fusion)
     /// Runs BM25, vector, graph, and graph-fused searches in parallel
     pub async fn search(&self, query: &str, top_k: usize) -> Vec<SearchResult> {
@@ -62,9 +72,7 @@ impl SearchEngine {
             let embed = self.embed.lock().await;
             embed.embed(query).await
         };
-        let cached_pagerank = {
-            self.graph.lock().await.get_cached_analytics().await.0
-        };
+        let cached_pagerank = { self.graph.lock().await.get_cached_analytics().await.0 };
 
         let (bm25_results, semantic_results, graph_results, fused_results) = tokio::join!(
             async {
@@ -96,13 +104,16 @@ impl SearchEngine {
                 let rrf = 1.0 / (60.0 + rank as f32 + 1.0);
                 *rrf_scores.entry(chunk.path.clone()).or_insert(0.0) += rrf;
             }
-            sections_map.entry(chunk.path.clone()).or_default().push(SectionResult {
-                heading: chunk.heading.clone(),
-                content: chunk.content.clone(),
-                line_start: chunk.line_start,
-                line_end: chunk.line_end,
-                score: *score,
-            });
+            sections_map
+                .entry(chunk.path.clone())
+                .or_default()
+                .push(SectionResult {
+                    heading: chunk.heading.clone(),
+                    content: chunk.content.clone(),
+                    line_start: chunk.line_start,
+                    line_end: chunk.line_end,
+                    score: *score,
+                });
         }
 
         // Semantic (k=60, file-level using first occurrence)
@@ -129,20 +140,34 @@ impl SearchEngine {
 
         // Sort sections within each file by score desc
         for sections in sections_map.values_mut() {
-            sections.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+            sections.sort_by(|a, b| {
+                b.score
+                    .partial_cmp(&a.score)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
         }
 
         // Build final results
-        let mut results: Vec<SearchResult> = rrf_scores.iter()
+        let mut results: Vec<SearchResult> = rrf_scores
+            .iter()
             .map(|(path, &rrf)| {
                 let sections = sections_map.remove(path).unwrap_or_default();
-                SearchResult { path: path.clone(), sections, score: rrf }
+                SearchResult {
+                    path: path.clone(),
+                    sections,
+                    score: rrf,
+                }
             })
             .collect();
 
-        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
-        let paths_needing_sections: Vec<String> = results.iter()
+        let paths_needing_sections: Vec<String> = results
+            .iter()
             .filter(|r| r.sections.is_empty())
             .map(|r| r.path.clone())
             .collect();
@@ -151,13 +176,16 @@ impl SearchEngine {
             let bm25 = self.bm25.lock().await;
             for path in paths_needing_sections {
                 if let Ok(chunks) = bm25.get_chunks_for_path(&path).await {
-                    let sections: Vec<SectionResult> = chunks.into_iter().map(|c| SectionResult {
-                        heading: c.heading,
-                        content: c.content,
-                        line_start: c.line_start,
-                        line_end: c.line_end,
-                        score: 0.0,
-                    }).collect();
+                    let sections: Vec<SectionResult> = chunks
+                        .into_iter()
+                        .map(|c| SectionResult {
+                            heading: c.heading,
+                            content: c.content,
+                            line_start: c.line_start,
+                            line_end: c.line_end,
+                            score: 0.0,
+                        })
+                        .collect();
                     // Find the result and set sections
                     if let Some(r) = results.iter_mut().find(|r| r.path == path) {
                         r.sections = sections;
@@ -199,7 +227,8 @@ impl SearchEngine {
         // Vector similarity search (vector lock only — no embed or graph lock)
         let similar = {
             let vector = self.vector.lock().await;
-            vector.search_similar(query_vec, top_k * 2)
+            vector
+                .search_similar(query_vec, top_k * 2)
                 .await
                 .map_err(|e| e.to_string())?
         };

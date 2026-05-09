@@ -1,30 +1,26 @@
+use serde_json::{json, Value};
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use serde_json::{json, Value};
 
 use rmcp::{
-    ServerHandler,
-    ServiceExt,
     model::{
-        ServerInfo, Tool, ListToolsResult, CallToolResult,
-        CallToolRequestParams, PaginatedRequestParams,
-        Content, ServerCapabilities,
+        CallToolRequestParams, CallToolResult, Content, ListToolsResult, PaginatedRequestParams,
+        ServerCapabilities, ServerInfo, Tool,
     },
     service::RequestContext,
-    RoleServer,
-    ErrorData as McpError,
     transport::stdio,
+    ErrorData as McpError, RoleServer, ServerHandler, ServiceExt,
 };
 use std::sync::Arc as StdArc;
 
-use crate::vault::VaultState;
 use crate::bm25::BM25Index;
-use crate::embed::EmbedProviderEnum;
-use crate::index::VectorIndex;
-use crate::graph::GraphState;
 use crate::edits::EditManager;
+use crate::embed::EmbedProviderEnum;
+use crate::graph::GraphState;
+use crate::index::VectorIndex;
 use crate::maintenance::MaintenanceManager;
 use crate::search::SearchEngine;
+use crate::vault::VaultState;
 
 #[allow(dead_code)]
 pub struct LoomServer {
@@ -62,42 +58,151 @@ impl LoomServer {
 
         let edits = Arc::new(EditManager::new(
             kb_root.to_string(),
-            vault.clone(), bm25.clone(), embed.clone(), vector.clone(), graph.clone(),
+            vault.clone(),
+            bm25.clone(),
+            embed.clone(),
+            vector.clone(),
+            graph.clone(),
         ));
         let maintenance = Arc::new(MaintenanceManager::new(
             kb_root.to_string(),
-            vault.clone(), bm25.clone(), embed.clone(), vector.clone(), graph.clone(),
+            vault.clone(),
+            bm25.clone(),
+            embed.clone(),
+            vector.clone(),
+            graph.clone(),
         ));
 
-        Self { kb_root: kb_root.to_string(), vault, bm25, embed, vector, graph, edits, maintenance, search_engine }
+        Self {
+            kb_root: kb_root.to_string(),
+            vault,
+            bm25,
+            embed,
+            vector,
+            graph,
+            edits,
+            maintenance,
+            search_engine,
+        }
     }
 
     pub fn tool_list(&self) -> Vec<ToolDef> {
         vec![
-            ToolDef { name: "search", description: "BM25 + semantic RRF search", schema: json!({"type":"object","properties":{"query":{"type":"string"},"top_k":{"type":"integer","default":10}},"required":["query"]}) },
-            ToolDef { name: "search_file", description: "Search within a specific file", schema: json!({"type":"object","properties":{"file":{"type":"string"},"query":{"type":"string"},"top_k":{"type":"integer","default":10}},"required":["file","query"]}) },
-            ToolDef { name: "search_graph", description: "Graph entity/relationship traversal", schema: json!({"type":"object","properties":{"note":{"type":"string"}},"required":["note"]}) },
-            ToolDef { name: "search_smart", description: "LLM-decomposed search (not yet implemented)", schema: json!({"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}) },
-            ToolDef { name: "rank_notes", description: "PageRank influence ranking", schema: json!({"type":"object","properties":{}}) },
-            ToolDef { name: "find_connections", description: "Links and relationships for a note", schema: json!({"type":"object","properties":{"note":{"type":"string"}},"required":["note"]}) },
-            ToolDef { name: "find_path_between", description: "Shortest graph path between two notes", schema: json!({"type":"object","properties":{"note_a":{"type":"string"},"note_b":{"type":"string"}},"required":["note_a","note_b"]}) },
-            ToolDef { name: "detect_themes", description: "Louvain community/theme detection", schema: json!({"type":"object","properties":{}}) },
-            ToolDef { name: "list_files", description: "List all Markdown files", schema: json!({"type":"object","properties":{}}) },
-            ToolDef { name: "outline", description: "Heading hierarchy with line numbers", schema: json!({"type":"object","properties":{"file":{"type":"string"}},"required":["file"]}) },
-            ToolDef { name: "grep", description: "Regex search, optional file filter", schema: json!({"type":"object","properties":{"pattern":{"type":"string"},"file_filter":{"type":"string"}},"required":["pattern"]}) },
-            ToolDef { name: "read_section", description: "Read content under a heading", schema: json!({"type":"object","properties":{"file":{"type":"string"},"heading":{"type":"string"}},"required":["file","heading"]}) },
-            ToolDef { name: "read_lines", description: "Read exact line range", schema: json!({"type":"object","properties":{"file":{"type":"string"},"start":{"type":"integer"},"end":{"type":"integer"}},"required":["file","start","end"]}) },
-            ToolDef { name: "replace_lines", description: "In-place line range replacement", schema: json!({"type":"object","properties":{"file":{"type":"string"},"start":{"type":"integer"},"end":{"type":"integer"},"content":{"type":"string"}},"required":["file","start","end","content"]}) },
-            ToolDef { name: "insert_after_heading", description: "Insert content after a heading", schema: json!({"type":"object","properties":{"file":{"type":"string"},"heading":{"type":"string"},"content":{"type":"string"}},"required":["file","heading","content"]}) },
-            ToolDef { name: "append_to_file", description: "Append to file with blank-line separator", schema: json!({"type":"object","properties":{"file":{"type":"string"},"content":{"type":"string"}},"required":["file","content"]}) },
-            ToolDef { name: "create_note", description: "Create note from title and content", schema: json!({"type":"object","properties":{"title":{"type":"string"},"content":{"type":"string"}},"required":["title","content"]}) },
-            ToolDef { name: "edit_note", description: "Replace full note content", schema: json!({"type":"object","properties":{"file":{"type":"string"},"content":{"type":"string"}},"required":["file","content"]}) },
-            ToolDef { name: "apply_edit_preview", description: "Dry-run section replacement preview", schema: json!({"type":"object","properties":{"file":{"type":"string"},"heading":{"type":"string"},"proposed":{"type":"string"}},"required":["file","heading","proposed"]}) },
-            ToolDef { name: "link_notes", description: "Append wikilink from one note to another", schema: json!({"type":"object","properties":{"from":{"type":"string"},"to":{"type":"string"}},"required":["from","to"]}) },
-            ToolDef { name: "move_note", description: "Move note to new path", schema: json!({"type":"object","properties":{"from":{"type":"string"},"to":{"type":"string"}},"required":["from","to"]}) },
-            ToolDef { name: "delete_note", description: "Delete a note", schema: json!({"type":"object","properties":{"file":{"type":"string"}},"required":["file"]}) },
-            ToolDef { name: "reindex", description: "Rebuild all search indexes", schema: json!({"type":"object","properties":{}}) },
-            ToolDef { name: "index_status", description: "Health and chunk counts for all backends", schema: json!({"type":"object","properties":{}}) },
+            ToolDef {
+                name: "search",
+                description: "BM25 + semantic RRF search",
+                schema: json!({"type":"object","properties":{"query":{"type":"string"},"top_k":{"type":"integer","default":10}},"required":["query"]}),
+            },
+            ToolDef {
+                name: "search_file",
+                description: "Search within a specific file",
+                schema: json!({"type":"object","properties":{"file":{"type":"string"},"query":{"type":"string"},"top_k":{"type":"integer","default":10}},"required":["file","query"]}),
+            },
+            ToolDef {
+                name: "search_graph",
+                description: "Graph entity/relationship traversal",
+                schema: json!({"type":"object","properties":{"note":{"type":"string"}},"required":["note"]}),
+            },
+            ToolDef {
+                name: "rank_notes",
+                description: "PageRank influence ranking",
+                schema: json!({"type":"object","properties":{}}),
+            },
+            ToolDef {
+                name: "find_connections",
+                description: "Links and relationships for a note",
+                schema: json!({"type":"object","properties":{"note":{"type":"string"}},"required":["note"]}),
+            },
+            ToolDef {
+                name: "find_path_between",
+                description: "Shortest graph path between two notes",
+                schema: json!({"type":"object","properties":{"note_a":{"type":"string"},"note_b":{"type":"string"}},"required":["note_a","note_b"]}),
+            },
+            ToolDef {
+                name: "detect_themes",
+                description: "Louvain community/theme detection",
+                schema: json!({"type":"object","properties":{}}),
+            },
+            ToolDef {
+                name: "list_files",
+                description: "List all Markdown files",
+                schema: json!({"type":"object","properties":{}}),
+            },
+            ToolDef {
+                name: "outline",
+                description: "Heading hierarchy with line numbers",
+                schema: json!({"type":"object","properties":{"file":{"type":"string"}},"required":["file"]}),
+            },
+            ToolDef {
+                name: "grep",
+                description: "Regex search, optional file filter",
+                schema: json!({"type":"object","properties":{"pattern":{"type":"string"},"file_filter":{"type":"string"}},"required":["pattern"]}),
+            },
+            ToolDef {
+                name: "read_section",
+                description: "Read content under a heading",
+                schema: json!({"type":"object","properties":{"file":{"type":"string"},"heading":{"type":"string"}},"required":["file","heading"]}),
+            },
+            ToolDef {
+                name: "read_lines",
+                description: "Read exact line range",
+                schema: json!({"type":"object","properties":{"file":{"type":"string"},"start":{"type":"integer"},"end":{"type":"integer"}},"required":["file","start","end"]}),
+            },
+            ToolDef {
+                name: "replace_lines",
+                description: "In-place line range replacement",
+                schema: json!({"type":"object","properties":{"file":{"type":"string"},"start":{"type":"integer"},"end":{"type":"integer"},"content":{"type":"string"}},"required":["file","start","end","content"]}),
+            },
+            ToolDef {
+                name: "insert_after_heading",
+                description: "Insert content after a heading",
+                schema: json!({"type":"object","properties":{"file":{"type":"string"},"heading":{"type":"string"},"content":{"type":"string"}},"required":["file","heading","content"]}),
+            },
+            ToolDef {
+                name: "append_to_file",
+                description: "Append to file with blank-line separator",
+                schema: json!({"type":"object","properties":{"file":{"type":"string"},"content":{"type":"string"}},"required":["file","content"]}),
+            },
+            ToolDef {
+                name: "create_note",
+                description: "Create note from title and content",
+                schema: json!({"type":"object","properties":{"title":{"type":"string"},"content":{"type":"string"}},"required":["title","content"]}),
+            },
+            ToolDef {
+                name: "edit_note",
+                description: "Replace full note content",
+                schema: json!({"type":"object","properties":{"file":{"type":"string"},"content":{"type":"string"}},"required":["file","content"]}),
+            },
+            ToolDef {
+                name: "apply_edit_preview",
+                description: "Dry-run section replacement preview",
+                schema: json!({"type":"object","properties":{"file":{"type":"string"},"heading":{"type":"string"},"proposed":{"type":"string"}},"required":["file","heading","proposed"]}),
+            },
+            ToolDef {
+                name: "link_notes",
+                description: "Append wikilink from one note to another",
+                schema: json!({"type":"object","properties":{"from":{"type":"string"},"to":{"type":"string"}},"required":["from","to"]}),
+            },
+            ToolDef {
+                name: "move_note",
+                description: "Move note to new path",
+                schema: json!({"type":"object","properties":{"from":{"type":"string"},"to":{"type":"string"}},"required":["from","to"]}),
+            },
+            ToolDef {
+                name: "delete_note",
+                description: "Delete a note",
+                schema: json!({"type":"object","properties":{"file":{"type":"string"}},"required":["file"]}),
+            },
+            ToolDef {
+                name: "reindex",
+                description: "Rebuild all search indexes",
+                schema: json!({"type":"object","properties":{}}),
+            },
+            ToolDef {
+                name: "index_status",
+                description: "Health and chunk counts for all backends",
+                schema: json!({"type":"object","properties":{}}),
+            },
         ]
     }
 
@@ -124,22 +229,29 @@ impl LoomServer {
                 let top_k = args.get("top_k").and_then(|v| v.as_u64()).unwrap_or(10) as usize;
                 let results = self.search_engine.search(&query, top_k).await;
                 // Convert to serializable format
-                let serializable: Vec<serde_json::Value> = results.into_iter().map(|r| {
-                    let sections: Vec<serde_json::Value> = r.sections.into_iter().map(|s| {
+                let serializable: Vec<serde_json::Value> = results
+                    .into_iter()
+                    .map(|r| {
+                        let sections: Vec<serde_json::Value> = r
+                            .sections
+                            .into_iter()
+                            .map(|s| {
+                                serde_json::json!({
+                                    "heading": s.heading,
+                                    "content": s.content,
+                                    "line_start": s.line_start,
+                                    "line_end": s.line_end,
+                                    "score": s.score,
+                                })
+                            })
+                            .collect();
                         serde_json::json!({
-                            "heading": s.heading,
-                            "content": s.content,
-                            "line_start": s.line_start,
-                            "line_end": s.line_end,
-                            "score": s.score,
+                            "path": r.path,
+                            "score": r.score,
+                            "sections": sections,
                         })
-                    }).collect();
-                    serde_json::json!({
-                        "path": r.path,
-                        "score": r.score,
-                        "sections": sections,
                     })
-                }).collect();
+                    .collect();
                 Ok(serde_json::to_string(&serializable).unwrap_or_default())
             }
             "search_file" => {
@@ -150,27 +262,37 @@ impl LoomServer {
                 let results = self.search_engine.search(&query, 100).await;
                 // Filter by exact file path (supports both "note.md" and "note" formats)
                 let file_normalized = file.trim_end_matches(".md");
-                let filtered: Vec<_> = results.into_iter().filter(|r| {
-                    let path_normalized = r.path.trim_end_matches(".md");
-                    path_normalized.ends_with(file_normalized)
-                }).collect();
-                let limited: Vec<_> = filtered.into_iter().take(top_k).collect();
-                let serializable: Vec<serde_json::Value> = limited.into_iter().map(|r| {
-                    let sections: Vec<serde_json::Value> = r.sections.into_iter().map(|s| {
-                        serde_json::json!({
-                            "heading": s.heading,
-                            "content": s.content,
-                            "line_start": s.line_start,
-                            "line_end": s.line_end,
-                            "score": s.score,
-                        })
-                    }).collect();
-                    serde_json::json!({
-                        "path": r.path,
-                        "score": r.score,
-                        "sections": sections,
+                let filtered: Vec<_> = results
+                    .into_iter()
+                    .filter(|r| {
+                        let path_normalized = r.path.trim_end_matches(".md");
+                        path_normalized.ends_with(file_normalized)
                     })
-                }).collect();
+                    .collect();
+                let limited: Vec<_> = filtered.into_iter().take(top_k).collect();
+                let serializable: Vec<serde_json::Value> = limited
+                    .into_iter()
+                    .map(|r| {
+                        let sections: Vec<serde_json::Value> = r
+                            .sections
+                            .into_iter()
+                            .map(|s| {
+                                serde_json::json!({
+                                    "heading": s.heading,
+                                    "content": s.content,
+                                    "line_start": s.line_start,
+                                    "line_end": s.line_end,
+                                    "score": s.score,
+                                })
+                            })
+                            .collect();
+                        serde_json::json!({
+                            "path": r.path,
+                            "score": r.score,
+                            "sections": sections,
+                        })
+                    })
+                    .collect();
                 Ok(serde_json::to_string(&serializable).unwrap_or_default())
             }
             "list_files" => {
@@ -217,7 +339,10 @@ impl LoomServer {
                 let end = int_arg("end")?;
                 let content = str_arg("content")?;
                 let path = std::path::Path::new(kb).join(&file);
-                self.edits.replace_lines(&path, start, end, &content).await.map_err(|e| e.to_string())?;
+                self.edits
+                    .replace_lines(&path, start, end, &content)
+                    .await
+                    .map_err(|e| e.to_string())?;
                 Ok("ok".to_string())
             }
             "insert_after_heading" => {
@@ -225,27 +350,40 @@ impl LoomServer {
                 let heading = str_arg("heading")?;
                 let content = str_arg("content")?;
                 let path = std::path::Path::new(kb).join(&file);
-                self.edits.insert_after_heading(&path, &heading, &content).await.map_err(|e| e.to_string())?;
+                self.edits
+                    .insert_after_heading(&path, &heading, &content)
+                    .await
+                    .map_err(|e| e.to_string())?;
                 Ok("ok".to_string())
             }
             "append_to_file" => {
                 let file = str_arg("file")?;
                 let content = str_arg("content")?;
                 let path = std::path::Path::new(kb).join(&file);
-                self.edits.append_to_file(&path, &content).await.map_err(|e| e.to_string())?;
+                self.edits
+                    .append_to_file(&path, &content)
+                    .await
+                    .map_err(|e| e.to_string())?;
                 Ok("ok".to_string())
             }
             "create_note" => {
                 let title = str_arg("title")?;
                 let content = str_arg("content")?;
-                let path = self.edits.create_note(&title, &content).await.map_err(|e| e.to_string())?;
+                let path = self
+                    .edits
+                    .create_note(&title, &content)
+                    .await
+                    .map_err(|e| e.to_string())?;
                 Ok(path.to_string_lossy().to_string())
             }
             "edit_note" => {
                 let file = str_arg("file")?;
                 let content = str_arg("content")?;
                 let path = std::path::Path::new(kb).join(&file);
-                self.edits.edit_note(&path, &content).await.map_err(|e| e.to_string())?;
+                self.edits
+                    .edit_note(&path, &content)
+                    .await
+                    .map_err(|e| e.to_string())?;
                 Ok("ok".to_string())
             }
             "apply_edit_preview" => {
@@ -253,14 +391,19 @@ impl LoomServer {
                 let heading = str_arg("heading")?;
                 let proposed = str_arg("proposed")?;
                 let path = std::path::Path::new(kb).join(&file);
-                match self.edits.apply_edit_preview(&path, &heading, &proposed).await {
+                match self
+                    .edits
+                    .apply_edit_preview(&path, &heading, &proposed)
+                    .await
+                {
                     Ok(Some(preview)) => Ok(serde_json::to_string(&serde_json::json!({
                         "heading": preview.heading,
                         "line_start": preview.line_start,
                         "line_end": preview.line_end,
                         "current": preview.current,
                         "proposed": preview.proposed,
-                    })).unwrap()),
+                    }))
+                    .unwrap()),
                     Ok(None) => Ok("Section not found".to_string()),
                     Err(e) => Err(e.to_string()),
                 }
@@ -270,7 +413,10 @@ impl LoomServer {
                 let to = str_arg("to")?;
                 let from_path = std::path::Path::new(kb).join(&from);
                 let to_path = std::path::Path::new(kb).join(&to);
-                self.edits.link_notes(&from_path, &to_path).await.map_err(|e| e.to_string())?;
+                self.edits
+                    .link_notes(&from_path, &to_path)
+                    .await
+                    .map_err(|e| e.to_string())?;
                 Ok("ok".to_string())
             }
             "move_note" => {
@@ -278,13 +424,19 @@ impl LoomServer {
                 let to = str_arg("to")?;
                 let from_path = std::path::Path::new(kb).join(&from);
                 let to_path = std::path::Path::new(kb).join(&to);
-                self.edits.move_note(&from_path, &to_path).await.map_err(|e| e.to_string())?;
+                self.edits
+                    .move_note(&from_path, &to_path)
+                    .await
+                    .map_err(|e| e.to_string())?;
                 Ok("ok".to_string())
             }
             "delete_note" => {
                 let file = str_arg("file")?;
                 let path = std::path::Path::new(kb).join(&file);
-                self.edits.delete_note(&path).await.map_err(|e| e.to_string())?;
+                self.edits
+                    .delete_note(&path)
+                    .await
+                    .map_err(|e| e.to_string())?;
                 Ok("ok".to_string())
             }
             "rank_notes" => {
@@ -324,15 +476,11 @@ impl LoomServer {
                 // Requires LLM API integration (separate plan)
                 Ok(serde_json::json!({"error": "search_smart requires LLM API integration (not yet implemented)"}).to_string())
             }
-            "reindex" => {
-                self.maintenance.reindex_all().await.map_err(|e| e)
-            }
-            "index_status" => {
-                match self.maintenance.get_index_status().await {
-                    Ok(status) => Ok(serde_json::to_string(&status).unwrap_or_default()),
-                    Err(e) => Err(e),
-                }
-            }
+            "reindex" => self.maintenance.reindex_all().await.map_err(|e| e),
+            "index_status" => match self.maintenance.get_index_status().await {
+                Ok(status) => Ok(serde_json::to_string(&status).unwrap_or_default()),
+                Err(e) => Err(e),
+            },
             other => Err(format!("unknown tool: {other}")),
         }
     }
@@ -351,13 +499,16 @@ impl ServerHandler for LoomServer {
         _request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, McpError> {
-        let tools = self.tool_list()
+        let tools = self
+            .tool_list()
             .into_iter()
-            .map(|t| Tool::new(
-                t.name,
-                t.description,
-                StdArc::new(serde_json::from_value(t.schema).unwrap_or_default()),
-            ))
+            .map(|t| {
+                Tool::new(
+                    t.name,
+                    t.description,
+                    StdArc::new(serde_json::from_value(t.schema).unwrap_or_default()),
+                )
+            })
             .collect();
         Ok(ListToolsResult {
             meta: None,
@@ -371,7 +522,8 @@ impl ServerHandler for LoomServer {
         request: CallToolRequestParams,
         _context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let args = request.arguments
+        let args = request
+            .arguments
             .map(|m| Value::Object(m))
             .unwrap_or(Value::Object(Default::default()));
 
@@ -383,16 +535,16 @@ impl ServerHandler for LoomServer {
 }
 
 pub async fn run_server() {
-    let kb_root = std::env::var("KB_ROOT")
-        .expect("KB_ROOT environment variable must be set");
+    let kb_root = std::env::var("KB_ROOT").expect("KB_ROOT environment variable must be set");
 
     let server = LoomServer::new(&kb_root).await;
 
-    let running = server.serve(stdio()).await
+    let running = server
+        .serve(stdio())
+        .await
         .expect("MCP server initialization error");
 
     // Wait for the service to complete (this keeps the server running)
-    let quit_reason = running.waiting().await
-        .expect("MCP server runtime error");
+    let quit_reason = running.waiting().await.expect("MCP server runtime error");
     eprintln!("MCP server stopped: {:?}", quit_reason);
 }

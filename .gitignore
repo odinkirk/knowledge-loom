@@ -50,6 +50,7 @@ __pycache__/
 .kiro/
 .openclaude-profile.json
 .opencode.json
+opencode.json
 .windsurfrules
 
 # Internal reference / planning docs (not for public tracking)

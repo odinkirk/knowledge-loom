@@ -21,10 +21,11 @@ exec ${{SHELL:-/bin/sh}}
 /// On shell exit, the server task is aborted.
 pub async fn run_shell() -> Result<(), Box<dyn std::error::Error>> {
     // Determine KB_ROOT
-    let kb_root = std::env::var("KB_ROOT")
-        .unwrap_or_else(|_| std::env::current_dir()
+    let kb_root = std::env::var("KB_ROOT").unwrap_or_else(|_| {
+        std::env::current_dir()
             .map(|p| p.to_string_lossy().to_string())
-            .unwrap_or_else(|_| ".".to_string()));
+            .unwrap_or_else(|_| ".".to_string())
+    });
 
     eprintln!("knowledge-loom shell — KB_ROOT={kb_root}");
     eprintln!("Starting MCP server in background...");

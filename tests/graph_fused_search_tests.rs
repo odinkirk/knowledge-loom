@@ -1,5 +1,5 @@
-use knowledge_loom::index::VectorIndex;
 use knowledge_loom::embed::EmbedProviderEnum;
+use knowledge_loom::index::VectorIndex;
 
 #[tokio::test]
 async fn test_index_file_replaces_old_chunks() {
@@ -11,11 +11,17 @@ async fn test_index_file_replaces_old_chunks() {
 
     // First index
     std::fs::write(&path, "# Alpha\nalpha content here").unwrap();
-    index.index_file(&path, "# Alpha\nalpha content here", &embed).await.unwrap();
+    index
+        .index_file(&path, "# Alpha\nalpha content here", &embed)
+        .await
+        .unwrap();
 
     // Re-index with completely different content
     std::fs::write(&path, "# Beta\nbeta material only").unwrap();
-    index.index_file(&path, "# Beta\nbeta material only", &embed).await.unwrap();
+    index
+        .index_file(&path, "# Beta\nbeta material only", &embed)
+        .await
+        .unwrap();
 
     // Search for the alpha vector — should return no chunks with "alpha" content
     let query_vec = embed.embed("alpha content here").await;
@@ -24,7 +30,10 @@ async fn test_index_file_replaces_old_chunks() {
         .iter()
         .filter(|(_, _, content, _)| content.contains("alpha"))
         .collect();
-    assert!(stale.is_empty(), "old alpha chunks should be gone after re-index");
+    assert!(
+        stale.is_empty(),
+        "old alpha chunks should be gone after re-index"
+    );
 }
 
 #[tokio::test]
@@ -36,7 +45,10 @@ async fn test_remove_file_embeddings_clears_path() {
     let path = dir.path().join("target.md");
 
     std::fs::write(&path, "# Target\nsome content").unwrap();
-    index.index_file(&path, "# Target\nsome content", &embed).await.unwrap();
+    index
+        .index_file(&path, "# Target\nsome content", &embed)
+        .await
+        .unwrap();
 
     index.remove_file_embeddings(&path).await.unwrap();
 
@@ -68,12 +80,21 @@ async fn test_graph_update_file_replaces_wikilinks() {
 
     // source.md now links to alpha; update it to link to beta instead
     std::fs::write(dir.path().join("source.md"), "# Source\n[[beta]]").unwrap();
-    graph.update_file(&dir.path().join("source.md"), "# Source\n[[beta]]").await.unwrap();
+    graph
+        .update_file(&dir.path().join("source.md"), "# Source\n[[beta]]")
+        .await
+        .unwrap();
 
     // source should now link to beta, not alpha
     let neighbors = graph.search_graph("source").await;
-    assert!(neighbors.contains(&"beta".to_string()), "source should link to beta");
-    assert!(!neighbors.contains(&"alpha".to_string()), "source should no longer link to alpha");
+    assert!(
+        neighbors.contains(&"beta".to_string()),
+        "source should link to beta"
+    );
+    assert!(
+        !neighbors.contains(&"alpha".to_string()),
+        "source should no longer link to alpha"
+    );
 }
 
 #[tokio::test]
@@ -90,17 +111,25 @@ async fn test_graph_update_file_invalidates_analytics_cache() {
 
     // Prime the analytics cache
     let (pr_before, _) = graph.get_cached_analytics().await;
-    assert!(!pr_before.is_empty(), "cache should be populated after build_graph");
+    assert!(
+        !pr_before.is_empty(),
+        "cache should be populated after build_graph"
+    );
 
     // Update a.md — cache should be invalidated
-    graph.update_file(&dir.path().join("a.md"), "# A\nno links now").await.unwrap();
+    graph
+        .update_file(&dir.path().join("a.md"), "# A\nno links now")
+        .await
+        .unwrap();
     let cache_after = graph.cached_pagerank.lock().await;
-    assert!(cache_after.is_none(),
-        "cached_pagerank should be None immediately after update_file invalidates it");
+    assert!(
+        cache_after.is_none(),
+        "cached_pagerank should be None immediately after update_file invalidates it"
+    );
 }
 
-use knowledge_loom::search::SearchEngine;
 use knowledge_loom::bm25::BM25Index;
+use knowledge_loom::search::SearchEngine;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -110,8 +139,16 @@ async fn test_search_includes_graph_fused_results() {
     let kb_root = dir.path().to_str().unwrap();
 
     // Create a note and index it in the vector backend
-    std::fs::write(dir.path().join("target.md"), "# Rust async\nfutures and tokio").unwrap();
-    std::fs::write(dir.path().join("other.md"), "# Cooking\nrecipes and ingredients").unwrap();
+    std::fs::write(
+        dir.path().join("target.md"),
+        "# Rust async\nfutures and tokio",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("other.md"),
+        "# Cooking\nrecipes and ingredients",
+    )
+    .unwrap();
 
     let embed = Arc::new(Mutex::new(EmbedProviderEnum::new(kb_root).await));
     let vector = Arc::new(Mutex::new(VectorIndex::new(kb_root).await));
@@ -119,8 +156,20 @@ async fn test_search_includes_graph_fused_results() {
     {
         let e = embed.lock().await;
         let v = vector.lock().await;
-        v.index_file(&dir.path().join("target.md"), "# Rust async\nfutures and tokio", &*e).await.unwrap();
-        v.index_file(&dir.path().join("other.md"), "# Cooking\nrecipes and ingredients", &*e).await.unwrap();
+        v.index_file(
+            &dir.path().join("target.md"),
+            "# Rust async\nfutures and tokio",
+            &*e,
+        )
+        .await
+        .unwrap();
+        v.index_file(
+            &dir.path().join("other.md"),
+            "# Cooking\nrecipes and ingredients",
+            &*e,
+        )
+        .await
+        .unwrap();
     }
 
     let engine = SearchEngine::from_components(
@@ -164,10 +213,14 @@ async fn test_graph_fused_pagerank_key_alignment() {
     let vector_path = "important_note.md";
     let pr_key = vector_path.strip_suffix(".md").unwrap_or(vector_path);
 
-    assert_eq!(pr_key, "important_note",
-        "strip_suffix('.md') must yield the bare stem used as a pagerank key");
-    assert!(pagerank.contains_key(pr_key),
-        "pagerank lookup must find the key after .md stripping");
+    assert_eq!(
+        pr_key, "important_note",
+        "strip_suffix('.md') must yield the bare stem used as a pagerank key"
+    );
+    assert!(
+        pagerank.contains_key(pr_key),
+        "pagerank lookup must find the key after .md stripping"
+    );
 
     // Nested paths: only the .md suffix is removed, directory component stays.
     let nested = "subdir/important_note.md";
@@ -187,12 +240,18 @@ async fn test_graph_fused_inner_reranks_by_pagerank() {
     {
         let e = embed.lock().await;
         let v = vector.lock().await;
-        v.index_file(&dir.path().join("high_pr.md"), "async futures in rust", &*e).await.unwrap();
-        v.index_file(&dir.path().join("low_pr.md"),  "async futures in rust", &*e).await.unwrap();
+        v.index_file(&dir.path().join("high_pr.md"), "async futures in rust", &*e)
+            .await
+            .unwrap();
+        v.index_file(&dir.path().join("low_pr.md"), "async futures in rust", &*e)
+            .await
+            .unwrap();
     }
 
     let engine = SearchEngine::from_components(
-        Arc::new(Mutex::new(knowledge_loom::bm25::BM25Index::new(kb_root).await)),
+        Arc::new(Mutex::new(
+            knowledge_loom::bm25::BM25Index::new(kb_root).await,
+        )),
         vector.clone(),
         embed.clone(),
         Arc::new(Mutex::new(GraphState::new(kb_root).await)),
@@ -206,22 +265,30 @@ async fn test_graph_fused_inner_reranks_by_pagerank() {
     // Build a pagerank map where high_pr dominates
     let mut pagerank: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
     pagerank.insert("high_pr".to_string(), 0.9_f64);
-    pagerank.insert("low_pr".to_string(),  0.1_f64);
+    pagerank.insert("low_pr".to_string(), 0.1_f64);
 
-    let results = engine.search_graph_fused_inner(&query_vec, &pagerank, 5).await.unwrap();
+    let results = engine
+        .search_graph_fused_inner(&query_vec, &pagerank, 5)
+        .await
+        .unwrap();
 
     assert!(!results.is_empty(), "should return results");
     let high_idx = results.iter().position(|p| p.contains("high_pr"));
-    let low_idx  = results.iter().position(|p| p.contains("low_pr"));
+    let low_idx = results.iter().position(|p| p.contains("low_pr"));
 
     // Assert both files appear in results — prevents vacuous pass if stub embed returns zero vectors
-    assert!(high_idx.is_some() && low_idx.is_some(),
+    assert!(
+        high_idx.is_some() && low_idx.is_some(),
         "both indexed files should appear in results; high_pr: {:?}, low_pr: {:?}",
-        high_idx, low_idx);
+        high_idx,
+        low_idx
+    );
 
     // Now check ordering: high-pagerank doc must rank before low-pagerank doc
-    assert!(high_idx.unwrap() < low_idx.unwrap(),
-        "high-pagerank doc must rank before low-pagerank doc with equal similarity");
+    assert!(
+        high_idx.unwrap() < low_idx.unwrap(),
+        "high-pagerank doc must rank before low-pagerank doc with equal similarity"
+    );
 }
 
 #[tokio::test]
@@ -248,8 +315,9 @@ async fn test_index_vault_removes_stale_embeddings() {
     let results = index.search_similar(&query_vec, 10).await.unwrap();
     assert!(
         results.iter().all(|(path, heading, content, _)| {
-            !path.contains("note") || (heading.as_deref() != Some("Old Section")
-                && !content.contains("original content"))
+            !path.contains("note")
+                || (heading.as_deref() != Some("Old Section")
+                    && !content.contains("original content"))
         }),
         "index_vault must remove stale chunks: 'original content' should not appear after re-index"
     );

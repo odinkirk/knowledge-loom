@@ -38,16 +38,20 @@ impl EditManager {
             graph_state,
         }
     }
-    
+
     pub async fn list_files(&self) -> Vec<String> {
         let vault_lock = self.vault_state.lock().await;
         let files = vault_lock.scan_files().await;
-        files.into_iter()
+        files
+            .into_iter()
             .map(|p| p.to_string_lossy().to_string())
             .collect()
     }
-    
-    pub async fn get_outline(&self, file_path: &Path) -> Result<Vec<(usize, String)>, std::io::Error> {
+
+    pub async fn get_outline(
+        &self,
+        file_path: &Path,
+    ) -> Result<Vec<(usize, String)>, std::io::Error> {
         let vault_lock = self.vault_state.lock().await;
         if let Some(content) = vault_lock.read_file(file_path).await {
             let mut outline = Vec::new();
@@ -62,10 +66,13 @@ impl EditManager {
             }
             Ok(outline)
         } else {
-            Err(std::io::Error::new(std::io::ErrorKind::NotFound, "File not found"))
+            Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "File not found",
+            ))
         }
     }
-    
+
     pub async fn grep(&self, pattern: &str) -> Vec<(String, usize, String)> {
         let re = match regex::Regex::new(pattern) {
             Ok(r) => r,
@@ -90,8 +97,12 @@ impl EditManager {
         }
         results
     }
-    
-    pub async fn read_section(&self, file_path: &Path, heading: &str) -> Result<Option<String>, std::io::Error> {
+
+    pub async fn read_section(
+        &self,
+        file_path: &Path,
+        heading: &str,
+    ) -> Result<Option<String>, std::io::Error> {
         let vault_lock = self.vault_state.lock().await;
         if let Some(content) = vault_lock.read_file(file_path).await {
             let lines: Vec<&str> = content.lines().collect();
@@ -126,7 +137,10 @@ impl EditManager {
                 Ok(None)
             }
         } else {
-            Err(std::io::Error::new(std::io::ErrorKind::NotFound, "File not found"))
+            Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "File not found",
+            ))
         }
     }
 
@@ -139,7 +153,12 @@ impl EditManager {
         let vault_lock = self.vault_state.lock().await;
         let content = match vault_lock.read_file(file_path).await {
             Some(c) => c,
-            None => return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "File not found")),
+            None => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "File not found",
+                ))
+            }
         };
 
         let lines: Vec<&str> = content.lines().collect();
@@ -181,22 +200,30 @@ impl EditManager {
             proposed: proposed.to_string(),
         }))
     }
-    
-    pub async fn read_lines(&self, file_path: &Path, start: usize, end: usize) -> Result<Option<String>, std::io::Error> {
+
+    pub async fn read_lines(
+        &self,
+        file_path: &Path,
+        start: usize,
+        end: usize,
+    ) -> Result<Option<String>, std::io::Error> {
         let vault_lock = self.vault_state.lock().await;
         if let Some(content) = vault_lock.read_file(file_path).await {
             let lines: Vec<&str> = content.lines().collect();
             let start_idx = start.saturating_sub(1); // Convert to 0-indexed
             let end_idx = end.min(lines.len());
-            
+
             if start_idx >= lines.len() {
                 return Ok(None);
             }
-            
+
             let selected_lines: Vec<&str> = lines[start_idx..end_idx].to_vec();
             Ok(Some(selected_lines.join("\n")))
         } else {
-            Err(std::io::Error::new(std::io::ErrorKind::NotFound, "File not found"))
+            Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "File not found",
+            ))
         }
     }
 
@@ -216,7 +243,13 @@ impl EditManager {
         }
     }
 
-    pub async fn replace_lines(&self, file_path: &Path, start: usize, end: usize, new_content: &str) -> Result<(), std::io::Error> {
+    pub async fn replace_lines(
+        &self,
+        file_path: &Path,
+        start: usize,
+        end: usize,
+        new_content: &str,
+    ) -> Result<(), std::io::Error> {
         let vault_lock = self.vault_state.lock().await;
         if let Some(content) = vault_lock.read_file(file_path).await {
             let lines: Vec<&str> = content.lines().collect();
@@ -224,7 +257,10 @@ impl EditManager {
             let end_idx = end.min(lines.len());
 
             if start_idx >= lines.len() {
-                return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Start line out of range"));
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    "Start line out of range",
+                ));
             }
 
             let mut new_lines = Vec::new();
@@ -239,7 +275,12 @@ impl EditManager {
         Ok(())
     }
 
-    pub async fn insert_after_heading(&self, file_path: &Path, heading: &str, content: &str) -> Result<(), std::io::Error> {
+    pub async fn insert_after_heading(
+        &self,
+        file_path: &Path,
+        heading: &str,
+        content: &str,
+    ) -> Result<(), std::io::Error> {
         let new_content;
         {
             let vault_lock = self.vault_state.lock().await;
@@ -264,20 +305,30 @@ impl EditManager {
                 }
 
                 if !inserted {
-                    return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "Heading not found"));
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::NotFound,
+                        "Heading not found",
+                    ));
                 }
 
                 new_content = new_lines.join("\n");
                 vault_lock.write_file(file_path, &new_content).await?;
             } else {
-                return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "File not found"));
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "File not found",
+                ));
             }
         } // vault_lock dropped
         self.reindex_file(file_path, &new_content).await;
         Ok(())
     }
-    
-    pub async fn append_to_file(&self, file_path: &Path, content: &str) -> Result<(), std::io::Error> {
+
+    pub async fn append_to_file(
+        &self,
+        file_path: &Path,
+        content: &str,
+    ) -> Result<(), std::io::Error> {
         let new_content;
         {
             let vault_lock = self.vault_state.lock().await;
@@ -295,7 +346,7 @@ impl EditManager {
         self.reindex_file(file_path, &new_content).await;
         Ok(())
     }
-    
+
     pub async fn create_note(&self, title: &str, content: &str) -> Result<PathBuf, std::io::Error> {
         // Convert title to filename
         let filename = title.replace(' ', "_").replace('/', "_") + ".md";
@@ -309,7 +360,11 @@ impl EditManager {
         Ok(file_path)
     }
 
-    pub async fn edit_note(&self, file_path: &Path, new_content: &str) -> Result<(), std::io::Error> {
+    pub async fn edit_note(
+        &self,
+        file_path: &Path,
+        new_content: &str,
+    ) -> Result<(), std::io::Error> {
         {
             let vault_lock = self.vault_state.lock().await;
             vault_lock.write_file(file_path, new_content).await?;
@@ -317,61 +372,68 @@ impl EditManager {
         self.reindex_file(file_path, new_content).await;
         Ok(())
     }
-    
+
     pub async fn link_notes(&self, from_path: &Path, to_path: &Path) -> Result<(), std::io::Error> {
         let vault_lock = self.vault_state.lock().await;
-        
+
         // Read the source file
         if let Some(mut content) = vault_lock.read_file(from_path).await {
             // Extract the target note title for the wikilink
-            let to_title = to_path.file_stem()
+            let to_title = to_path
+                .file_stem()
                 .and_then(|s| s.to_str())
                 .unwrap_or("Untitled");
-            
+
             // Append wikilink at the end
             if !content.ends_with('\n') {
                 content.push('\n');
             }
             content.push_str(&format!("[[{}]]", to_title));
-            
+
             vault_lock.write_file(from_path, &content).await?;
-            
+
             // Update graph
             // TODO: Update graph state
         }
-        
+
         Ok(())
     }
-    
+
     pub async fn move_note(&self, from_path: &Path, to_path: &Path) -> Result<(), std::io::Error> {
         // Check if source exists
         if !from_path.exists() {
-            return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "Source file not found"));
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "Source file not found",
+            ));
         }
-        
+
         // Create parent directory for destination if needed
         if let Some(parent) = to_path.parent() {
             tokio::fs::create_dir_all(parent).await?;
         }
-        
+
         // Move the file
         tokio::fs::rename(from_path, to_path).await?;
-        
+
         // Update indexes
         // TODO: Update BM25, vector index, and graph with new path
-        
+
         Ok(())
     }
-    
+
     pub async fn delete_note(&self, file_path: &Path) -> Result<(), std::io::Error> {
         // Check if file exists
         if !file_path.exists() {
-            return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "File not found"));
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "File not found",
+            ));
         }
-        
+
         // Delete the file
         tokio::fs::remove_file(file_path).await?;
-        
+
         // Update indexes
         // TODO: Remove from BM25, vector index, and graph
 
@@ -383,14 +445,19 @@ impl EditManager {
 mod tests {
     use super::*;
     use std::sync::Arc;
-    use tokio::sync::Mutex;
     use tempfile::TempDir;
+    use tokio::sync::Mutex;
 
-    pub async fn make_edit_manager(tmp: &TempDir, content: &str) -> (EditManager, std::path::PathBuf) {
+    pub async fn make_edit_manager(
+        tmp: &TempDir,
+        content: &str,
+    ) -> (EditManager, std::path::PathBuf) {
         let root = tmp.path().to_str().unwrap().to_string();
         let vault = Arc::new(Mutex::new(crate::vault::VaultState::new(&root).await));
         let bm25 = Arc::new(Mutex::new(crate::bm25::BM25Index::new(&root).await));
-        let embed = Arc::new(Mutex::new(crate::embed::EmbedProviderEnum::new(&root).await));
+        let embed = Arc::new(Mutex::new(
+            crate::embed::EmbedProviderEnum::new(&root).await,
+        ));
         let vector = Arc::new(Mutex::new(crate::index::VectorIndex::new(&root).await));
         let graph = Arc::new(Mutex::new(crate::graph::GraphState::new(&root).await));
         let em = EditManager::new(root, vault.clone(), bm25, embed, vector, graph);
@@ -404,7 +471,10 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let content = "# Intro\n\nHello world\n\n# Summary\n\nFin\n";
         let (em, path) = make_edit_manager(&tmp, content).await;
-        let preview = em.apply_edit_preview(&path, "Intro", "New intro content").await.unwrap();
+        let preview = em
+            .apply_edit_preview(&path, "Intro", "New intro content")
+            .await
+            .unwrap();
         assert!(preview.is_some());
         let p = preview.unwrap();
         assert_eq!(p.heading, "Intro");

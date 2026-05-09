@@ -1,8 +1,8 @@
+use rusqlite::{ffi::sqlite3_auto_extension, params, Connection, Result as SqliteResult};
+use sqlite_vec::sqlite3_vec_init;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use rusqlite::{Connection, params, Result as SqliteResult, ffi::sqlite3_auto_extension};
-use sqlite_vec::sqlite3_vec_init;
 
 #[allow(dead_code)]
 pub struct VectorIndex {
@@ -14,7 +14,7 @@ impl VectorIndex {
     pub async fn new(kb_root: &str) -> Self {
         let kb_root_path = PathBuf::from(kb_root);
         let index_path = kb_root_path.join(".knowledge-loom-index/embeddings.db");
-        
+
         // Create directory if it doesn't exist
         let _ = std::fs::create_dir_all(index_path.parent().unwrap());
 
@@ -39,14 +39,15 @@ impl VectorIndex {
             );
             CREATE INDEX IF NOT EXISTS idx_embeddings_path ON embeddings(path);
             ",
-        ).expect("Failed to create tables");
-        
+        )
+        .expect("Failed to create tables");
+
         Self {
             conn: Arc::new(Mutex::new(conn)),
             kb_root: kb_root_path,
         }
     }
-    
+
     pub async fn upsert_embedding(
         &self,
         path: &Path,
@@ -57,7 +58,8 @@ impl VectorIndex {
         let conn_lock = self.conn.lock().await;
 
         // Convert to relative path from kb_root
-        let relative_path = path.strip_prefix(&self.kb_root)
+        let relative_path = path
+            .strip_prefix(&self.kb_root)
             .unwrap_or(path)
             .to_string_lossy()
             .to_string();
@@ -80,13 +82,14 @@ impl VectorIndex {
 
         Ok(())
     }
-    
+
     #[allow(dead_code)]
     pub async fn remove_embedding(&self, path: &Path, heading: Option<&str>) -> SqliteResult<()> {
         let conn_lock = self.conn.lock().await;
 
         // Convert to relative path from kb_root
-        let relative_path = path.strip_prefix(&self.kb_root)
+        let relative_path = path
+            .strip_prefix(&self.kb_root)
             .unwrap_or(path)
             .to_string_lossy()
             .to_string();
@@ -101,7 +104,7 @@ impl VectorIndex {
                 heading.map(|s| s.to_string()).unwrap_or_default(),
             ],
         )?;
-        
+
         Ok(())
     }
 
@@ -142,7 +145,7 @@ impl VectorIndex {
     ) -> Result<Vec<(String, Option<String>, String, f32)>, rusqlite::Error> {
         let query_blob = bytemuck::cast_slice(query_embedding);
         let conn_lock = self.conn.lock().await;
-        
+
         let mut stmt = conn_lock.prepare(
             "
             SELECT path, heading, content, vec_distance_cosine(embedding, ?1) as distance
@@ -151,9 +154,9 @@ impl VectorIndex {
             LIMIT ?2
             ",
         )?;
-        
+
         let mut rows = stmt.query(params![query_blob, limit as i32])?;
-        
+
         let mut results = Vec::new();
         while let Some(row) = rows.next()? {
             let path: String = row.get(0)?;
@@ -164,32 +167,37 @@ impl VectorIndex {
             let similarity = 1.0 - distance;
             results.push((path, heading, content, similarity));
         }
-        
+
         Ok(results)
     }
-    
+
     pub async fn index_vault(
         &self,
         vault_state: &crate::vault::VaultState,
         embed_provider: &crate::embed::EmbedProviderEnum,
     ) -> Result<(), rusqlite::Error> {
         let files = vault_state.scan_files().await;
-        
+
         for file_path in files {
             if let Some(content) = vault_state.read_file(&file_path).await {
                 self.remove_file_embeddings(&file_path).await?;
                 let chunks = self.chunk_content(&content);
                 for (heading, chunk_content) in chunks {
                     let embedding = embed_provider.embed(&chunk_content).await;
-                    self.upsert_embedding(&file_path, heading.as_deref(), &chunk_content, &embedding)
-                        .await?;
+                    self.upsert_embedding(
+                        &file_path,
+                        heading.as_deref(),
+                        &chunk_content,
+                        &embedding,
+                    )
+                    .await?;
                 }
             }
         }
-        
+
         Ok(())
     }
-    
+
     pub fn chunk_content(&self, content: &str) -> Vec<(Option<String>, String)> {
         let mut chunks = Vec::new();
         let mut current_heading: Option<String> = None;

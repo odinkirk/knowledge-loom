@@ -1,10 +1,10 @@
 // src/daemon.rs
-use std::path::{Path, PathBuf};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
 
 pub fn expand_path(path: &str) -> String {
     if let Some(rest) = path.strip_prefix("~/") {
@@ -33,10 +33,17 @@ pub struct DaemonConfig {
     pub repos: Vec<WatchRepo>,
 }
 
-fn default_poll() -> u64 { 30 }
+fn default_poll() -> u64 {
+    30
+}
 
 impl Default for DaemonConfig {
-    fn default() -> Self { Self { poll_interval: 30, repos: Vec::new() } }
+    fn default() -> Self {
+        Self {
+            poll_interval: 30,
+            repos: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -52,10 +59,18 @@ pub fn config_dir() -> PathBuf {
         .join(".knowledge-loom")
 }
 
-pub fn config_path() -> PathBuf { config_dir().join("watch.toml") }
-pub fn pid_path() -> PathBuf { config_dir().join("daemon.pid") }
-pub fn state_path() -> PathBuf { config_dir().join("daemon-state.json") }
-pub fn log_dir() -> PathBuf { config_dir().join("logs") }
+pub fn config_path() -> PathBuf {
+    config_dir().join("watch.toml")
+}
+pub fn pid_path() -> PathBuf {
+    config_dir().join("daemon.pid")
+}
+pub fn state_path() -> PathBuf {
+    config_dir().join("daemon-state.json")
+}
+pub fn log_dir() -> PathBuf {
+    config_dir().join("logs")
+}
 
 pub fn load_config(path: &Path) -> Result<DaemonConfig, Box<dyn std::error::Error>> {
     let content = fs::read_to_string(path)?;
@@ -76,14 +91,20 @@ pub fn load_config(path: &Path) -> Result<DaemonConfig, Box<dyn std::error::Erro
         poll_interval: u64,
     }
     let file: TomlFile = toml::from_str(&content)?;
-    Ok(DaemonConfig { poll_interval: file.daemon.poll_interval, repos: file.repos })
+    Ok(DaemonConfig {
+        poll_interval: file.daemon.poll_interval,
+        repos: file.repos,
+    })
 }
 
 pub fn save_config(config: &DaemonConfig, path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all(path.parent().unwrap())?;
     let mut out = format!("[daemon]\npoll_interval = {}\n", config.poll_interval);
     for repo in &config.repos {
-        out.push_str(&format!("\n[[repos]]\npath = \"{}\"\nalias = \"{}\"\n", repo.path, repo.alias));
+        out.push_str(&format!(
+            "\n[[repos]]\npath = \"{}\"\nalias = \"{}\"\n",
+            repo.path, repo.alias
+        ));
     }
     let tmp = path.with_extension("tmp");
     fs::write(&tmp, out)?;
@@ -129,16 +150,20 @@ pub fn add_repo(
     } else {
         DaemonConfig::default()
     };
-    let alias = alias
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| Path::new(path).file_name()
+    let alias = alias.map(|s| s.to_string()).unwrap_or_else(|| {
+        Path::new(path)
+            .file_name()
             .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_else(|| "repo".to_string()));
+            .unwrap_or_else(|| "repo".to_string())
+    });
     // Deduplicate by path
     if config.repos.iter().any(|r| r.path == path) {
         return Ok(());
     }
-    config.repos.push(WatchRepo { path: path.to_string(), alias });
+    config.repos.push(WatchRepo {
+        path: path.to_string(),
+        alias,
+    });
     save_config(&config, config_path)
 }
 
@@ -147,7 +172,9 @@ pub fn remove_repo(
     config_path: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut config = load_config(config_path)?;
-    config.repos.retain(|r| r.alias != path_or_alias && r.path != path_or_alias);
+    config
+        .repos
+        .retain(|r| r.alias != path_or_alias && r.path != path_or_alias);
     save_config(&config, config_path)
 }
 
@@ -204,14 +231,17 @@ fn spawn_watcher(repo: WatchRepo) -> tokio::task::JoinHandle<()> {
         let binary = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("loom"));
 
         // Use notify for FS events; trigger reindex via HTTP or direct call
-        use notify::{Watcher, RecursiveMode, recommended_watcher, Event};
+        use notify::{recommended_watcher, Event, RecursiveMode, Watcher};
         use std::sync::mpsc;
 
         let (tx, rx) = mpsc::channel::<Result<Event, notify::Error>>();
         let mut watcher = match recommended_watcher(tx) {
             Ok(w) => w,
             Err(e) => {
-                eprintln!("[watcher:{}] notify failed: {e}, falling back to polling", repo.alias);
+                eprintln!(
+                    "[watcher:{}] notify failed: {e}, falling back to polling",
+                    repo.alias
+                );
                 // Polling fallback: just trigger a full reindex every poll_interval
                 loop {
                     trigger_reindex(&repo.path, &binary).await;
@@ -233,9 +263,10 @@ fn spawn_watcher(repo: WatchRepo) -> tokio::task::JoinHandle<()> {
             match rx.recv_timeout(std::time::Duration::from_secs(1)) {
                 Ok(Ok(event)) => {
                     // Only care about markdown changes
-                    let is_md = event.paths.iter().any(|p| {
-                        p.extension().map(|e| e == "md").unwrap_or(false)
-                    });
+                    let is_md = event
+                        .paths
+                        .iter()
+                        .any(|p| p.extension().map(|e| e == "md").unwrap_or(false));
                     if is_md && last_event.elapsed() > std::time::Duration::from_secs(2) {
                         last_event = std::time::Instant::now();
                         trigger_reindex(&repo.path, &binary).await;
@@ -269,7 +300,7 @@ async fn trigger_reindex(kb_root: &str, binary: &Path) {
 pub fn daemonize() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(unix)]
     {
-        use nix::unistd::{fork, ForkResult, setsid};
+        use nix::unistd::{fork, setsid, ForkResult};
         match unsafe { fork()? } {
             ForkResult::Parent { .. } => std::process::exit(0),
             ForkResult::Child => {}
@@ -290,9 +321,12 @@ pub fn daemonize() -> Result<(), Box<dyn std::error::Error>> {
         // Stderr → daemon log
         fs::create_dir_all(log_dir())?;
         let log = std::fs::OpenOptions::new()
-            .create(true).append(true)
+            .create(true)
+            .append(true)
             .open(log_dir().join("daemon.log"))?;
-        unsafe { libc::dup2(log.into_raw_fd(), 2); }
+        unsafe {
+            libc::dup2(log.into_raw_fd(), 2);
+        }
     }
     Ok(())
 }
@@ -301,7 +335,9 @@ pub fn daemon_stop() -> Result<(), Box<dyn std::error::Error>> {
     match read_pid() {
         Some(pid) => {
             #[cfg(unix)]
-            unsafe { libc::kill(pid as i32, libc::SIGTERM); }
+            unsafe {
+                libc::kill(pid as i32, libc::SIGTERM);
+            }
             fs::remove_file(pid_path()).ok();
             eprintln!("Sent SIGTERM to daemon (PID {pid}).");
         }
@@ -334,11 +370,16 @@ pub fn daemon_logs(repo: Option<&str>, follow: bool, lines: usize) {
     }
     if follow {
         let _ = std::process::Command::new("tail")
-            .arg("-f").arg("-n").arg(lines.to_string()).arg(&log_path)
+            .arg("-f")
+            .arg("-n")
+            .arg(lines.to_string())
+            .arg(&log_path)
             .status();
     } else {
         let _ = std::process::Command::new("tail")
-            .arg("-n").arg(lines.to_string()).arg(&log_path)
+            .arg("-n")
+            .arg(lines.to_string())
+            .arg(&log_path)
             .status();
     }
 }

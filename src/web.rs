@@ -15,7 +15,9 @@ pub struct WebState {
 
 impl WebState {
     pub async fn new(kb_root: &str) -> Self {
-        Self { server: LoomServer::new(kb_root).await }
+        Self {
+            server: LoomServer::new(kb_root).await,
+        }
     }
 }
 
@@ -78,7 +80,9 @@ pub struct SearchRequest {
     #[serde(default = "default_limit")]
     pub limit: usize,
 }
-fn default_limit() -> usize { 20 }
+fn default_limit() -> usize {
+    20
+}
 
 #[allow(dead_code)]
 #[derive(Serialize)]
@@ -111,27 +115,35 @@ async fn handle_search(
     if req.query.trim().is_empty() {
         return Json(serde_json::json!({ "results": [] }));
     }
-    let results = state.server.search_engine
+    let results = state
+        .server
+        .search_engine
         .search(&req.query, req.limit)
         .await;
-    let json_results: Vec<serde_json::Value> = results.iter().flat_map(|r| {
-        r.sections.iter().map(|s| {
-            serde_json::json!({
-                "path": r.path,
-                "heading": s.heading,
-                "line_start": s.line_start,
-                "score": s.score,
-                "snippet": s.content.chars().take(200).collect::<String>(),
+    let json_results: Vec<serde_json::Value> = results
+        .iter()
+        .flat_map(|r| {
+            r.sections.iter().map(|s| {
+                serde_json::json!({
+                    "path": r.path,
+                    "heading": s.heading,
+                    "line_start": s.line_start,
+                    "score": s.score,
+                    "snippet": s.content.chars().take(200).collect::<String>(),
+                })
             })
         })
-    }).collect();
+        .collect();
     Json(serde_json::json!({ "results": json_results }))
 }
 
 async fn handle_files(State(state): State<Arc<WebState>>) -> impl IntoResponse {
     let files = state.server.edits.list_files().await;
     Json(serde_json::Value::Array(
-        files.iter().map(|f| serde_json::json!({ "path": f })).collect()
+        files
+            .iter()
+            .map(|f| serde_json::json!({ "path": f }))
+            .collect(),
     ))
 }
 
@@ -139,7 +151,12 @@ async fn handle_outline(
     State(state): State<Arc<WebState>>,
     Query(q): Query<OutlineQuery>,
 ) -> impl IntoResponse {
-    match state.server.edits.get_outline(std::path::Path::new(&q.file)).await {
+    match state
+        .server
+        .edits
+        .get_outline(std::path::Path::new(&q.file))
+        .await
+    {
         Ok(outline) => Json(serde_json::json!({ "headings": outline })),
         Err(e) => Json(serde_json::json!({ "error": e.to_string() })),
     }

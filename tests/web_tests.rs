@@ -1,8 +1,8 @@
-use knowledge_loom::web::make_router;
 use axum::http::StatusCode;
 use axum_test::TestServer;
-use tempfile::TempDir;
+use knowledge_loom::web::make_router;
 use std::sync::Arc;
+use tempfile::TempDir;
 
 #[tokio::test]
 async fn test_get_root_returns_html() {
@@ -23,7 +23,8 @@ async fn test_post_api_search_empty_query_returns_empty() {
     let state = knowledge_loom::web::WebState::new(tmp.path().to_str().unwrap()).await;
     let app = make_router(Arc::new(state));
     let server = TestServer::new(app).unwrap();
-    let resp = server.post("/api/search")
+    let resp = server
+        .post("/api/search")
         .json(&serde_json::json!({ "query": "" }))
         .await;
     assert_eq!(resp.status_code(), StatusCode::OK);

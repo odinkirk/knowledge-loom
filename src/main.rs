@@ -1,37 +1,37 @@
 use std::env::args;
 use std::process::exit;
 
-mod vault;
 mod bm25;
-mod embed;
-mod index;
-mod search;
-mod graph;
-mod edits;
-mod maintenance;
-mod init;
-mod server;
-mod platforms;
-mod shell;
 mod daemon;
+mod edits;
+mod embed;
+mod graph;
+mod index;
+mod init;
+mod maintenance;
+mod platforms;
+mod search;
+mod server;
+mod shell;
+mod vault;
 mod web;
 
 #[tokio::main]
 async fn main() {
     match args().nth(1).as_deref() {
-        Some("init")                               => {
+        Some("init") => {
             if let Err(e) = init::run_init(args().skip(1)) {
                 eprintln!("knowledge-loom init failed: {e}");
                 exit(1);
             }
         }
-        Some("shell")                              => {
+        Some("shell") => {
             if let Err(e) = shell::run_shell().await {
                 eprintln!("knowledge-loom shell failed: {e}");
                 exit(1);
             }
         }
-        Some("daemon")                             => {
+        Some("daemon") => {
             let sub_arg = args().nth(2);
             let sub = sub_arg.as_deref().unwrap_or("status");
             match sub {
@@ -40,15 +40,19 @@ async fn main() {
                     if !foreground {
                         daemon::daemonize().expect("daemonize failed");
                     }
-                    daemon::run_daemon_foreground().await.expect("daemon failed");
+                    daemon::run_daemon_foreground()
+                        .await
+                        .expect("daemon failed");
                 }
-                "stop"   => daemon::daemon_stop().expect("stop failed"),
+                "stop" => daemon::daemon_stop().expect("stop failed"),
                 "status" => daemon::daemon_status(),
-                "logs"   => {
-                    let repo = args().position(|a| a == "--repo")
+                "logs" => {
+                    let repo = args()
+                        .position(|a| a == "--repo")
                         .and_then(|i| std::env::args().nth(i + 1));
                     let follow = args().any(|a| a == "-f" || a == "--follow");
-                    let n = args().position(|a| a == "-n" || a == "--lines")
+                    let n = args()
+                        .position(|a| a == "-n" || a == "--lines")
                         .and_then(|i| std::env::args().nth(i + 1))
                         .and_then(|v| v.parse().ok())
                         .unwrap_or(50usize);
@@ -56,7 +60,8 @@ async fn main() {
                 }
                 "add" => {
                     let path = args().nth(3).expect("loom daemon add <path>");
-                    let alias = args().position(|a| a == "--alias")
+                    let alias = args()
+                        .position(|a| a == "--alias")
                         .and_then(|i| std::env::args().nth(i + 1));
                     daemon::add_repo(&path, alias.as_deref(), &daemon::config_path())
                         .expect("add_repo failed");
@@ -71,14 +76,17 @@ async fn main() {
                 other => eprintln!("unknown daemon subcommand: {other}"),
             }
         }
-        Some("reindex")                            => {
-            let server = server::LoomServer::new(
-                &std::env::var("KB_ROOT").expect("KB_ROOT required")
-            ).await;
-            server.maintenance.reindex_all().await.expect("reindex failed");
+        Some("reindex") => {
+            let server =
+                server::LoomServer::new(&std::env::var("KB_ROOT").expect("KB_ROOT required")).await;
+            server
+                .maintenance
+                .reindex_all()
+                .await
+                .expect("reindex failed");
             eprintln!("Reindex complete.");
         }
-        Some("web")                                => {
+        Some("web") => {
             let port: u16 = args()
                 .position(|a| a == "--port")
                 .and_then(|i| std::env::args().nth(i + 1))
@@ -89,7 +97,7 @@ async fn main() {
                 exit(1);
             }
         }
-        Some("serve") | None                       => {
+        Some("serve") | None => {
             server::run_server().await;
         }
         Some("help") | Some("--help") | Some("-h") => {
@@ -110,7 +118,9 @@ fn print_usage() {
     eprintln!("  loom               Start MCP stdio server (same as 'loom serve')");
     eprintln!("  loom serve         Start MCP stdio server");
     eprintln!("  loom shell         Start MCP server and open interactive shell");
-    eprintln!("  loom init [dir]    Initialize knowledge-loom in a directory (default: current dir)");
+    eprintln!(
+        "  loom init [dir]    Initialize knowledge-loom in a directory (default: current dir)"
+    );
     eprintln!("  loom daemon        Daemon management (start|stop|status|logs|add|remove)");
     eprintln!("  loom reindex       Reindex knowledge base (used by daemon)");
     eprintln!("  loom web [--port]  Start read-only web UI (default port 8080)");
