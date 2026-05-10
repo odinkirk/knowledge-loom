@@ -24,7 +24,7 @@ async fn test_index_file_replaces_old_chunks() {
         .unwrap();
 
     // Search for the alpha vector — should return no chunks with "alpha" content
-    let query_vec = embed.embed("alpha content here");
+    let query_vec = embed.embed("alpha content here").await.unwrap();
     let results = index.search_similar(&query_vec, 20).await.unwrap();
     let stale: Vec<_> = results
         .iter()
@@ -52,7 +52,7 @@ async fn test_remove_file_embeddings_clears_path() {
 
     index.remove_file_embeddings(&path).await.unwrap();
 
-    let query_vec = embed.embed("some content");
+    let query_vec = embed.embed("some content").await.unwrap();
     let results = index.search_similar(&query_vec, 20).await.unwrap();
     let found: Vec<_> = results
         .iter()
@@ -263,7 +263,7 @@ async fn test_graph_fused_inner_reranks_by_pagerank() {
         Arc::new(Mutex::new(GraphState::new(kb_root).await)),
     );
 
-    let query_vec = { embed.embed("async futures") };
+    let query_vec = { embed.embed("async futures").await.unwrap() };
 
     // Build a pagerank map where high_pr dominates
     let mut pagerank: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
@@ -314,7 +314,7 @@ async fn test_index_vault_removes_stale_embeddings() {
     index.index_vault(&vault, &embed).await.unwrap();
 
     // Query for content from the removed section — should return no results
-    let query_vec = embed.embed("original content");
+    let query_vec = embed.embed("original content").await.unwrap();
     let results = index.search_similar(&query_vec, 10).await.unwrap();
     assert!(
         results.iter().all(|(path, heading, content, _)| {

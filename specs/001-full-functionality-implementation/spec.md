@@ -33,6 +33,7 @@ Users need the local embedding provider to generate meaningful semantic embeddin
 2. **Given** the local embedding provider is initialized, **When** embedding text, **Then** the embedding vector has meaningful values that correlate with semantic content
 3. **Given** documents with similar meaning but different wording, **When** searching for one, **Then** the other appears in results with high similarity scores
 4. **Given** the embedding model is loaded, **When** multiple embeddings are generated, **Then** they are consistent across calls (same text produces same embedding)
+5. **Given** the knowledge base is empty, **When** embeddings are requested, **Then** the system returns empty embedding vectors without crashing
 
 ---
 
@@ -64,7 +65,7 @@ Users who have Ollama or OpenRouter installed want to use them for embeddings in
 - How does the system handle Ollama API timeouts or rate limits? (Answer: Network timeout >5s triggers fallback to local)
 - How does the system handle OpenRouter API timeouts or rate limits? (Answer: Network timeout >5s triggers fallback to local)
 - How does the system handle embedding dimension mismatches between providers? (Answer: Reject mismatched dimensions, log warning, fallback to local)
-- What happens when the knowledge base is empty and embeddings are requested?
+- What happens when the knowledge base is empty and embeddings are requested? (Answer: Return empty embedding vector with zero values, log warning, and continue without error)
 - How does the system handle invalid API keys for OpenRouter? (Answer: HTTP 4xx/5xx errors trigger fallback to local)
 - What is the default priority when multiple external providers are configured? (Answer: Local first, then external providers, with optional explicit priority configuration via environment variable)
 - What constitutes a failure that triggers fallback? (Answer: Network timeout >5s, HTTP errors 4xx/5xx, or invalid response format)
@@ -94,8 +95,8 @@ Users who have Ollama or OpenRouter installed want to use them for embeddings in
 
 ### Measurable Outcomes
 
-- **SC-001**: Semantic search results show 80% or higher correlation with human judgment of semantic similarity
-- **SC-002**: Local embedding provider generates embeddings in under 100ms per document on average hardware
+- **SC-001**: Semantic search results show 80% or higher correlation with human judgment of semantic similarity (measured via human evaluation on test-vault/ corpus using pairwise ranking agreement)
+- **SC-002**: Local embedding provider generates embeddings in under 100ms per document on average hardware (4-core CPU, 8GB RAM, SSD storage)
 - **SC-003**: Ollama integration successfully generates embeddings when OLLAMA_URL is configured
 - **SC-004**: OpenRouter integration successfully generates embeddings when OPENROUTER_API_KEY is configured
 - **SC-005**: System handles embedding provider failures without crashing (fallback to alternative provider)
@@ -141,7 +142,7 @@ Users who have Ollama or OpenRouter installed want to use them for embeddings in
 
 ### Performance Requirements *(if feature is performance-critical)*
 
-- **PERF-001**: Local embedding generation <100ms per document
+- **PERF-001**: Local embedding generation <100ms per document on average hardware (4-core CPU, 8GB RAM, SSD storage)
 - **PERF-002**: Ollama embedding generation <500ms per document (network-dependent)
 - **PERF-003**: OpenRouter embedding generation <1s per document (network-dependent)
 - **PERF-004**: Embedding model download completes in under 5 minutes on typical internet connection

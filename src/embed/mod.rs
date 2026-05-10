@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use async_trait::async_trait;
+
 pub mod error;
 pub mod local;
 pub mod ollama;
@@ -21,9 +23,10 @@ pub use openrouter::OpenRouterEmbedProvider;
 /// use knowledge_loom::embed::EmbedProvider;
 ///
 /// let provider = LocalEmbedProvider::new(&models_dir);
-/// let embedding = provider.embed("Hello, world!");
+/// let embedding = provider.embed("Hello, world!").await?;
 /// assert_eq!(embedding.len(), provider.dimension());
 /// ```
+#[async_trait]
 pub trait EmbedProvider: Send + Sync {
     /// Generate an embedding vector for the given text
     ///
@@ -45,10 +48,10 @@ pub trait EmbedProvider: Send + Sync {
     /// # Examples
     ///
     /// ```ignore
-    /// let embedding = provider.embed("Hello, world!");
+    /// let embedding = provider.embed("Hello, world!").await?;
     /// assert!(!embedding.is_empty());
     /// ```
-    fn embed(&self, text: &str) -> Vec<f32>;
+    async fn embed(&self, text: &str) -> Result<Vec<f32>>;
 
     /// Get the dimension of the embedding vectors produced by this provider
     ///
@@ -144,14 +147,14 @@ impl EmbedProviderEnum {
     /// # Examples
     ///
     /// ```ignore
-    /// let embedding = provider.embed("Hello, world!");
+    /// let embedding = provider.embed("Hello, world!").await?;
     /// assert!(!embedding.is_empty());
     /// ```
-    pub fn embed(&self, text: &str) -> Vec<f32> {
+    pub async fn embed(&self, text: &str) -> Result<Vec<f32>> {
         match self {
-            Self::Local(p) => p.embed(text),
-            Self::Ollama(p) => p.embed(text),
-            Self::OpenRouter(p) => p.embed(text),
+            Self::Local(p) => p.embed(text).await,
+            Self::Ollama(p) => p.embed(text).await,
+            Self::OpenRouter(p) => p.embed(text).await,
         }
     }
 

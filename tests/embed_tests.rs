@@ -5,9 +5,9 @@ use knowledge_loom::embed::{LocalEmbedProvider, OllamaEmbedProvider, OpenRouterE
 use std::path::PathBuf;
 
 /// Check if Ollama service is available
-fn is_ollama_available() -> bool {
-    let client = reqwest::blocking::Client::new();
-    client.get("http://localhost:11434/api/tags").send().is_ok()
+async fn is_ollama_available() -> bool {
+    let client = reqwest::Client::new();
+    client.get("http://localhost:11434/api/tags").send().await.is_ok()
 }
 
 /// Check if OpenRouter API key is configured
@@ -27,85 +27,78 @@ mod local_tests {
         assert_eq!(provider.dimension(), 384);
     }
 
-    #[test]
-    fn test_local_embedding() {
+    #[tokio::test]
+    async fn test_local_embedding() {
         let models_dir = PathBuf::from(".knowledge-loom-index/models");
         let provider = LocalEmbedProvider::new(&models_dir);
-        let embedding = provider.embed("test text");
+        let embedding = provider.embed("test text").await.unwrap();
         // Embedding should have correct dimension
         assert_eq!(embedding.len(), 384);
         // Embedding should be non-zero
         assert!(embedding.iter().any(|&x| x != 0.0));
     }
 
-    #[test]
-    fn test_local_dimension() {
-        let models_dir = PathBuf::from(".knowledge-loom-index/models");
-        let provider = LocalEmbedProvider::new(&models_dir);
-        assert_eq!(provider.dimension(), 384);
-    }
-
-    #[test]
-    fn test_local_embedding_consistency() {
+    #[tokio::test]
+    async fn test_local_embedding_consistency() {
         let models_dir = PathBuf::from(".knowledge-loom-index/models");
         let provider = LocalEmbedProvider::new(&models_dir);
         let text = "consistent test";
-        let embedding1 = provider.embed(text);
-        let embedding2 = provider.embed(text);
+        let embedding1 = provider.embed(text).await.unwrap();
+        let embedding2 = provider.embed(text).await.unwrap();
         // Embeddings should be consistent for the same input
         assert_eq!(embedding1, embedding2);
     }
 
-    #[test]
-    fn test_local_embedding_different_inputs() {
+    #[tokio::test]
+    async fn test_local_embedding_different_inputs() {
         let models_dir = PathBuf::from(".knowledge-loom-index/models");
         let provider = LocalEmbedProvider::new(&models_dir);
-        let embedding1 = provider.embed("text one");
-        let embedding2 = provider.embed("text two");
+        let embedding1 = provider.embed("text one").await.unwrap();
+        let embedding2 = provider.embed("text two").await.unwrap();
         // Embeddings should be different for different inputs
         assert_ne!(embedding1, embedding2);
     }
 
-    #[test]
-    fn test_local_embedding_empty_string() {
+    #[tokio::test]
+    async fn test_local_embedding_empty_string() {
         let models_dir = PathBuf::from(".knowledge-loom-index/models");
         let provider = LocalEmbedProvider::new(&models_dir);
-        let embedding = provider.embed("");
+        let embedding = provider.embed("").await.unwrap();
         // Should handle empty string gracefully
         assert_eq!(embedding.len(), 384);
     }
 
-    #[test]
-    fn test_local_embedding_long_text() {
+    #[tokio::test]
+    async fn test_local_embedding_long_text() {
         let models_dir = PathBuf::from(".knowledge-loom-index/models");
         let provider = LocalEmbedProvider::new(&models_dir);
         let long_text = "a".repeat(10000);
-        let embedding = provider.embed(&long_text);
+        let embedding = provider.embed(&long_text).await.unwrap();
         // Should handle long text
         assert_eq!(embedding.len(), 384);
     }
 
-    #[test]
-    fn test_local_embedding_special_characters() {
+    #[tokio::test]
+    async fn test_local_embedding_special_characters() {
         let models_dir = PathBuf::from(".knowledge-loom-index/models");
         let provider = LocalEmbedProvider::new(&models_dir);
         let special_text = "Hello 世界 🌍";
-        let embedding = provider.embed(special_text);
+        let embedding = provider.embed(special_text).await.unwrap();
         // Should handle unicode and special characters
         assert_eq!(embedding.len(), 384);
     }
 
-    #[test]
-    fn test_local_embedding_performance() {
+    #[tokio::test]
+    async fn test_local_embedding_performance() {
         let models_dir = PathBuf::from(".knowledge-loom-index/models");
         let provider = LocalEmbedProvider::new(&models_dir);
         let text = "performance test";
 
         // Warm up the model with a dummy call
-        let _ = provider.embed("warm up");
+        let _ = provider.embed("warm up").await.unwrap();
 
         let start = std::time::Instant::now();
-        let _embedding = provider.embed(text);
+        let _embedding = provider.embed(text).await.unwrap();
         let duration = start.elapsed();
 
         // Should complete in reasonable time (<100ms target)
@@ -127,35 +120,29 @@ mod ollama_tests {
         assert_eq!(provider.dimension(), 768);
     }
 
-    #[test]
-    fn test_ollama_embedding() {
-        if !is_ollama_available() {
+    #[tokio::test]
+    async fn test_ollama_embedding() {
+        if !is_ollama_available().await {
             eprintln!("Skipping test: Ollama service not available");
             return;
         }
 
         let provider = OllamaEmbedProvider::new("http://localhost:11434".to_string());
-        let embedding = provider.embed("test");
+        let embedding = provider.embed("test").await.unwrap();
         assert!(!embedding.is_empty(), "Embedding should not be empty");
         assert_eq!(embedding.len(), 768);
     }
 
-    #[test]
-    fn test_ollama_dimension() {
-        let provider = OllamaEmbedProvider::new("http://localhost:11434".to_string());
-        assert_eq!(provider.dimension(), 768);
-    }
-
-    #[test]
-    fn test_ollama_embedding_consistency() {
-        if !is_ollama_available() {
+    #[tokio::test]
+    async fn test_ollama_embedding_consistency() {
+        if !is_ollama_available().await {
             eprintln!("Skipping test: Ollama service not available");
             return;
         }
 
         let provider = OllamaEmbedProvider::new("http://localhost:11434".to_string());
-        let embedding1 = provider.embed("test");
-        let embedding2 = provider.embed("test");
+        let embedding1 = provider.embed("test").await.unwrap();
+        let embedding2 = provider.embed("test").await.unwrap();
         assert!(
             !embedding1.is_empty(),
             "First embedding should not be empty"
@@ -167,16 +154,16 @@ mod ollama_tests {
         assert_eq!(embedding1, embedding2);
     }
 
-    #[test]
-    fn test_ollama_embedding_different_inputs() {
-        if !is_ollama_available() {
+    #[tokio::test]
+    async fn test_ollama_embedding_different_inputs() {
+        if !is_ollama_available().await {
             eprintln!("Skipping test: Ollama service not available");
             return;
         }
 
         let provider = OllamaEmbedProvider::new("http://localhost:11434".to_string());
-        let embedding1 = provider.embed("text one");
-        let embedding2 = provider.embed("text two");
+        let embedding1 = provider.embed("text one").await.unwrap();
+        let embedding2 = provider.embed("text two").await.unwrap();
         assert!(
             !embedding1.is_empty(),
             "First embedding should not be empty"
@@ -188,15 +175,15 @@ mod ollama_tests {
         assert_ne!(embedding1, embedding2);
     }
 
-    #[test]
-    fn test_ollama_embedding_empty_string() {
-        if !is_ollama_available() {
+    #[tokio::test]
+    async fn test_ollama_embedding_empty_string() {
+        if !is_ollama_available().await {
             eprintln!("Skipping test: Ollama service not available");
             return;
         }
 
         let provider = OllamaEmbedProvider::new("http://localhost:11434".to_string());
-        let embedding = provider.embed("");
+        let embedding = provider.embed("").await.unwrap();
         assert!(
             !embedding.is_empty(),
             "Empty string embedding should not be empty"
@@ -204,16 +191,16 @@ mod ollama_tests {
         assert_eq!(embedding.len(), 768);
     }
 
-    #[test]
-    fn test_ollama_embedding_long_text() {
-        if !is_ollama_available() {
+    #[tokio::test]
+    async fn test_ollama_embedding_long_text() {
+        if !is_ollama_available().await {
             eprintln!("Skipping test: Ollama service not available");
             return;
         }
 
         let provider = OllamaEmbedProvider::new("http://localhost:11434".to_string());
         let long_text = "a".repeat(10000);
-        let embedding = provider.embed(&long_text);
+        let embedding = provider.embed(&long_text).await.unwrap();
         assert!(
             !embedding.is_empty(),
             "Long text embedding should not be empty"
@@ -221,16 +208,16 @@ mod ollama_tests {
         assert_eq!(embedding.len(), 768);
     }
 
-    #[test]
-    fn test_ollama_embedding_special_characters() {
-        if !is_ollama_available() {
+    #[tokio::test]
+    async fn test_ollama_embedding_special_characters() {
+        if !is_ollama_available().await {
             eprintln!("Skipping test: Ollama service not available");
             return;
         }
 
         let provider = OllamaEmbedProvider::new("http://localhost:11434".to_string());
         let special_text = "Hello 世界 🌍";
-        let embedding = provider.embed(special_text);
+        let embedding = provider.embed(special_text).await.unwrap();
         assert!(
             !embedding.is_empty(),
             "Special characters embedding should not be empty"
@@ -238,9 +225,9 @@ mod ollama_tests {
         assert_eq!(embedding.len(), 768);
     }
 
-    #[test]
-    fn test_ollama_embedding_performance() {
-        if !is_ollama_available() {
+    #[tokio::test]
+    async fn test_ollama_embedding_performance() {
+        if !is_ollama_available().await {
             eprintln!("Skipping test: Ollama service not available");
             return;
         }
@@ -249,10 +236,10 @@ mod ollama_tests {
         let text = "performance test";
 
         // Warm up
-        let _ = provider.embed("warm up");
+        let _ = provider.embed("warm up").await.unwrap();
 
         let start = std::time::Instant::now();
-        let _embedding = provider.embed(text);
+        let _embedding = provider.embed(text).await.unwrap();
         let duration = start.elapsed();
 
         // Should complete in reasonable time (<500ms target)
@@ -274,8 +261,8 @@ mod openrouter_tests {
         assert_eq!(provider.dimension(), 1536);
     }
 
-    #[test]
-    fn test_openrouter_embedding() {
+    #[tokio::test]
+    async fn test_openrouter_embedding() {
         if !is_openrouter_configured() {
             eprintln!("Skipping test: OPENROUTER_API_KEY not configured");
             return;
@@ -283,13 +270,13 @@ mod openrouter_tests {
 
         let api_key = std::env::var("OPENROUTER_API_KEY").unwrap();
         let provider = OpenRouterEmbedProvider::new(&api_key, "openai/text-embedding-ada-002");
-        let embedding = provider.embed("test");
+        let embedding = provider.embed("test").await.unwrap();
         assert!(!embedding.is_empty(), "Embedding should not be empty");
         assert_eq!(embedding.len(), 1536);
     }
 
-    #[test]
-    fn test_openrouter_embedding_consistency() {
+    #[tokio::test]
+    async fn test_openrouter_embedding_consistency() {
         if !is_openrouter_configured() {
             eprintln!("Skipping test: OPENROUTER_API_KEY not configured");
             return;
@@ -297,8 +284,8 @@ mod openrouter_tests {
 
         let api_key = std::env::var("OPENROUTER_API_KEY").unwrap();
         let provider = OpenRouterEmbedProvider::new(&api_key, "openai/text-embedding-ada-002");
-        let embedding1 = provider.embed("test");
-        let embedding2 = provider.embed("test");
+        let embedding1 = provider.embed("test").await.unwrap();
+        let embedding2 = provider.embed("test").await.unwrap();
         assert!(
             !embedding1.is_empty(),
             "First embedding should not be empty"
@@ -310,8 +297,8 @@ mod openrouter_tests {
         assert_eq!(embedding1, embedding2);
     }
 
-    #[test]
-    fn test_openrouter_embedding_different_inputs() {
+    #[tokio::test]
+    async fn test_openrouter_embedding_different_inputs() {
         if !is_openrouter_configured() {
             eprintln!("Skipping test: OPENROUTER_API_KEY not configured");
             return;
@@ -319,8 +306,8 @@ mod openrouter_tests {
 
         let api_key = std::env::var("OPENROUTER_API_KEY").unwrap();
         let provider = OpenRouterEmbedProvider::new(&api_key, "openai/text-embedding-ada-002");
-        let embedding1 = provider.embed("text one");
-        let embedding2 = provider.embed("text two");
+        let embedding1 = provider.embed("text one").await.unwrap();
+        let embedding2 = provider.embed("text two").await.unwrap();
         assert!(
             !embedding1.is_empty(),
             "First embedding should not be empty"
@@ -332,8 +319,8 @@ mod openrouter_tests {
         assert_ne!(embedding1, embedding2);
     }
 
-    #[test]
-    fn test_openrouter_embedding_empty_string() {
+    #[tokio::test]
+    async fn test_openrouter_embedding_empty_string() {
         if !is_openrouter_configured() {
             eprintln!("Skipping test: OPENROUTER_API_KEY not configured");
             return;
@@ -341,7 +328,7 @@ mod openrouter_tests {
 
         let api_key = std::env::var("OPENROUTER_API_KEY").unwrap();
         let provider = OpenRouterEmbedProvider::new(&api_key, "openai/text-embedding-ada-002");
-        let embedding = provider.embed("");
+        let embedding = provider.embed("").await.unwrap();
         assert!(
             !embedding.is_empty(),
             "Empty string embedding should not be empty"
@@ -349,8 +336,8 @@ mod openrouter_tests {
         assert_eq!(embedding.len(), 1536);
     }
 
-    #[test]
-    fn test_openrouter_embedding_long_text() {
+    #[tokio::test]
+    async fn test_openrouter_embedding_long_text() {
         if !is_openrouter_configured() {
             eprintln!("Skipping test: OPENROUTER_API_KEY not configured");
             return;
@@ -359,7 +346,7 @@ mod openrouter_tests {
         let api_key = std::env::var("OPENROUTER_API_KEY").unwrap();
         let provider = OpenRouterEmbedProvider::new(&api_key, "openai/text-embedding-ada-002");
         let long_text = "a".repeat(10000);
-        let embedding = provider.embed(&long_text);
+        let embedding = provider.embed(&long_text).await.unwrap();
         assert!(
             !embedding.is_empty(),
             "Long text embedding should not be empty"
@@ -367,8 +354,8 @@ mod openrouter_tests {
         assert_eq!(embedding.len(), 1536);
     }
 
-    #[test]
-    fn test_openrouter_embedding_special_characters() {
+    #[tokio::test]
+    async fn test_openrouter_embedding_special_characters() {
         if !is_openrouter_configured() {
             eprintln!("Skipping test: OPENROUTER_API_KEY not configured");
             return;
@@ -377,7 +364,7 @@ mod openrouter_tests {
         let api_key = std::env::var("OPENROUTER_API_KEY").unwrap();
         let provider = OpenRouterEmbedProvider::new(&api_key, "openai/text-embedding-ada-002");
         let special_text = "Hello 世界 🌍";
-        let embedding = provider.embed(special_text);
+        let embedding = provider.embed(special_text).await.unwrap();
         assert!(
             !embedding.is_empty(),
             "Special characters embedding should not be empty"
@@ -398,21 +385,21 @@ mod provider_enum_tests {
     use knowledge_loom::embed::EmbedProviderEnum;
     use std::path::PathBuf;
 
-    #[test]
-    fn test_provider_enum_local() {
+    #[tokio::test]
+    async fn test_provider_enum_local() {
         let models_dir = PathBuf::from(".knowledge-loom-index/models");
         let provider = EmbedProviderEnum::Local(LocalEmbedProvider::new(&models_dir));
         assert_eq!(provider.dimension(), 384);
 
-        let embedding = provider.embed("test");
+        let embedding = provider.embed("test").await.unwrap();
         assert_eq!(embedding.len(), 384);
     }
 
-    #[test]
-    fn test_provider_enum_ollama() {
+    #[tokio::test]
+    async fn test_provider_enum_ollama() {
         // Check if Ollama is available
-        let client = reqwest::blocking::Client::new();
-        let ollama_available = client.get("http://localhost:11434/api/tags").send().is_ok();
+        let client = reqwest::Client::new();
+        let ollama_available = client.get("http://localhost:11434/api/tags").send().await.is_ok();
 
         if !ollama_available {
             eprintln!("Skipping test: Ollama service not available");
@@ -424,13 +411,13 @@ mod provider_enum_tests {
         ));
         assert_eq!(provider.dimension(), 768);
 
-        let embedding = provider.embed("test");
+        let embedding = provider.embed("test").await.unwrap();
         assert!(!embedding.is_empty(), "Embedding should not be empty");
         assert_eq!(embedding.len(), 768);
     }
 
-    #[test]
-    fn test_provider_enum_openrouter() {
+    #[tokio::test]
+    async fn test_provider_enum_openrouter() {
         // Check if OpenRouter API key is configured
         let openrouter_configured = std::env::var("OPENROUTER_API_KEY").is_ok();
 
@@ -446,7 +433,7 @@ mod provider_enum_tests {
         ));
         assert_eq!(provider.dimension(), 1536);
 
-        let embedding = provider.embed("test");
+        let embedding = provider.embed("test").await.unwrap();
         assert!(!embedding.is_empty(), "Embedding should not be empty");
         assert_eq!(embedding.len(), 1536);
     }
@@ -555,7 +542,7 @@ mod integration_tests {
         let provider = LocalEmbedProvider::new(&models_dir);
 
         // Test embedding generation
-        let embedding = provider.embed("end to end test");
+        let embedding = provider.embed("end to end test").await.unwrap();
         assert_eq!(embedding.len(), 384);
         assert!(embedding.iter().any(|&x| x != 0.0));
 
@@ -563,13 +550,16 @@ mod integration_tests {
         assert_eq!(provider.dimension(), 384);
     }
 
-    #[test]
-    fn test_embedding_consistency() {
+    #[tokio::test]
+    async fn test_embedding_consistency() {
         let models_dir = PathBuf::from(".knowledge-loom-index/models");
         let provider = LocalEmbedProvider::new(&models_dir);
 
         let text = "consistency test";
-        let embeddings: Vec<Vec<f32>> = (0..10).map(|_| provider.embed(text)).collect();
+        let mut embeddings: Vec<Vec<f32>> = Vec::new();
+        for _ in 0..10 {
+            embeddings.push(provider.embed(text).await.unwrap());
+        }
 
         // All embeddings should be identical
         for embedding in &embeddings[1..] {

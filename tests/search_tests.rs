@@ -486,7 +486,7 @@ mod tests {
         let engine = SearchEngine::from_components(bm25, vector, embed, graph);
 
         // Empty pagerank map: no boost expected, function should return Ok
-        let query_vec = { engine.embed.embed("alpha") };
+        let query_vec = { engine.embed.embed("alpha").await.unwrap() };
         let pagerank = std::collections::HashMap::new();
         let result = engine
             .search_graph_fused_inner(&query_vec, &pagerank, 5)
@@ -515,7 +515,7 @@ mod tests {
         index.index_vault(&vault, &embed).await.unwrap();
 
         // Query for content from the removed section — should return nothing
-        let query_vec = embed.embed("remove me");
+        let query_vec = embed.embed("remove me").await.unwrap();
         let results = index.search_similar(&query_vec, 10).await.unwrap();
         let has_stale = results.iter().any(|(path, heading, content, _)| {
             path.contains("stale")

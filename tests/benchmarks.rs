@@ -9,14 +9,19 @@ use std::path::PathBuf;
 fn bench_local_provider(c: &mut Criterion) {
     let models_dir = PathBuf::from(".knowledge-loom-index/models");
     let provider = LocalEmbedProvider::new(&models_dir);
+    let rt = tokio::runtime::Runtime::new().unwrap();
 
     let mut group = c.benchmark_group("local_provider");
 
     // Benchmark different text lengths
     for text_len in [10, 50, 100, 500, 1000].iter() {
         let text = "a".repeat(*text_len);
+        let text_clone = text.clone();
         group.bench_with_input(BenchmarkId::from_parameter(text_len), text_len, |b, _| {
-            b.iter(|| provider.embed(black_box(&text)))
+            b.iter(|| {
+                let text = text_clone.clone();
+                rt.block_on(async { provider.embed(black_box(&text)).await.unwrap() })
+            })
         });
     }
 
@@ -26,14 +31,19 @@ fn bench_local_provider(c: &mut Criterion) {
 /// Benchmark Ollama embedding provider
 fn bench_ollama_provider(c: &mut Criterion) {
     let provider = OllamaEmbedProvider::new("http://localhost:11434".to_string());
+    let rt = tokio::runtime::Runtime::new().unwrap();
 
     let mut group = c.benchmark_group("ollama_provider");
 
     // Benchmark different text lengths
     for text_len in [10, 50, 100, 500, 1000].iter() {
         let text = "a".repeat(*text_len);
+        let text_clone = text.clone();
         group.bench_with_input(BenchmarkId::from_parameter(text_len), text_len, |b, _| {
-            b.iter(|| provider.embed(black_box(&text)))
+            b.iter(|| {
+                let text = text_clone.clone();
+                rt.block_on(async { provider.embed(black_box(&text)).await.unwrap() })
+            })
         });
     }
 
@@ -43,14 +53,19 @@ fn bench_ollama_provider(c: &mut Criterion) {
 /// Benchmark OpenRouter embedding provider
 fn bench_openrouter_provider(c: &mut Criterion) {
     let provider = OpenRouterEmbedProvider::new("test-key", "openai/text-embedding-ada-002");
+    let rt = tokio::runtime::Runtime::new().unwrap();
 
     let mut group = c.benchmark_group("openrouter_provider");
 
     // Benchmark different text lengths
     for text_len in [10, 50, 100, 500, 1000].iter() {
         let text = "a".repeat(*text_len);
+        let text_clone = text.clone();
         group.bench_with_input(BenchmarkId::from_parameter(text_len), text_len, |b, _| {
-            b.iter(|| provider.embed(black_box(&text)))
+            b.iter(|| {
+                let text = text_clone.clone();
+                rt.block_on(async { provider.embed(black_box(&text)).await.unwrap() })
+            })
         });
     }
 
@@ -62,11 +77,13 @@ fn bench_embedding_consistency(c: &mut Criterion) {
     let models_dir = PathBuf::from(".knowledge-loom-index/models");
     let provider = LocalEmbedProvider::new(&models_dir);
     let text = "This is a test text for embedding consistency benchmarking.";
+    let rt = tokio::runtime::Runtime::new().unwrap();
 
     c.bench_function("embedding_consistency", |b| {
         b.iter(|| {
-            let embedding1 = provider.embed(black_box(&text));
-            let embedding2 = provider.embed(black_box(&text));
+            let text = text.clone();
+            let embedding1 = rt.block_on(async { provider.embed(black_box(&text)).await.unwrap() });
+            let embedding2 = rt.block_on(async { provider.embed(black_box(&text)).await.unwrap() });
             // Verify consistency
             assert_eq!(embedding1, embedding2, "Embeddings should be consistent");
         })
@@ -77,6 +94,7 @@ fn bench_embedding_consistency(c: &mut Criterion) {
 fn bench_batch_embedding(c: &mut Criterion) {
     let models_dir = PathBuf::from(".knowledge-loom-index/models");
     let provider = LocalEmbedProvider::new(&models_dir);
+    let rt = tokio::runtime::Runtime::new().unwrap();
 
     let texts: Vec<String> = (0..100)
         .map(|i| format!("Test text number {}", i))
@@ -85,7 +103,8 @@ fn bench_batch_embedding(c: &mut Criterion) {
     c.bench_function("batch_embedding_100", |b| {
         b.iter(|| {
             for text in &texts {
-                black_box(provider.embed(black_box(text)));
+                let text = text.clone();
+                black_box(rt.block_on(async { provider.embed(black_box(&text)).await }));
             }
         })
     });
