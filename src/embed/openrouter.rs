@@ -2,7 +2,7 @@ use reqwest::Client;
 use std::time::Duration;
 
 /// OpenRouter embedding provider configuration
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct OpenRouterEmbedProvider {
     /// OpenRouter API key
     api_key: String,
@@ -59,17 +59,10 @@ impl OpenRouterEmbedProvider {
     ///
     /// A vector of f32 values representing the text embedding
     ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - The API request fails
-    /// - The response is invalid
-    /// - Authentication fails
-    ///
     /// # Examples
     ///
     /// ```ignore
-    /// let embedding = provider.embed("Hello, world!")?;
+    /// let embedding = provider.embed("Hello, world!");
     /// assert!(!embedding.is_empty());
     /// ```
     pub fn embed(&self, text: &str) -> Vec<f32> {
@@ -98,6 +91,7 @@ impl OpenRouterEmbedProvider {
     /// let dim = provider.dimension();
     /// assert_eq!(dim, 1536); // for openai/text-embedding-ada-002
     /// ```
+    #[must_use]
     pub fn dimension(&self) -> usize {
         1536 // OpenAI ada-002 dimension
     }
@@ -141,5 +135,52 @@ mod tests {
         let embedding1 = provider.embed("test");
         let embedding2 = provider.embed("test");
         assert_eq!(embedding1, embedding2);
+    }
+
+    #[test]
+    fn test_openrouter_embedding_different_inputs() {
+        let provider = OpenRouterEmbedProvider::new("test-key", "openai/text-embedding-ada-002");
+        let embedding1 = provider.embed("text one");
+        let embedding2 = provider.embed("text two");
+        assert_ne!(embedding1, embedding2);
+    }
+
+    #[test]
+    fn test_openrouter_embedding_empty_string() {
+        let provider = OpenRouterEmbedProvider::new("test-key", "openai/text-embedding-ada-002");
+        let embedding = provider.embed("");
+        assert_eq!(embedding.len(), 1536);
+    }
+
+    #[test]
+    fn test_openrouter_embedding_long_text() {
+        let provider = OpenRouterEmbedProvider::new("test-key", "openai/text-embedding-ada-002");
+        let long_text = "a".repeat(10000);
+        let embedding = provider.embed(&long_text);
+        assert_eq!(embedding.len(), 1536);
+    }
+
+    #[test]
+    fn test_openrouter_embedding_special_characters() {
+        let provider = OpenRouterEmbedProvider::new("test-key", "openai/text-embedding-ada-002");
+        let special_text = "Hello 世界 🌍";
+        let embedding = provider.embed(special_text);
+        assert_eq!(embedding.len(), 1536);
+    }
+
+    #[test]
+    fn test_openrouter_embedding_performance() {
+        let provider = OpenRouterEmbedProvider::new("test-key", "openai/text-embedding-ada-002");
+        let text = "performance test";
+
+        let start = std::time::Instant::now();
+        let _embedding = provider.embed(text);
+        let duration = start.elapsed();
+
+        // Should complete in reasonable time (<1s target)
+        assert!(
+            duration.as_millis() < 1000,
+            "OpenRouter embedding should be <1s"
+        );
     }
 }
