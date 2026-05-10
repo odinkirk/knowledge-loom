@@ -96,6 +96,7 @@ impl EmbedError {
 
     /// Create a dimension mismatch error
     #[allow(dead_code)]
+    #[must_use]
     pub fn dimension_mismatch(expected: usize, actual: usize) -> Self {
         Self::DimensionMismatch { expected, actual }
     }

@@ -14,7 +14,7 @@ tantivy = "0.26"  # Upgraded to fix lz4_flex vulnerability
 petgraph = { version = "0.6", features = ["serde"] }
 rusqlite = { version = "0.31", features = ["bundled"] }
 sqlite-vec = "0.1"
-reqwest = { version = "0.12", features = ["json", "default-tls"] }
+reqwest = { version = "0.12", features = ["json", "default-tls", "blocking"] }
 pulldown-cmark = "0.10"
 walkdir = "2.5"
 serde = { version = "1.0", features = ["derive"] }

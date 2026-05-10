@@ -71,3 +71,4 @@ edit-smoke.md
 # Loom install targets (when embedding loom inside another project)
 .loom/
 .knowledge-loom/
+.fastembed_cache/

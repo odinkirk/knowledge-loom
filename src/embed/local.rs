@@ -1,4 +1,4 @@
-use std::hash::Hasher;
+use fastembed::{EmbeddingModel, InitOptions, TextEmbedding};
 use std::path::Path;
 use std::sync::Arc;
 
@@ -18,8 +18,9 @@ use std::sync::Arc;
 /// assert_eq!(embedding.len(), 384);
 /// ```
 #[derive(Clone)]
-#[allow(dead_code)]
 pub struct LocalEmbedProvider {
+    model: Arc<TextEmbedding>,
+    #[allow(dead_code)]
     models_dir: Arc<Path>,
 }
 
@@ -48,9 +49,17 @@ impl LocalEmbedProvider {
             eprintln!("Failed to create models directory: {}", e);
         });
 
+        // Initialize fastembed model
+        let init_options =
+            InitOptions::new(EmbeddingModel::AllMiniLML6V2).with_show_download_progress(false);
+
+        let model =
+            TextEmbedding::try_new(init_options).expect("Failed to initialize fastembed model");
+
         eprintln!("Local embedding provider initialized successfully");
 
         Self {
+            model: Arc::new(model),
             models_dir: models_dir.to_path_buf().into(),
         }
     }
@@ -59,11 +68,11 @@ impl LocalEmbedProvider {
     ///
     /// # Arguments
     ///
-    /// * `text` - The text to generate an embedding for
+    /// * `text` - The text to embed
     ///
     /// # Returns
     ///
-    /// A vector of f32 values representing the text embedding
+    /// A vector of floats representing the embedding
     ///
     /// # Examples
     ///
@@ -72,18 +81,14 @@ impl LocalEmbedProvider {
     /// assert!(!embedding.is_empty());
     /// ```
     pub fn embed(&self, text: &str) -> Vec<f32> {
-        // TODO: Replace with actual fastembed integration
-        // For now, use hash-based stub implementation
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        hasher.write(text.as_bytes());
-        let hash = hasher.finish();
-        let mut embedding = vec![0.0f32; 384];
-        for (idx, byte) in hash.to_le_bytes().iter().enumerate() {
-            if idx < embedding.len() {
-                embedding[idx] = f32::from(*byte) / 255.0;
-            }
-        }
-        embedding
+        // Use fastembed to generate real embeddings
+        let embeddings = self
+            .model
+            .embed(vec![text], None)
+            .expect("Failed to generate embedding");
+
+        // Return the first (and only) embedding
+        embeddings.into_iter().next().unwrap_or_default()
     }
 
     /// Get the dimension of the embedding vectors
@@ -100,7 +105,15 @@ impl LocalEmbedProvider {
     /// ```
     #[must_use]
     pub fn dimension(&self) -> usize {
-        384 // all-MiniLM-L6-v2 dimension
+        // Get the actual dimension from the model
+        // For all-MiniLM-L6-v2, this should be 384
+        self.model
+            .embed(vec!["test"], None)
+            .expect("Failed to get model dimension")
+            .into_iter()
+            .next()
+            .map(|v| v.len())
+            .unwrap_or(384)
     }
 }
 
@@ -182,6 +195,9 @@ mod tests {
         let provider = LocalEmbedProvider::new(&models_dir);
         let text = "performance test";
 
+        // Warm up the model with a dummy call
+        let _ = provider.embed("warm up");
+
         let start = std::time::Instant::now();
         let _embedding = provider.embed(text);
         let duration = start.elapsed();
@@ -189,7 +205,8 @@ mod tests {
         // Should complete in reasonable time (<100ms target)
         assert!(
             duration.as_millis() < 100,
-            "Local embedding should be <100ms"
+            "Local embedding should be <100ms, took {}ms",
+            duration.as_millis()
         );
     }
 }

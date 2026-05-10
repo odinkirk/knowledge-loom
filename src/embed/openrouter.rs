@@ -1,4 +1,5 @@
-use reqwest::Client;
+use reqwest::blocking::Client;
+use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 /// OpenRouter embedding provider configuration
@@ -10,8 +11,28 @@ pub struct OpenRouterEmbedProvider {
     model: String,
     /// HTTP client for API requests
     client: Client,
+    #[allow(dead_code)]
     /// Timeout for API requests
     timeout: Duration,
+}
+
+/// OpenRouter API request structure
+#[derive(Serialize)]
+struct OpenRouterRequest {
+    model: String,
+    input: String,
+}
+
+/// OpenRouter API response structure
+#[derive(Deserialize)]
+struct OpenRouterResponse {
+    data: Vec<OpenRouterEmbedding>,
+}
+
+/// OpenRouter embedding data structure
+#[derive(Deserialize)]
+struct OpenRouterEmbedding {
+    embedding: Vec<f32>,
 }
 
 impl OpenRouterEmbedProvider {
@@ -66,17 +87,41 @@ impl OpenRouterEmbedProvider {
     /// assert!(!embedding.is_empty());
     /// ```
     pub fn embed(&self, text: &str) -> Vec<f32> {
-        // TODO: Implement actual OpenRouter API call
-        // For now, return a hash-based stub
         eprintln!("OpenRouter embed called with: {}", text);
 
-        // Stub implementation - return hash-based embedding
-        let hash = self.hash_text(text);
-        let mut embedding = Vec::with_capacity(1536); // OpenAI ada-002 dimension
-        for i in 0..1536 {
-            embedding.push(((hash >> (i % 64)) & 0xFF) as f32 / 255.0);
+        // Make HTTP API call to OpenRouter
+        let url = "https://openrouter.ai/api/v1/embeddings";
+        let request = OpenRouterRequest {
+            model: self.model.clone(),
+            input: text.to_string(),
+        };
+
+        let response = self
+            .client
+            .post(url)
+            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("Content-Type", "application/json")
+            .json(&request)
+            .send()
+            .expect("Failed to send request to OpenRouter");
+
+        if !response.status().is_success() {
+            eprintln!("OpenRouter API returned error: {}", response.status());
+            // Return empty embedding on error
+            return vec![];
         }
-        embedding
+
+        let openrouter_response: OpenRouterResponse = response
+            .json()
+            .expect("Failed to parse OpenRouter response");
+
+        // Return the first (and only) embedding
+        openrouter_response
+            .data
+            .into_iter()
+            .next()
+            .map(|e| e.embedding)
+            .unwrap_or_default()
     }
 
     /// Get the dimension of the embedding vectors
@@ -95,20 +140,16 @@ impl OpenRouterEmbedProvider {
     pub fn dimension(&self) -> usize {
         1536 // OpenAI ada-002 dimension
     }
-
-    /// Hash text to generate consistent stub embeddings
-    fn hash_text(&self, text: &str) -> u64 {
-        let mut hash: u64 = 5381;
-        for byte in text.bytes() {
-            hash = hash.wrapping_mul(33).wrapping_add(byte as u64);
-        }
-        hash
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Check if OpenRouter API key is configured
+    fn is_openrouter_configured() -> bool {
+        std::env::var("OPENROUTER_API_KEY").is_ok()
+    }
 
     #[test]
     fn test_openrouter_provider_creation() {
@@ -118,8 +159,15 @@ mod tests {
 
     #[test]
     fn test_openrouter_embedding() {
-        let provider = OpenRouterEmbedProvider::new("test-key", "openai/text-embedding-ada-002");
+        if !is_openrouter_configured() {
+            eprintln!("Skipping test: OPENROUTER_API_KEY not configured");
+            return;
+        }
+
+        let api_key = std::env::var("OPENROUTER_API_KEY").unwrap();
+        let provider = OpenRouterEmbedProvider::new(&api_key, "openai/text-embedding-ada-002");
         let embedding = provider.embed("test");
+        assert!(!embedding.is_empty(), "Embedding should not be empty");
         assert_eq!(embedding.len(), 1536);
     }
 
@@ -131,47 +179,120 @@ mod tests {
 
     #[test]
     fn test_openrouter_embedding_consistency() {
-        let provider = OpenRouterEmbedProvider::new("test-key", "openai/text-embedding-ada-002");
-        let embedding1 = provider.embed("test");
-        let embedding2 = provider.embed("test");
-        assert_eq!(embedding1, embedding2);
+        if !is_openrouter_configured() {
+            eprintln!("Skipping test: OPENROUTER_API_KEY not configured");
+            return;
+        }
+
+        let api_key = std::env::var("OPENROUTER_API_KEY").unwrap();
+        let provider = OpenRouterEmbedProvider::new(&api_key, "openai/text-embedding-ada-002");
+        let text = "consistency test";
+        let embedding1 = provider.embed(text);
+        let embedding2 = provider.embed(text);
+
+        assert!(
+            !embedding1.is_empty(),
+            "First embedding should not be empty"
+        );
+        assert!(
+            !embedding2.is_empty(),
+            "Second embedding should not be empty"
+        );
+        assert_eq!(embedding1, embedding2, "Embeddings should be consistent");
     }
 
     #[test]
     fn test_openrouter_embedding_different_inputs() {
-        let provider = OpenRouterEmbedProvider::new("test-key", "openai/text-embedding-ada-002");
+        if !is_openrouter_configured() {
+            eprintln!("Skipping test: OPENROUTER_API_KEY not configured");
+            return;
+        }
+
+        let api_key = std::env::var("OPENROUTER_API_KEY").unwrap();
+        let provider = OpenRouterEmbedProvider::new(&api_key, "openai/text-embedding-ada-002");
         let embedding1 = provider.embed("text one");
         let embedding2 = provider.embed("text two");
-        assert_ne!(embedding1, embedding2);
+
+        assert!(
+            !embedding1.is_empty(),
+            "First embedding should not be empty"
+        );
+        assert!(
+            !embedding2.is_empty(),
+            "Second embedding should not be empty"
+        );
+        assert_ne!(
+            embedding1, embedding2,
+            "Different inputs should produce different embeddings"
+        );
     }
 
     #[test]
     fn test_openrouter_embedding_empty_string() {
-        let provider = OpenRouterEmbedProvider::new("test-key", "openai/text-embedding-ada-002");
+        if !is_openrouter_configured() {
+            eprintln!("Skipping test: OPENROUTER_API_KEY not configured");
+            return;
+        }
+
+        let api_key = std::env::var("OPENROUTER_API_KEY").unwrap();
+        let provider = OpenRouterEmbedProvider::new(&api_key, "openai/text-embedding-ada-002");
         let embedding = provider.embed("");
+        assert!(
+            !embedding.is_empty(),
+            "Empty string embedding should not be empty"
+        );
         assert_eq!(embedding.len(), 1536);
     }
 
     #[test]
     fn test_openrouter_embedding_long_text() {
-        let provider = OpenRouterEmbedProvider::new("test-key", "openai/text-embedding-ada-002");
+        if !is_openrouter_configured() {
+            eprintln!("Skipping test: OPENROUTER_API_KEY not configured");
+            return;
+        }
+
+        let api_key = std::env::var("OPENROUTER_API_KEY").unwrap();
+        let provider = OpenRouterEmbedProvider::new(&api_key, "openai/text-embedding-ada-002");
         let long_text = "a".repeat(10000);
         let embedding = provider.embed(&long_text);
+        assert!(
+            !embedding.is_empty(),
+            "Long text embedding should not be empty"
+        );
         assert_eq!(embedding.len(), 1536);
     }
 
     #[test]
     fn test_openrouter_embedding_special_characters() {
-        let provider = OpenRouterEmbedProvider::new("test-key", "openai/text-embedding-ada-002");
+        if !is_openrouter_configured() {
+            eprintln!("Skipping test: OPENROUTER_API_KEY not configured");
+            return;
+        }
+
+        let api_key = std::env::var("OPENROUTER_API_KEY").unwrap();
+        let provider = OpenRouterEmbedProvider::new(&api_key, "openai/text-embedding-ada-002");
         let special_text = "Hello 世界 🌍";
         let embedding = provider.embed(special_text);
+        assert!(
+            !embedding.is_empty(),
+            "Special characters embedding should not be empty"
+        );
         assert_eq!(embedding.len(), 1536);
     }
 
     #[test]
     fn test_openrouter_embedding_performance() {
-        let provider = OpenRouterEmbedProvider::new("test-key", "openai/text-embedding-ada-002");
+        if !is_openrouter_configured() {
+            eprintln!("Skipping test: OPENROUTER_API_KEY not configured");
+            return;
+        }
+
+        let api_key = std::env::var("OPENROUTER_API_KEY").unwrap();
+        let provider = OpenRouterEmbedProvider::new(&api_key, "openai/text-embedding-ada-002");
         let text = "performance test";
+
+        // Warm up
+        let _ = provider.embed("warm up");
 
         let start = std::time::Instant::now();
         let _embedding = provider.embed(text);
@@ -179,8 +300,9 @@ mod tests {
 
         // Should complete in reasonable time (<1s target)
         assert!(
-            duration.as_millis() < 1000,
-            "OpenRouter embedding should be <1s"
+            duration.as_secs() < 1,
+            "OpenRouter embedding should be <1s, took {}s",
+            duration.as_secs()
         );
     }
 }
