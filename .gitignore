@@ -51,6 +51,7 @@ __pycache__/
 .openclaude-profile.json
 .opencode.json
 opencode.json
+.opencode/
 .windsurfrules
 
 # Internal reference / planning docs (not for public tracking)

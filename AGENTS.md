@@ -27,3 +27,8 @@
 - **Single test**: `cargo test test_file::test_function`
 - **Index check**: `KB_ROOT=. cargo run --bin loom_index_status`
 - **Quick search**: `KB_ROOT=. cargo run --bin loom search "test"`
+
+<!-- SPECKIT START -->
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
+<!-- SPECKIT END -->
