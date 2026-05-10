@@ -23,7 +23,7 @@ pub struct SearchResult {
 pub struct SearchEngine {
     pub bm25: Arc<Mutex<BM25Index>>,
     pub vector: Arc<Mutex<VectorIndex>>,
-    pub embed: Arc<Mutex<EmbedProviderEnum>>,
+    pub embed: Arc<EmbedProviderEnum>,
     pub graph: Arc<Mutex<GraphState>>,
 }
 
@@ -32,7 +32,7 @@ impl SearchEngine {
     pub async fn new(kb_root: &str) -> Self {
         let bm25 = Arc::new(Mutex::new(BM25Index::new(kb_root).await));
         let vector = Arc::new(Mutex::new(VectorIndex::new(kb_root).await));
-        let embed = Arc::new(Mutex::new(EmbedProviderEnum::new(kb_root).await));
+        let embed = Arc::new(EmbedProviderEnum::new(kb_root).await);
         let graph = Arc::new(Mutex::new(GraphState::new(kb_root).await));
         Self {
             bm25,
@@ -45,7 +45,7 @@ impl SearchEngine {
     pub fn from_components(
         bm25: Arc<Mutex<BM25Index>>,
         vector: Arc<Mutex<VectorIndex>>,
-        embed: Arc<Mutex<EmbedProviderEnum>>,
+        embed: Arc<EmbedProviderEnum>,
         graph: Arc<Mutex<GraphState>>,
     ) -> Self {
         Self {
@@ -69,8 +69,7 @@ impl SearchEngine {
         // both the semantic branch and graph-fused branch would otherwise race on
         // self.embed and self.graph locks, serializing what should be parallel work.
         let query_vec = {
-            let embed = self.embed.lock().await;
-            embed.embed(query).await
+            self.embed.embed(query)
         };
         let cached_pagerank = { self.graph.lock().await.get_cached_analytics().await.0 };
 

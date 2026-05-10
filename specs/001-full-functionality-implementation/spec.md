@@ -5,6 +5,18 @@
 **Status**: Draft
 **Input**: User description: "I want the app to have full functionality, no stubbing."
 
+## Clarifications
+
+### Session 2025-05-09
+
+- Q: Should we explicitly remove search_smart from the specification? → A: Yes, remove all search_smart references from this spec
+- Q: When both Ollama and OpenRouter are configured, what should be the default priority order for embedding providers? → A: Local first, then external providers, with optional explicit priority configuration via environment variable
+- Q: What should constitute a "failure" that triggers fallback from external providers (Ollama/OpenRouter) to local embeddings? → A: Network timeout (>5s), HTTP errors (4xx/5xx), or invalid response format
+- Q: How should the system handle embedding dimension mismatches between providers? → A: Reject embeddings with mismatched dimensions and log warning, fallback to local provider
+- Q: How should the system handle corrupted or missing local embedding model files? → A: Attempt to re-download the model automatically, log warning, and use external providers if available
+
+---
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Real Local Embeddings (Priority: P1)
@@ -46,33 +58,16 @@ Users who have Ollama or OpenRouter installed want to use them for embeddings in
 
 ---
 
-### User Story 3 - LLM-Decomposed Search (Priority: P3)
-
-Users want advanced search that uses an LLM to decompose complex queries into multiple search terms, improving recall for multi-faceted questions.
-
-**Why this priority**: This is an advanced feature that enhances search quality but is not required for core functionality. It provides better results for complex queries.
-
-**Independent Test**: Can be fully tested by calling search_smart with a complex query and verifying that it returns results from multiple related concepts, delivering improved search recall.
-
-**Acceptance Scenarios**:
-
-1. **Given** an LLM API is configured, **When** the user calls search_smart with a complex query, **Then** the LLM decomposes it into multiple search terms
-2. **Given** a decomposed query, **When** search_smart executes, **Then** it performs searches for each term and merges results
-3. **Given** no LLM API is configured, **When** the user calls search_smart, **Then** it returns a helpful error message explaining how to configure it
-4. **Given** search_smart is called, **When** results are returned, **Then** they include results from all decomposed query terms
-
----
-
 ### Edge Cases
 
-- What happens when the local embedding model file is corrupted or missing?
-- How does the system handle Ollama API timeouts or rate limits?
-- How does the system handle OpenRouter API timeouts or rate limits?
-- What happens when the LLM API for search_smart is unavailable or returns invalid responses?
-- How does the system handle embedding dimension mismatches between providers?
+- What happens when the local embedding model file is corrupted or missing? (Answer: Attempt to re-download automatically, log warning, use external providers if available)
+- How does the system handle Ollama API timeouts or rate limits? (Answer: Network timeout >5s triggers fallback to local)
+- How does the system handle OpenRouter API timeouts or rate limits? (Answer: Network timeout >5s triggers fallback to local)
+- How does the system handle embedding dimension mismatches between providers? (Answer: Reject mismatched dimensions, log warning, fallback to local)
 - What happens when the knowledge base is empty and embeddings are requested?
-- What happens when both Ollama and OpenRouter are configured (priority behavior)?
-- How does the system handle invalid API keys for OpenRouter?
+- How does the system handle invalid API keys for OpenRouter? (Answer: HTTP 4xx/5xx errors trigger fallback to local)
+- What is the default priority when multiple external providers are configured? (Answer: Local first, then external providers, with optional explicit priority configuration via environment variable)
+- What constitutes a failure that triggers fallback? (Answer: Network timeout >5s, HTTP errors 4xx/5xx, or invalid response format)
 
 ## Requirements *(mandatory)*
 
@@ -83,22 +78,17 @@ Users want advanced search that uses an LLM to decompose complex queries into mu
 - **FR-003**: System MUST support Ollama embedding provider via HTTP API calls
 - **FR-004**: System MUST support OpenRouter embedding provider via HTTP API calls
 - **FR-005**: System MUST support configurable OpenRouter model selection via OPENROUTER_MODEL environment variable
-- **FR-006**: System MUST fall back to local embeddings if Ollama is unavailable or fails
-- **FR-007**: System MUST fall back to local embeddings if OpenRouter is unavailable or fails
-- **FR-008**: System MUST implement LLM-decomposed search that uses an LLM to break complex queries into multiple search terms
-- **FR-009**: System MUST merge results from decomposed search terms using RRF or similar ranking
-- **FR-010**: System MUST provide clear error messages when LLM API is not configured for search_smart
-- **FR-011**: System MUST handle embedding model download failures gracefully
-- **FR-012**: System MUST cache embeddings to avoid redundant computation
-- **FR-013**: System MUST validate embedding dimensions match expected values (384 for all-MiniLM-L6-v2)
-- **FR-014**: System MUST support configurable priority when multiple external providers are available
+- **FR-006**: System MUST fall back to local embeddings if Ollama encounters network timeout (>5s), HTTP errors (4xx/5xx), or invalid response format
+- **FR-007**: System MUST fall back to local embeddings if OpenRouter encounters network timeout (>5s), HTTP errors (4xx/5xx), or invalid response format
+- **FR-008**: System MUST handle embedding model download failures gracefully by attempting to re-download automatically, logging warnings, and using external providers if available
+- **FR-009**: System MUST cache embeddings to avoid redundant computation
+- **FR-010**: System MUST validate embedding dimensions match expected values (384 for all-MiniLM-L6-v2), reject mismatched dimensions with warning, and fallback to local provider
+- **FR-011**: System MUST use local embeddings by default, with optional explicit priority configuration via environment variable for external providers
 
 ### Key Entities
 
 - **Embedding Model**: Represents the machine learning model that generates semantic vectors from text, with methods for loading, inference, and dimension specification
 - **Embedding Provider**: Abstract interface for generating embeddings, with implementations for local, Ollama, and OpenRouter providers
-- **LLM Client**: Represents the connection to an LLM API for query decomposition, with methods for sending prompts and receiving structured responses
-- **Decomposed Query**: Represents a complex query broken into multiple search terms, each with its own weight or relevance score
 
 ## Success Criteria *(mandatory)*
 
@@ -108,22 +98,19 @@ Users want advanced search that uses an LLM to decompose complex queries into mu
 - **SC-002**: Local embedding provider generates embeddings in under 100ms per document on average hardware
 - **SC-003**: Ollama integration successfully generates embeddings when OLLAMA_URL is configured
 - **SC-004**: OpenRouter integration successfully generates embeddings when OPENROUTER_API_KEY is configured
-- **SC-005**: search_smart returns results from at least 2 different query terms for complex multi-faceted questions
-- **SC-006**: System handles embedding provider failures without crashing (fallback to alternative provider)
-- **SC-007**: Embedding model download completes successfully on first initialization
-- **SC-008**: All existing tests pass after replacing stub implementations
+- **SC-005**: System handles embedding provider failures without crashing (fallback to alternative provider)
+- **SC-006**: Embedding model download completes successfully on first initialization
+- **SC-007**: All existing tests pass after replacing stub implementations
 
 ## Assumptions
 
 - Users have internet access for initial embedding model download (local provider)
 - Ollama is optional and not required for core functionality
 - OpenRouter is optional and not required for core functionality
-- LLM API for search_smart is optional and not required for core functionality
 - The embedding model (all-MiniLM-L6-v2) is suitable for general-purpose semantic search
 - Ollama API follows standard HTTP REST patterns for embeddings
 - OpenRouter API follows standard HTTP REST patterns for embeddings
 - OpenRouter has a default embedding model (e.g., openai/text-embedding-3-small) if OPENROUTER_MODEL is not specified
-- LLM API for search_smart can be configured via environment variables
 - Existing test corpus (test-vault/) is sufficient for validating semantic search quality
 
 ## Knowledge Loom Specific Requirements
@@ -157,9 +144,8 @@ Users want advanced search that uses an LLM to decompose complex queries into mu
 - **PERF-001**: Local embedding generation <100ms per document
 - **PERF-002**: Ollama embedding generation <500ms per document (network-dependent)
 - **PERF-003**: OpenRouter embedding generation <1s per document (network-dependent)
-- **PERF-004**: search_smart completes in under 3 seconds for typical queries
-- **PERF-005**: Embedding model download completes in under 5 minutes on typical internet connection
-- **PERF-006**: Memory usage for embedding model <500MB
+- **PERF-004**: Embedding model download completes in under 5 minutes on typical internet connection
+- **PERF-005**: Memory usage for embedding model <500MB
 
 ### Testing Requirements *(mandatory for all features)*
 
@@ -188,7 +174,6 @@ Users want advanced search that uses an LLM to decompose complex queries into mu
 - [x] Yes - `src/embed/local.rs` (real implementation)
 - [x] Yes - `src/embed/ollama.rs` (real implementation)
 - [x] Yes - `src/embed/openrouter.rs` (real implementation)
-- [x] Yes - `src/search/smart.rs` (LLM-decomposed search)
 - [ ] No
 
 ### Documentation Requirements *(mandatory for all features)*
@@ -199,4 +184,4 @@ Users want advanced search that uses an LLM to decompose complex queries into mu
 - **DOC-004**: New features MUST update `CHANGELOG.md`
 - **DOC-005**: Breaking changes MUST update migration guide (if applicable)
 - **DOC-006**: README MUST be updated to reflect real embedding capabilities
-- **DOC-007**: Configuration documentation MUST include OLLAMA_URL, OPENROUTER_API_KEY, OPENROUTER_MODEL, and LLM API setup
+- **DOC-007**: Configuration documentation MUST include OLLAMA_URL, OPENROUTER_API_KEY, and OPENROUTER_MODEL setup

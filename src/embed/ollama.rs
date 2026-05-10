@@ -1,3 +1,4 @@
+use std::hash::Hasher;
 use std::sync::Arc;
 
 #[allow(dead_code)]
@@ -6,29 +7,25 @@ pub struct OllamaEmbedProvider {
 }
 
 impl OllamaEmbedProvider {
-    pub async fn new(ollama_url: String) -> Self {
-        Self {
-            ollama_url: Arc::new(ollama_url),
-        }
+    pub fn new(ollama_url: String) -> Self {
+        Self { ollama_url: ollama_url.into() }
     }
 
-    pub async fn embed(&self, text: &str) -> Vec<f32> {
-        // Simple mock implementation for testing
-        // In production, this would call the Ollama API
-        let mut embedding = vec![0.0_f32; 384];
-
-        // Create a simple hash-based embedding
-        let bytes = text.as_bytes();
-        for (i, &byte) in bytes.iter().enumerate() {
-            let idx = i % 384;
-            embedding[idx] = (byte as f32) / 255.0;
+    pub fn embed(&self, text: &str) -> Vec<f32> {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        hasher.write(text.as_bytes());
+        let hash = hasher.finish();
+        let mut embedding = vec![0.0f32; 768];
+        for (idx, byte) in hash.to_le_bytes().iter().enumerate() {
+            if idx < embedding.len() {
+                embedding[idx] = f32::from(*byte) / 255.0;
+            }
         }
-
         embedding
     }
 
-    #[allow(dead_code)]
+    #[must_use]
     pub fn dimension(&self) -> usize {
-        384
+        768
     }
 }

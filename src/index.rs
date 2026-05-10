@@ -131,7 +131,7 @@ impl VectorIndex {
         self.remove_file_embeddings(path).await?;
         let chunks = self.chunk_content(content);
         for (heading, chunk_content) in chunks {
-            let embedding = embed_provider.embed(&chunk_content).await;
+            let embedding = embed_provider.embed(&chunk_content);
             self.upsert_embedding(path, heading.as_deref(), &chunk_content, &embedding)
                 .await?;
         }
@@ -183,7 +183,7 @@ impl VectorIndex {
                 self.remove_file_embeddings(&file_path).await?;
                 let chunks = self.chunk_content(&content);
                 for (heading, chunk_content) in chunks {
-                    let embedding = embed_provider.embed(&chunk_content).await;
+                    let embedding = embed_provider.embed(&chunk_content);
                     self.upsert_embedding(
                         &file_path,
                         heading.as_deref(),

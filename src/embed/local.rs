@@ -1,3 +1,4 @@
+use std::hash::Hasher;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -7,28 +8,26 @@ pub struct LocalEmbedProvider {
 }
 
 impl LocalEmbedProvider {
-    pub async fn new(models_dir: &Path) -> Self {
+    pub fn new(models_dir: &Path) -> Self {
         Self {
-            models_dir: Arc::from(models_dir),
+            models_dir: models_dir.to_path_buf().into(),
         }
     }
 
-    pub async fn embed(&self, text: &str) -> Vec<f32> {
-        // Simple mock embedding for testing
-        // In production, this would use fastembed or another embedding model
-        let mut embedding = vec![0.0_f32; 384];
-
-        // Create a simple hash-based embedding
-        let bytes = text.as_bytes();
-        for (i, &byte) in bytes.iter().enumerate() {
-            let idx = i % 384;
-            embedding[idx] = (byte as f32) / 255.0;
+    pub fn embed(&self, text: &str) -> Vec<f32> {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        hasher.write(text.as_bytes());
+        let hash = hasher.finish();
+        let mut embedding = vec![0.0f32; 384];
+        for (idx, byte) in hash.to_le_bytes().iter().enumerate() {
+            if idx < embedding.len() {
+                embedding[idx] = f32::from(*byte) / 255.0;
+            }
         }
-
         embedding
     }
 
-    #[allow(dead_code)]
+    #[must_use]
     pub fn dimension(&self) -> usize {
         384
     }

@@ -15,7 +15,7 @@ mod tests {
     async fn make_edit_manager_for_test(kb_root: &str) -> EditManager {
         let vault = Arc::new(Mutex::new(VaultState::new(kb_root).await));
         let bm25 = Arc::new(Mutex::new(BM25Index::new(kb_root).await));
-        let embed = Arc::new(Mutex::new(EmbedProviderEnum::new(kb_root).await));
+        let embed = Arc::new(EmbedProviderEnum::new(kb_root).await);
         let vector = Arc::new(Mutex::new(VectorIndex::new(kb_root).await));
         let graph = Arc::new(Mutex::new(GraphState::new(kb_root).await));
         EditManager::new(kb_root.to_string(), vault, bm25, embed, vector, graph)
@@ -60,7 +60,7 @@ mod tests {
         }
         {
             let vector = engine.vector.lock().await;
-            let embed = engine.embed.lock().await;
+            let embed = engine.embed.clone();
             vector.index_vault(&vault, &embed).await.unwrap();
         }
 
@@ -111,7 +111,7 @@ mod tests {
         }
         {
             let vector = engine.vector.lock().await;
-            let embed = engine.embed.lock().await;
+            let embed = engine.embed.clone();
             vector.index_vault(&vault, &embed).await.unwrap();
         }
 
@@ -148,7 +148,7 @@ mod tests {
         }
         {
             let vector = engine.vector.lock().await;
-            let embed = engine.embed.lock().await;
+            let embed = engine.embed.clone();
             vector.index_vault(&vault, &embed).await.unwrap();
         }
 
@@ -180,7 +180,7 @@ mod tests {
         }
         {
             let vector = engine.vector.lock().await;
-            let embed = engine.embed.lock().await;
+            let embed = engine.embed.clone();
             vector.index_vault(&vault, &embed).await.unwrap();
         }
 
@@ -217,7 +217,7 @@ mod tests {
         }
         {
             let vector = engine.vector.lock().await;
-            let embed = engine.embed.lock().await;
+            let embed = engine.embed.clone();
             vector.index_vault(&vault, &embed).await.unwrap();
         }
 
@@ -284,7 +284,7 @@ mod tests {
         }
         {
             let vector = engine.vector.lock().await;
-            let embed = engine.embed.lock().await;
+            let embed = engine.embed.clone();
             vector.index_vault(&vault, &embed).await.unwrap();
         }
 
@@ -315,7 +315,7 @@ mod tests {
         }
         {
             let vector = engine.vector.lock().await;
-            let embed = engine.embed.lock().await;
+            let embed = engine.embed.clone();
             vector.index_vault(&vault, &embed).await.unwrap();
         }
 
@@ -401,9 +401,9 @@ mod tests {
         let vector = Arc::new(Mutex::new(
             VectorIndex::new(kb_root.to_str().unwrap()).await,
         ));
-        let embed = Arc::new(Mutex::new(
+        let embed = Arc::new(
             EmbedProviderEnum::new(kb_root.to_str().unwrap()).await,
-        ));
+        );
         let graph = Arc::new(Mutex::new(GraphState::new(kb_root.to_str().unwrap()).await));
 
         // Create engine from components
@@ -482,14 +482,13 @@ mod tests {
 
         let bm25 = Arc::new(Mutex::new(BM25Index::new(kb_root).await));
         let vector = Arc::new(Mutex::new(VectorIndex::new(kb_root).await));
-        let embed = Arc::new(Mutex::new(EmbedProviderEnum::new(kb_root).await));
+        let embed = Arc::new(EmbedProviderEnum::new(kb_root).await);
         let graph = Arc::new(Mutex::new(GraphState::new(kb_root).await));
         let engine = SearchEngine::from_components(bm25, vector, embed, graph);
 
         // Empty pagerank map: no boost expected, function should return Ok
         let query_vec = {
-            let emb = engine.embed.lock().await;
-            emb.embed("alpha").await
+            engine.embed.embed("alpha")
         };
         let pagerank = std::collections::HashMap::new();
         let result = engine
@@ -519,7 +518,7 @@ mod tests {
         index.index_vault(&vault, &embed).await.unwrap();
 
         // Query for content from the removed section — should return nothing
-        let query_vec = embed.embed("remove me").await;
+        let query_vec = embed.embed("remove me");
         let results = index.search_similar(&query_vec, 10).await.unwrap();
         let has_stale = results.iter().any(|(path, heading, content, _)| {
             path.contains("stale")

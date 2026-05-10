@@ -23,6 +23,11 @@ build/
 target/
 **/*.rs.bk
 *.pdb
+*.rlib
+*.prof*
+debug/
+release/
+*.log
 
 # Environment
 .env

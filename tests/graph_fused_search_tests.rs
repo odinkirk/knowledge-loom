@@ -24,7 +24,7 @@ async fn test_index_file_replaces_old_chunks() {
         .unwrap();
 
     // Search for the alpha vector — should return no chunks with "alpha" content
-    let query_vec = embed.embed("alpha content here").await;
+    let query_vec = embed.embed("alpha content here");
     let results = index.search_similar(&query_vec, 20).await.unwrap();
     let stale: Vec<_> = results
         .iter()
@@ -52,7 +52,7 @@ async fn test_remove_file_embeddings_clears_path() {
 
     index.remove_file_embeddings(&path).await.unwrap();
 
-    let query_vec = embed.embed("some content").await;
+    let query_vec = embed.embed("some content");
     let results = index.search_similar(&query_vec, 20).await.unwrap();
     let found: Vec<_> = results
         .iter()
@@ -150,23 +150,22 @@ async fn test_search_includes_graph_fused_results() {
     )
     .unwrap();
 
-    let embed = Arc::new(Mutex::new(EmbedProviderEnum::new(kb_root).await));
+    let embed = Arc::new(EmbedProviderEnum::new(kb_root).await);
     let vector = Arc::new(Mutex::new(VectorIndex::new(kb_root).await));
 
     {
-        let e = embed.lock().await;
         let v = vector.lock().await;
         v.index_file(
             &dir.path().join("target.md"),
             "# Rust async\nfutures and tokio",
-            &*e,
+            &embed,
         )
         .await
         .unwrap();
         v.index_file(
             &dir.path().join("other.md"),
             "# Cooking\nrecipes and ingredients",
-            &*e,
+            &embed,
         )
         .await
         .unwrap();
@@ -194,7 +193,7 @@ async fn test_graph_fused_empty_vector_index_returns_no_fused_results() {
     let engine = SearchEngine::from_components(
         Arc::new(Mutex::new(BM25Index::new(kb_root).await)),
         Arc::new(Mutex::new(VectorIndex::new(kb_root).await)),
-        Arc::new(Mutex::new(EmbedProviderEnum::new(kb_root).await)),
+        Arc::new(EmbedProviderEnum::new(kb_root).await),
         Arc::new(Mutex::new(GraphState::new(kb_root).await)),
     );
 
@@ -233,17 +232,16 @@ async fn test_graph_fused_inner_reranks_by_pagerank() {
     let dir = tempfile::tempdir().unwrap();
     let kb_root = dir.path().to_str().unwrap();
 
-    let embed = Arc::new(Mutex::new(EmbedProviderEnum::new(kb_root).await));
+    let embed = Arc::new(EmbedProviderEnum::new(kb_root).await);
     let vector = Arc::new(Mutex::new(VectorIndex::new(kb_root).await));
 
     // Index two docs with the same content so vector similarity is comparable
     {
-        let e = embed.lock().await;
         let v = vector.lock().await;
-        v.index_file(&dir.path().join("high_pr.md"), "async futures in rust", &*e)
+        v.index_file(&dir.path().join("high_pr.md"), "async futures in rust", &embed)
             .await
             .unwrap();
-        v.index_file(&dir.path().join("low_pr.md"), "async futures in rust", &*e)
+        v.index_file(&dir.path().join("low_pr.md"), "async futures in rust", &embed)
             .await
             .unwrap();
     }
@@ -258,8 +256,7 @@ async fn test_graph_fused_inner_reranks_by_pagerank() {
     );
 
     let query_vec = {
-        let emb = embed.lock().await;
-        emb.embed("async futures").await
+        embed.embed("async futures")
     };
 
     // Build a pagerank map where high_pr dominates
@@ -311,7 +308,7 @@ async fn test_index_vault_removes_stale_embeddings() {
     index.index_vault(&vault, &embed).await.unwrap();
 
     // Query for content from the removed section — should return no results
-    let query_vec = embed.embed("original content").await;
+    let query_vec = embed.embed("original content");
     let results = index.search_similar(&query_vec, 10).await.unwrap();
     assert!(
         results.iter().all(|(path, heading, content, _)| {

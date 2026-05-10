@@ -15,7 +15,7 @@ pub struct EditManager {
     pub kb_root: PathBuf,
     pub vault_state: Arc<Mutex<crate::vault::VaultState>>,
     pub bm25_index: Arc<Mutex<crate::bm25::BM25Index>>,
-    pub embed_provider: Arc<Mutex<crate::embed::EmbedProviderEnum>>,
+    pub embed_provider: Arc<crate::embed::EmbedProviderEnum>,
     pub vector_index: Arc<Mutex<crate::index::VectorIndex>>,
     pub graph_state: Arc<Mutex<crate::graph::GraphState>>,
 }
@@ -25,7 +25,7 @@ impl EditManager {
         kb_root: String,
         vault_state: Arc<Mutex<crate::vault::VaultState>>,
         bm25_index: Arc<Mutex<crate::bm25::BM25Index>>,
-        embed_provider: Arc<Mutex<crate::embed::EmbedProviderEnum>>,
+        embed_provider: Arc<crate::embed::EmbedProviderEnum>,
         vector_index: Arc<Mutex<crate::index::VectorIndex>>,
         graph_state: Arc<Mutex<crate::graph::GraphState>>,
     ) -> Self {
@@ -234,8 +234,7 @@ impl EditManager {
         }
         {
             let vector = self.vector_index.lock().await;
-            let embed = self.embed_provider.lock().await;
-            let _ = vector.index_file(path, content, &*embed).await;
+            let _ = vector.index_file(path, content, &self.embed_provider).await;
         }
         {
             let graph = self.graph_state.lock().await;
@@ -455,9 +454,9 @@ mod tests {
         let root = tmp.path().to_str().unwrap().to_string();
         let vault = Arc::new(Mutex::new(crate::vault::VaultState::new(&root).await));
         let bm25 = Arc::new(Mutex::new(crate::bm25::BM25Index::new(&root).await));
-        let embed = Arc::new(Mutex::new(
+        let embed = Arc::new(
             crate::embed::EmbedProviderEnum::new(&root).await,
-        ));
+        );
         let vector = Arc::new(Mutex::new(crate::index::VectorIndex::new(&root).await));
         let graph = Arc::new(Mutex::new(crate::graph::GraphState::new(&root).await));
         let em = EditManager::new(root, vault.clone(), bm25, embed, vector, graph);

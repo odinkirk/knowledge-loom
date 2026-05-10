@@ -67,7 +67,13 @@ Knowledge Loom is performance-critical:
 - Architecture changes must update `ARCHITECTURE.md`
 - New features must update `CHANGELOG.md`
 
-### IX. Code Exploration and Analysis
+### IX. Output Conventions (CRITICAL)
+- **Use `eprintln!` instead of `println!`** — `println!` dirties stdio which causes the MCP server to panic
+- Reserve `println!` only for user-facing CLI output where stdout is explicitly expected
+- All debug/logging output must use `eprintln!` or proper logging frameworks
+- This is non-negotiable for MCP server stability
+
+### X. Code Exploration and Analysis
 Use code-review-graph (CRG) tools for all code exploration and analysis tasks:
 - **ALWAYS use CRG tools first** before Grep/Glob/Read for code exploration
 - Use CRG for: understanding code structure, finding dependencies, impact analysis, code reviews

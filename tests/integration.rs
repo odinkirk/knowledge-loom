@@ -28,9 +28,9 @@ async fn integration_full_workflow() {
     println!("Building vector index...");
     {
         let vector = search_engine.vector.lock().await;
-        let embed = search_engine.embed.lock().await;
+        // embed is now synchronous, no lock needed
         vector
-            .index_vault(&vault, &embed)
+            .index_vault(&vault, &search_engine.embed)
             .await
             .expect("Failed to build vector index");
     }
@@ -88,8 +88,8 @@ async fn integration_incremental_indexing() {
     }
     {
         let vector = search_engine.vector.lock().await;
-        let embed = search_engine.embed.lock().await;
-        vector.index_vault(&vault, &embed).await.unwrap();
+        // embed is now synchronous, no lock needed
+        vector.index_vault(&vault, &search_engine.embed).await.unwrap();
     }
 
     // Get initial result count
@@ -115,8 +115,8 @@ async fn integration_incremental_indexing() {
     }
     {
         let vector = search_engine.vector.lock().await;
-        let embed = search_engine.embed.lock().await;
-        vector.index_vault(&vault, &embed).await.unwrap();
+        // embed is now synchronous, no lock needed
+        vector.index_vault(&vault, &search_engine.embed).await.unwrap();
     }
 
     // Verify new file is indexed
@@ -142,8 +142,8 @@ async fn integration_file_deletion() {
     }
     {
         let vector = search_engine.vector.lock().await;
-        let embed = search_engine.embed.lock().await;
-        vector.index_vault(&vault, &embed).await.unwrap();
+        // embed is now synchronous, no lock needed
+        vector.index_vault(&vault, &search_engine.embed).await.unwrap();
     }
 
     // Get initial results
@@ -165,8 +165,8 @@ async fn integration_file_deletion() {
     }
     {
         let vector = search_engine.vector.lock().await;
-        let embed = search_engine.embed.lock().await;
-        vector.index_vault(&vault, &embed).await.unwrap();
+        // embed is now synchronous, no lock needed
+        vector.index_vault(&vault, &search_engine.embed).await.unwrap();
     }
 
     // Verify file is removed from index
@@ -209,8 +209,8 @@ async fn integration_large_vault() {
     }
     {
         let vector = search_engine.vector.lock().await;
-        let embed = search_engine.embed.lock().await;
-        vector.index_vault(&vault, &embed).await.unwrap();
+        // embed is now synchronous, no lock needed
+        vector.index_vault(&vault, &search_engine.embed).await.unwrap();
     }
 
     // Test search performance
@@ -242,8 +242,8 @@ async fn integration_complex_queries() {
     }
     {
         let vector = search_engine.vector.lock().await;
-        let embed = search_engine.embed.lock().await;
-        vector.index_vault(&vault, &embed).await.unwrap();
+        // embed is now synchronous, no lock needed
+        vector.index_vault(&vault, &search_engine.embed).await.unwrap();
     }
 
     // Test various query types
@@ -289,8 +289,8 @@ async fn integration_empty_vault() {
     }
     {
         let vector = search_engine.vector.lock().await;
-        let embed = search_engine.embed.lock().await;
-        vector.index_vault(&vault, &embed).await.unwrap();
+        // embed is now synchronous, no lock needed
+        vector.index_vault(&vault, &search_engine.embed).await.unwrap();
     }
 
     // Search should return empty results
@@ -324,8 +324,8 @@ async fn integration_special_characters() {
     }
     {
         let vector = search_engine.vector.lock().await;
-        let embed = search_engine.embed.lock().await;
-        vector.index_vault(&vault, &embed).await.unwrap();
+        // embed is now synchronous, no lock needed
+        vector.index_vault(&vault, &search_engine.embed).await.unwrap();
     }
 
     // Should find files despite special characters
@@ -375,9 +375,9 @@ async fn smoke_test_against_test_vault() {
     println!("Building vector index...");
     {
         let vector = search_engine.vector.lock().await;
-        let embed = search_engine.embed.lock().await;
+        // embed is now synchronous, no lock needed
         vector
-            .index_vault(&vault, &embed)
+            .index_vault(&vault, &search_engine.embed)
             .await
             .expect("Failed to build vector index");
     }

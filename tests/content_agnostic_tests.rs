@@ -24,7 +24,7 @@ mod tests {
         }
         {
             let vector = search_engine.vector.lock().await;
-            let embed = search_engine.embed.lock().await;
+            let embed = search_engine.embed.clone();
             vector.index_vault(&vault, &embed).await.unwrap();
         }
 
@@ -77,7 +77,7 @@ mod tests {
         }
         {
             let vector = search_engine.vector.lock().await;
-            let embed = search_engine.embed.lock().await;
+            let embed = search_engine.embed.clone();
             vector.index_vault(&vault, &embed).await.unwrap();
         }
 
@@ -112,7 +112,7 @@ mod tests {
         }
         {
             let vector = search_engine.vector.lock().await;
-            let embed = search_engine.embed.lock().await;
+            let embed = search_engine.embed.clone();
             vector.index_vault(&vault, &embed).await.unwrap();
         }
 
@@ -145,7 +145,7 @@ mod tests {
         }
         {
             let vector = search_engine.vector.lock().await;
-            let embed = search_engine.embed.lock().await;
+            let embed = search_engine.embed.clone();
             vector.index_vault(&vault, &embed).await.unwrap();
         }
 
@@ -179,7 +179,7 @@ mod tests {
         }
         {
             let vector = search_engine.vector.lock().await;
-            let embed = search_engine.embed.lock().await;
+            let embed = search_engine.embed.clone();
             vector.index_vault(&vault, &embed).await.unwrap();
         }
 
@@ -218,7 +218,7 @@ mod tests {
         }
         {
             let vector = search_engine.vector.lock().await;
-            let embed = search_engine.embed.lock().await;
+            let embed = search_engine.embed.clone();
             vector.index_vault(&vault, &embed).await.unwrap();
         }
 
@@ -248,7 +248,7 @@ mod tests {
         }
         {
             let vector = search_engine.vector.lock().await;
-            let embed = search_engine.embed.lock().await;
+            let embed = search_engine.embed.clone();
             vector.index_vault(&vault, &embed).await.unwrap();
         }
 
@@ -281,7 +281,7 @@ mod tests {
         }
         {
             let vector = search_engine.vector.lock().await;
-            let embed = search_engine.embed.lock().await;
+            let embed = search_engine.embed.clone();
             vector.index_vault(&vault, &embed).await.unwrap();
         }
 
@@ -324,7 +324,7 @@ mod tests {
         }
         {
             let vector = search_engine.vector.lock().await;
-            let embed = search_engine.embed.lock().await;
+            let embed = search_engine.embed.clone();
             vector.index_vault(&vault, &embed).await.unwrap();
         }
         {
@@ -367,7 +367,7 @@ mod tests {
         }
         {
             let vector = search_engine.vector.lock().await;
-            let embed = search_engine.embed.lock().await;
+            let embed = search_engine.embed.clone();
             vector.index_vault(&vault, &embed).await.unwrap();
         }
 
@@ -411,7 +411,7 @@ mod tests {
         }
         {
             let vector = search_engine.vector.lock().await;
-            let embed = search_engine.embed.lock().await;
+            let embed = search_engine.embed.clone();
             vector.index_vault(&vault, &embed).await.unwrap();
         }
         {
@@ -465,7 +465,7 @@ mod tests {
         }
         {
             let vector = search_engine.vector.lock().await;
-            let embed = search_engine.embed.lock().await;
+            let embed = search_engine.embed.clone();
             vector.index_vault(&vault, &embed).await.unwrap();
         }
 
@@ -503,7 +503,7 @@ mod tests {
         }
         {
             let vector = search_engine.vector.lock().await;
-            let embed = search_engine.embed.lock().await;
+            let embed = search_engine.embed.clone();
             vector.index_vault(&vault, &embed).await.unwrap();
         }
         {
@@ -543,7 +543,7 @@ mod tests {
         }
         {
             let vector = search_engine.vector.lock().await;
-            let embed = search_engine.embed.lock().await;
+            let embed = search_engine.embed.clone();
             vector.index_vault(&vault, &embed).await.unwrap();
         }
 
@@ -595,7 +595,7 @@ mod tests {
         }
         {
             let vector = search_engine.vector.lock().await;
-            let embed = search_engine.embed.lock().await;
+            let embed = search_engine.embed.clone();
             vector.index_vault(&vault, &embed).await.unwrap();
         }
 
@@ -639,7 +639,7 @@ mod tests {
         }
         {
             let vector = search_engine.vector.lock().await;
-            let embed = search_engine.embed.lock().await;
+            let embed = search_engine.embed.clone();
             vector.index_vault(&vault, &embed).await.unwrap();
         }
 
@@ -680,7 +680,7 @@ mod tests {
         }
         {
             let vector = search_engine.vector.lock().await;
-            let embed = search_engine.embed.lock().await;
+            let embed = search_engine.embed.clone();
             vector.index_vault(&vault, &embed).await.unwrap();
         }
 
@@ -715,7 +715,7 @@ mod tests {
         }
         {
             let vector = search_engine.vector.lock().await;
-            let embed = search_engine.embed.lock().await;
+            let embed = search_engine.embed.clone();
             vector.index_vault(&vault, &embed).await.unwrap();
         }
 
@@ -768,7 +768,7 @@ mod tests {
         }
         {
             let vector = search_engine.vector.lock().await;
-            let embed = search_engine.embed.lock().await;
+            let embed = search_engine.embed.clone();
             vector.index_vault(&vault, &embed).await.unwrap();
         }
 

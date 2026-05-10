@@ -9,6 +9,7 @@ name = "loom"
 path = "src/main.rs"
 
 [dependencies]
+fastembed = "4"
 tantivy = "0.26"  # Upgraded to fix lz4_flex vulnerability
 petgraph = { version = "0.6", features = ["serde"] }
 rusqlite = { version = "0.31", features = ["bundled"] }
@@ -30,9 +31,9 @@ rmcp = { version = "1.2", features = ["server", "transport-io"] }
 schemars = "0.8"
 toml = "0.8"
  dirs = "5"
- notify = "6"
- axum = "0.7"
- tower = "0.4"
+  notify = "6"
+  axum = "0.7"
+  tower = "0.4"
 
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.27", features = ["process", "signal"] }
