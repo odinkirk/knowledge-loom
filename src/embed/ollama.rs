@@ -1,6 +1,7 @@
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use std::time::Duration;
 
 use super::error::{EmbedError, Result};
 
@@ -10,6 +11,7 @@ pub struct OllamaEmbedProvider {
     ollama_url: Arc<String>,
     client: Client,
     model: String,
+    timeout: Duration,
 }
 
 /// Ollama API request structure
@@ -44,7 +46,11 @@ impl OllamaEmbedProvider {
     pub fn new(ollama_url: String) -> Self {
         eprintln!("Initializing Ollama embedding provider...");
 
-        let client = Client::new();
+        let timeout = Duration::from_secs(5);
+        let client = Client::builder()
+            .timeout(timeout)
+            .build()
+            .expect("Failed to create HTTP client");
         let model = "nomic-embed-text".to_string(); // Default model
 
         eprintln!("Ollama embedding provider initialized successfully");
@@ -53,6 +59,7 @@ impl OllamaEmbedProvider {
             ollama_url: ollama_url.into(),
             client,
             model,
+            timeout,
         }
     }
 
@@ -93,10 +100,17 @@ impl OllamaEmbedProvider {
             .client
             .post(&url)
             .json(&request)
+            .timeout(self.timeout)
             .send()
             .await
             .map_err(|e| {
-                EmbedError::NetworkError(format!("Failed to send request to Ollama: {}", e))
+                if e.is_timeout() {
+                    EmbedError::Timeout { timeout_secs: 5 }
+                } else if e.is_connect() {
+                    EmbedError::NetworkError(format!("Failed to connect to Ollama: {}", e))
+                } else {
+                    EmbedError::NetworkError(format!("Failed to send request to Ollama: {}", e))
+                }
             })?;
 
         if !response.status().is_success() {

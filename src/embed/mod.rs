@@ -153,8 +153,30 @@ impl EmbedProviderEnum {
     pub async fn embed(&self, text: &str) -> Result<Vec<f32>> {
         match self {
             Self::Local(p) => p.embed(text).await,
-            Self::Ollama(p) => p.embed(text).await,
-            Self::OpenRouter(p) => p.embed(text).await,
+            Self::Ollama(p) => {
+                match p.embed(text).await {
+                    Ok(embedding) => Ok(embedding),
+                    Err(e) => {
+                        eprintln!("Ollama provider failed: {}, falling back to local", e);
+                        // Fall back to local provider
+                        let models_dir = std::path::PathBuf::from(".knowledge-loom-index/models");
+                        let local = LocalEmbedProvider::new(&models_dir);
+                        local.embed(text).await
+                    }
+                }
+            }
+            Self::OpenRouter(p) => {
+                match p.embed(text).await {
+                    Ok(embedding) => Ok(embedding),
+                    Err(e) => {
+                        eprintln!("OpenRouter provider failed: {}, falling back to local", e);
+                        // Fall back to local provider
+                        let models_dir = std::path::PathBuf::from(".knowledge-loom-index/models");
+                        let local = LocalEmbedProvider::new(&models_dir);
+                        local.embed(text).await
+                    }
+                }
+            }
         }
     }
 

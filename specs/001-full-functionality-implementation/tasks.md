@@ -139,71 +139,71 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T063 [P] [US2] Write test for OllamaEmbedProvider::new() in tests/embed_tests.rs (verifies initialization)
-- [ ] T064 [P] [US2] Write test for OllamaEmbedProvider::embed() in tests/embed_tests.rs (verifies HTTP API call)
-- [ ] T065 [P] [US2] Write test for OllamaEmbedProvider::dimension() in tests/embed_tests.rs (verifies dimension)
-- [ ] T066 [P] [US2] Write test for Ollama timeout handling in tests/embed_tests.rs (verifies fallback)
-- [ ] T067 [P] [US2] Write test for Ollama HTTP error handling in tests/embed_tests.rs (verifies fallback)
-- [ ] T068 [P] [US2] Write test for OpenRouterEmbedProvider::new() in tests/embed_tests.rs (verifies initialization)
-- [ ] T069 [P] [US2] Write test for OpenRouterEmbedProvider::embed() in tests/embed_tests.rs (verifies HTTP API call)
-- [ ] T070 [P] [US2] Write test for OpenRouterEmbedProvider::dimension() in tests/embed_tests.rs (verifies dimension)
-- [ ] T071 [P] [US2] Write test for OpenRouter timeout handling in tests/embed_tests.rs (verifies fallback)
-- [ ] T072 [P] [US2] Write test for OpenRouter HTTP error handling in tests/embed_tests.rs (verifies fallback)
-- [ ] T073 [P] [US2] Write test for OpenRouter authentication error handling in tests/embed_tests.rs (verifies fallback)
-- [ ] T074 [P] [US2] Write integration test for provider fallback in tests/integration.rs (verifies priority chain)
-- [ ] T075 [P] [US2] Write performance test for Ollama embeddings in tests/embed_tests.rs (<500ms target)
-- [ ] T076 [P] [US2] Write performance test for OpenRouter embeddings in tests/embed_tests.rs (<1s target)
+- [X] T063 [P] [US2] Write test for OllamaEmbedProvider::new() in tests/embed_tests.rs (verifies initialization)
+- [X] T064 [P] [US2] Write test for OllamaEmbedProvider::embed() in tests/embed_tests.rs (verifies HTTP API call)
+- [X] T065 [P] [US2] Write test for OllamaEmbedProvider::dimension() in tests/embed_tests.rs (verifies dimension)
+- [X] T066 [P] [US2] Write test for Ollama timeout handling in tests/embed_tests.rs (verifies fallback)
+- [X] T067 [P] [US2] Write test for Ollama HTTP error handling in tests/embed_tests.rs (verifies fallback)
+- [X] T068 [P] [US2] Write test for OpenRouterEmbedProvider::new() in tests/embed_tests.rs (verifies initialization)
+- [X] T069 [P] [US2] Write test for OpenRouterEmbedProvider::embed() in tests/embed_tests.rs (verifies HTTP API call)
+- [X] T070 [P] [US2] Write test for OpenRouterEmbedProvider::dimension() in tests/embed_tests.rs (verifies dimension)
+- [X] T071 [P] [US2] Write test for OpenRouter timeout handling in tests/embed_tests.rs (verifies fallback)
+- [X] T072 [P] [US2] Write test for OpenRouter HTTP error handling in tests/embed_tests.rs (verifies fallback)
+- [X] T073 [P] [US2] Write test for OpenRouter authentication error handling in tests/embed_tests.rs (verifies fallback)
+- [X] T074 [P] [US2] Write integration test for provider fallback in tests/integration.rs (verifies priority chain)
+- [X] T075 [P] [US2] Write performance test for Ollama embeddings in tests/embed_tests.rs (<500ms target)
+- [X] T076 [P] [US2] Write performance test for OpenRouter embeddings in tests/embed_tests.rs (<1s target)
 
 ### Implementation for User Story 2
 
 #### Ollama Provider
 
-- [ ] T077 [US2] Implement OllamaEmbedProvider struct in `src/embed/ollama.rs` with ollama_url, client, model, timeout fields
-- [ ] T078 [US2] Implement OllamaEmbedProvider::new() in `src/embed/ollama.rs` (async, creates async reqwest::Client)
-- [ ] T079 [US2] Implement OllamaRequest struct in `src/embed/ollama.rs` (JSON serialization)
-- [ ] T080 [US2] Implement OllamaResponse struct in `src/embed/ollama.rs` (JSON deserialization)
-- [ ] T081 [US2] Implement OllamaEmbedProvider::embed() in `src/embed/ollama.rs` (async, uses reqwest::Client)
-- [ ] T082 [US2] Implement HTTP POST to /api/embeddings in `src/embed/ollama.rs` (async with timeout)
-- [ ] T083 [US2] Implement HTTP error handling in `src/embed/ollama.rs` (4xx/5xx errors)
-- [ ] T084 [US2] Implement timeout handling in `src/embed/ollama.rs` (>5s triggers fallback)
-- [ ] T085 [US2] Implement response parsing in `src/embed/ollama.rs` (extract embedding vector)
-- [ ] T086 [US2] Implement dimension validation in `src/embed/ollama.rs` (validate embedding output)
-- [ ] T087 [US2] Implement OllamaEmbedProvider::dimension() in `src/embed/ollama.rs` (returns model dimension)
-- [ ] T088 [US2] Add logging for Ollama API calls in `src/embed/ollama.rs` (use eprintln!)
-- [ ] T089 [US2] Update `src/embed/mod.rs` to export OllamaEmbedProvider
+- [X] T077 [US2] Implement OllamaEmbedProvider struct in `src/embed/ollama.rs` with ollama_url, client, model, timeout fields
+- [X] T078 [US2] Implement OllamaEmbedProvider::new() in `src/embed/ollama.rs` (async, creates async reqwest::Client)
+- [X] T079 [US2] Implement OllamaRequest struct in `src/embed/ollama.rs` (JSON serialization)
+- [X] T080 [US2] Implement OllamaResponse struct in `src/embed/ollama.rs` (JSON deserialization)
+- [X] T081 [US2] Implement OllamaEmbedProvider::embed() in `src/embed/ollama.rs` (async, uses reqwest::Client)
+- [X] T082 [US2] Implement HTTP POST to /api/embeddings in `src/embed/ollama.rs` (async with timeout)
+- [X] T083 [US2] Implement HTTP error handling in `src/embed/ollama.rs` (4xx/5xx errors)
+- [X] T084 [US2] Implement timeout handling in `src/embed/ollama.rs` (>5s triggers fallback)
+- [X] T085 [US2] Implement response parsing in `src/embed/ollama.rs` (extract embedding vector)
+- [X] T086 [US2] Implement dimension validation in `src/embed/ollama.rs` (validate embedding output)
+- [X] T087 [US2] Implement OllamaEmbedProvider::dimension() in `src/embed/openrouter.rs` (returns model dimension)
+- [X] T088 [US2] Add logging for Ollama API calls in `src/embed/ollama.rs` (use eprintln!)
+- [X] T089 [US2] Update `src/embed/mod.rs` to export OllamaEmbedProvider
 
 #### OpenRouter Provider
 
-- [ ] T090 [US2] Implement OpenRouterEmbedProvider struct in `src/embed/openrouter.rs` with api_key, client, model, timeout fields
-- [ ] T091 [US2] Implement OpenRouterEmbedProvider::new() in `src/embed/openrouter.rs` (async, creates async reqwest::Client)
-- [ ] T092 [US2] Implement OpenRouterRequest struct in `src/embed/openrouter.rs` (JSON serialization)
-- [ ] T093 [US2] Implement OpenRouterResponse struct in `src/embed/openrouter.rs` (JSON deserialization)
-- [ ] T094 [US2] Implement OpenRouterEmbedding struct in `src/embed/openrouter.rs` (embedding data)
-- [ ] T095 [US2] Implement OpenRouterEmbedProvider::embed() in `src/embed/openrouter.rs` (async, uses reqwest::Client)
-- [ ] T096 [US2] Implement HTTP POST to /api/v1/embeddings in `src/embed/openrouter.rs` (async with timeout)
-- [ ] T097 [US2] Implement Bearer token authentication in `src/embed/openrouter.rs` (Authorization header)
-- [ ] T098 [US2] Implement HTTP error handling in `src/embed/openrouter.rs` (4xx/5xx errors)
-- [ ] T099 [US2] Implement authentication error handling in `src/embed/openrouter.rs` (401/403 errors)
-- [ ] T100 [US2] Implement timeout handling in `src/embed/openrouter.rs` (>5s triggers fallback)
-- [ ] T101 [US2] Implement response parsing in `src/embed/openrouter.rs` (extract embedding vector)
-- [ ] T102 [US2] Implement dimension validation in `src/embed/openrouter.rs` (validate embedding output)
-- [ ] T103 [US2] Implement OpenRouterEmbedProvider::dimension() in `src/embed/openrouter.rs` (returns model dimension)
-- [ ] T104 [US2] Add logging for OpenRouter API calls in `src/embed/openrouter.rs` (use eprintln!)
-- [ ] T105 [US2] Update `src/embed/mod.rs` to export OpenRouterEmbedProvider
+- [X] T090 [US2] Implement OpenRouterEmbedProvider struct in `src/embed/openrouter.rs` with api_key, client, model, timeout fields
+- [X] T091 [US2] Implement OpenRouterEmbedProvider::new() in `src/embed/openrouter.rs` (async, creates async reqwest::Client)
+- [X] T092 [US2] Implement OpenRouterRequest struct in `src/embed/openrouter.rs` (JSON serialization)
+- [X] T093 [US2] Implement OpenRouterResponse struct in `src/embed/openrouter.rs` (JSON deserialization)
+- [X] T094 [US2] Implement OpenRouterEmbedding struct in `src/embed/openrouter.rs` (embedding data)
+- [X] T095 [US2] Implement OpenRouterEmbedProvider::embed() in `src/embed/openrouter.rs` (async, uses reqwest::Client)
+- [X] T096 [US2] Implement HTTP POST to /api/v1/embeddings in `src/embed/openrouter.rs` (async with timeout)
+- [X] T097 [US2] Implement Bearer token authentication in `src/embed/openrouter.rs` (Authorization header)
+- [X] T098 [US2] Implement HTTP error handling in `src/embed/openrouter.rs` (4xx/5xx errors)
+- [X] T099 [US2] Implement authentication error handling in `src/embed/openrouter.rs` (401/403 errors)
+- [X] T100 [US2] Implement timeout handling in `src/embed/openrouter.rs` (>5s triggers fallback)
+- [X] T101 [US2] Implement response parsing in `src/embed/openrouter.rs` (extract embedding vector)
+- [X] T102 [US2] Implement dimension validation in `src/embed/openrouter.rs` (validate embedding output)
+- [X] T103 [US2] Implement OpenRouterEmbedProvider::dimension() in `src/embed/openrouter.rs` (returns model dimension)
+- [X] T104 [US2] Add logging for OpenRouter API calls in `src/embed/openrouter.rs` (use eprintln!)
+- [X] T105 [US2] Update `src/embed/mod.rs` to export OpenRouterEmbedProvider
 
 #### Provider Enum and Fallback
 
-- [ ] T106 [US2] Update EmbedProviderEnum in `src/embed/mod.rs` to include Ollama and OpenRouter variants
-- [ ] T107 [US2] Update EmbedProviderEnum::new() in `src/embed/mod.rs` to check OLLAMA_URL and OPENROUTER_API_KEY
-- [ ] T108 [US2] Update EmbedProviderEnum::new() in `src/embed/mod.rs` to initialize Ollama provider if configured
-- [ ] T109 [US2] Update EmbedProviderEnum::new() in `src/embed/mod.rs` to initialize OpenRouter provider if configured
-- [ ] T110 [US2] Update EmbedProviderEnum::embed() in `src/embed/mod.rs` to implement provider priority chain (Local → Ollama → OpenRouter)
-- [ ] T111 [US2] Implement fallback logic in EmbedProviderEnum::embed() in `src/embed/mod.rs` (try next provider on failure)
-- [ ] T112 [US2] Add logging for fallback behavior in `src/embed/mod.rs` (log which provider failed, which is being tried next)
-- [ ] T113 [US2] Update EmbedProviderEnum::dimension() in `src/embed/mod.rs` to dispatch to active provider
-- [ ] T114 [US2] Update call sites in `src/search.rs` to use async embed() with .await (if not already done)
-- [ ] T115 [US2] Update call sites in `src/index.rs` to use async embed() with .await (if not already done)
-- [ ] T116 [US2] Run tests and verify all US2 tests pass
+- [X] T106 [US2] Update EmbedProviderEnum in `src/embed/mod.rs` to include Ollama and OpenRouter variants
+- [X] T107 [US2] Update EmbedProviderEnum::new() in `src/embed/mod.rs` to check OLLAMA_URL and OPENROUTER_API_KEY
+- [X] T108 [US2] Update EmbedProviderEnum::new() in `src/embed/mod.rs` to initialize Ollama provider if configured
+- [X] T109 [US2] Update EmbedProviderEnum::new() in `src/embed/mod.rs` to initialize OpenRouter provider if configured
+- [X] T110 [US2] Update EmbedProviderEnum::embed() in `src/embed/mod.rs` to implement provider priority chain (Local → Ollama → OpenRouter)
+- [X] T111 [US2] Implement fallback logic in EmbedProviderEnum::embed() in `src/embed/mod.rs` (try next provider on failure)
+- [X] T112 [US2] Add logging for fallback behavior in `src/embed/mod.rs` (log which provider failed, which is being tried next)
+- [X] T113 [US2] Update EmbedProviderEnum::dimension() in `src/embed/mod.rs` to dispatch to active provider
+- [X] T114 [US2] Update call sites in `src/search.rs` to use async embed() with .await (if not already done)
+- [X] T115 [US2] Update call sites in `src/index.rs` to use async embed() with .await (if not already done)
+- [X] T116 [US2] Run tests and verify all US2 tests pass
 
 **Checkpoint**: At this point, User Stories 1 AND 2 should both work independently. External embedding providers are working with automatic fallback.
 

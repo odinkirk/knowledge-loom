@@ -768,6 +768,71 @@ async fn integration_semantic_search() {
     );
 }
 
+#[tokio::test]
+#[serial]
+async fn integration_provider_fallback() {
+    let temp_dir = TempDir::new().unwrap();
+    let kb_root = temp_dir.path();
+
+    // Create test vault
+    create_test_vault(kb_root);
+
+    // Test provider fallback: OpenRouter > Ollama > Local
+    // When OPENROUTER_API_KEY is set but invalid, should fall back to Ollama
+    // When OLLAMA_URL is set but invalid, should fall back to Local
+
+    // Test 1: Invalid OpenRouter API key, no Ollama -> should use Local
+    std::env::set_var("OPENROUTER_API_KEY", "invalid-key");
+    std::env::remove_var("OLLAMA_URL");
+
+    let vault = VaultState::new(kb_root.to_str().unwrap()).await;
+    let search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
+
+    // Build indexes
+    {
+        let mut bm25 = search_engine.bm25.lock().await;
+        bm25.index_vault(&vault).await.unwrap();
+    }
+    {
+        let vector = search_engine.vector.lock().await;
+        vector
+            .index_vault(&vault, &search_engine.embed)
+            .await
+            .unwrap();
+    }
+
+    // Test search - should use Local provider (fallback from invalid OpenRouter)
+    let results = search_engine.search("machine learning", 5).await;
+    assert!(
+        !results.is_empty(),
+        "Local provider should return results after fallback"
+    );
+
+    // Test 2: Invalid Ollama URL, no OpenRouter -> should use Local
+    std::env::remove_var("OPENROUTER_API_KEY");
+    std::env::set_var("OLLAMA_URL", "http://invalid-host:9999");
+
+    let search_engine_ollama = SearchEngine::new(kb_root.to_str().unwrap()).await;
+    {
+        let vector = search_engine_ollama.vector.lock().await;
+        vector
+            .index_vault(&vault, &search_engine_ollama.embed)
+            .await
+            .unwrap();
+    }
+
+    // Test search - should use Local provider (fallback from invalid Ollama)
+    let results_ollama = search_engine_ollama.search("machine learning", 5).await;
+    assert!(
+        !results_ollama.is_empty(),
+        "Local provider should return results after fallback"
+    );
+
+    // Clean up environment variables
+    std::env::remove_var("OPENROUTER_API_KEY");
+    std::env::remove_var("OLLAMA_URL");
+}
+
 fn create_test_vault(kb_root: &Path) {
     // Create directory structure
     fs::create_dir_all(kb_root.join("ai")).unwrap();

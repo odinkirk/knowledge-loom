@@ -112,10 +112,17 @@ impl OpenRouterEmbedProvider {
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
             .json(&request)
+            .timeout(self.timeout)
             .send()
             .await
             .map_err(|e| {
-                EmbedError::NetworkError(format!("Failed to send request to OpenRouter: {}", e))
+                if e.is_timeout() {
+                    EmbedError::Timeout { timeout_secs: 10 }
+                } else if e.is_connect() {
+                    EmbedError::NetworkError(format!("Failed to connect to OpenRouter: {}", e))
+                } else {
+                    EmbedError::NetworkError(format!("Failed to send request to OpenRouter: {}", e))
+                }
             })?;
 
         if !response.status().is_success() {

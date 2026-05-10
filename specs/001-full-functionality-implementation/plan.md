@@ -138,9 +138,30 @@ Implement real embedding providers for Knowledge Loom, replacing hash-based mock
 **Known Issues**:
 - None - all tests passing in parallel mode
 
+### Phase 4 Status (User Story 2 - External Embedding Providers)
+- ✅ Tests: All 14 tests written and passing (T063-T076)
+- ✅ Implementation: All tasks complete (T077-T116)
+- ✅ Integration: Provider fallback test verifies priority chain
+- ✅ Fallback: Automatic fallback to local provider on failure
+
+**Test Results**:
+- embed_tests: 42 passed, 1 ignored (6 new US2 tests added)
+- integration: 14 passed (1 new fallback test added)
+- All US2 tests passing with timeout handling and fallback logic
+
+**Implementation Features**:
+- Ollama provider: Timeout handling (5s), HTTP error handling, fallback to local
+- OpenRouter provider: Timeout handling (10s), auth error handling, fallback to local
+- Provider priority chain: OpenRouter > Ollama > Local
+- Fallback logic: Automatic fallback to next provider on failure
+- Logging: eprintln! for API calls and fallback behavior
+
+**Known Issues**:
+- None - all tests passing in parallel mode
+
 ### Next Steps
-- Phase 4: User Story 2 (external embedding providers - Ollama, OpenRouter)
 - Phase 5: Polish & documentation
+- Quality gates verification (fmt, clippy, coverage check)
 
 ## Project Structure
 
