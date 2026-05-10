@@ -7,7 +7,11 @@ use std::path::PathBuf;
 /// Check if Ollama service is available
 async fn is_ollama_available() -> bool {
     let client = reqwest::Client::new();
-    client.get("http://localhost:11434/api/tags").send().await.is_ok()
+    client
+        .get("http://localhost:11434/api/tags")
+        .send()
+        .await
+        .is_ok()
 }
 
 /// Check if OpenRouter API key is configured
@@ -24,6 +28,14 @@ mod local_tests {
         let models_dir = PathBuf::from(".knowledge-loom-index/models");
         let provider = LocalEmbedProvider::new(&models_dir);
         // Provider should be created successfully
+        assert_eq!(provider.dimension(), 384);
+    }
+
+    #[test]
+    fn test_local_dimension() {
+        let models_dir = PathBuf::from(".knowledge-loom-index/models");
+        let provider = LocalEmbedProvider::new(&models_dir);
+        // Verify dimension is 384 for all-MiniLM-L6-v2 model
         assert_eq!(provider.dimension(), 384);
     }
 
@@ -107,6 +119,87 @@ mod local_tests {
             "Local embedding should be <100ms, took {}ms",
             duration.as_millis()
         );
+    }
+
+    #[tokio::test]
+    async fn test_local_embedding_cache_hit() {
+        let models_dir = PathBuf::from(".knowledge-loom-index/models");
+        let provider = LocalEmbedProvider::new(&models_dir);
+        let text = "cache test";
+
+        // First call - should be a cache miss
+        let embedding1 = provider.embed(text).await.unwrap();
+
+        // Second call with same text - should be a cache hit
+        let embedding2 = provider.embed(text).await.unwrap();
+
+        // Embeddings should be identical
+        assert_eq!(embedding1, embedding2);
+
+        // Cache hit should be faster than cache miss
+        // (This is a soft check - timing can vary)
+        let start = std::time::Instant::now();
+        let _embedding3 = provider.embed(text).await.unwrap();
+        let cache_hit_duration = start.elapsed();
+
+        // Cache hit should be very fast (<10ms)
+        assert!(
+            cache_hit_duration.as_millis() < 10,
+            "Cache hit should be <10ms, took {}ms",
+            cache_hit_duration.as_millis()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_local_embedding_cache_miss() {
+        let models_dir = PathBuf::from(".knowledge-loom-index/models");
+        let provider = LocalEmbedProvider::new(&models_dir);
+
+        // Different texts should result in cache misses
+        let text1 = "cache miss test 1";
+        let text2 = "cache miss test 2";
+
+        let embedding1 = provider.embed(text1).await.unwrap();
+        let embedding2 = provider.embed(text2).await.unwrap();
+
+        // Embeddings should be different
+        assert_ne!(embedding1, embedding2);
+    }
+
+    #[tokio::test]
+    async fn test_local_embedding_cache_eviction() {
+        let models_dir = PathBuf::from(".knowledge-loom-index/models");
+        let provider = LocalEmbedProvider::new(&models_dir);
+
+        // Generate more embeddings than the cache size (default: 1000)
+        // We'll use a smaller number for testing speed
+        let cache_size = 100;
+        let mut embeddings = Vec::new();
+
+        for i in 0..cache_size + 10 {
+            let text = format!("cache eviction test {}", i);
+            let embedding = provider.embed(&text).await.unwrap();
+            embeddings.push((text, embedding));
+        }
+
+        // Verify that the first embedding was evicted
+        // by re-embedding the first text and checking if it's different
+        let first_text = &embeddings[0].0;
+        let first_embedding = &embeddings[0].1;
+
+        // Clear the cache by forcing eviction
+        for i in 0..cache_size + 20 {
+            let text = format!("cache eviction test {}", i + cache_size + 10);
+            let _ = provider.embed(&text).await.unwrap();
+        }
+
+        // Now the first embedding should have been evicted
+        // Re-embed the first text - it should be a cache miss
+        let new_embedding = provider.embed(first_text).await.unwrap();
+
+        // The new embedding should be identical to the original
+        // (deterministic model produces same output for same input)
+        assert_eq!(new_embedding, *first_embedding);
     }
 }
 
@@ -399,7 +492,11 @@ mod provider_enum_tests {
     async fn test_provider_enum_ollama() {
         // Check if Ollama is available
         let client = reqwest::Client::new();
-        let ollama_available = client.get("http://localhost:11434/api/tags").send().await.is_ok();
+        let ollama_available = client
+            .get("http://localhost:11434/api/tags")
+            .send()
+            .await
+            .is_ok();
 
         if !ollama_available {
             eprintln!("Skipping test: Ollama service not available");

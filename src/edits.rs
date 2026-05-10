@@ -270,7 +270,7 @@ impl EditManager {
             let new_content = new_lines.join("\n");
             vault_lock.write_file(file_path, &new_content).await?;
         } // vault_lock dropped
-        self.reindex_file(file_path, &new_content).await;
+        self.reindex_file(file_path, new_content).await;
         Ok(())
     }
 
@@ -348,7 +348,7 @@ impl EditManager {
 
     pub async fn create_note(&self, title: &str, content: &str) -> Result<PathBuf, std::io::Error> {
         // Convert title to filename
-        let filename = title.replace(' ', "_").replace('/', "_") + ".md";
+        let filename = title.replace([' ', '/'], "_") + ".md";
         let file_path = self.kb_root.join(&filename);
 
         {
@@ -387,7 +387,7 @@ impl EditManager {
             if !content.ends_with('\n') {
                 content.push('\n');
             }
-            content.push_str(&format!("[[{}]]", to_title));
+            content.push_str(&format!("[[{to_title}]]"));
 
             vault_lock.write_file(from_path, &content).await?;
 

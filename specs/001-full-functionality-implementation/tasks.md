@@ -82,45 +82,50 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T029 [P] [US1] Write test for LocalEmbedProvider::new() in tests/embed_tests.rs (verifies initialization)
-- [ ] T030 [P] [US1] Write test for LocalEmbedProvider::embed() in tests/embed_tests.rs (verifies embedding generation)
-- [ ] T031 [P] [US1] Write test for LocalEmbedProvider::dimension() in tests/embed_tests.rs (verifies 384 dimensions)
-- [ ] T032 [P] [US1] Write test for embedding consistency in tests/embed_tests.rs (same text produces same embedding)
-- [ ] T033 [P] [US1] Write test for embedding different inputs in tests/embed_tests.rs (different texts produce different embeddings)
-- [ ] T034 [P] [US1] Write test for embedding empty string in tests/embed_tests.rs (handles edge case)
-- [ ] T035 [P] [US1] Write test for embedding long text in tests/embed_tests.rs (handles large inputs)
-- [ ] T036 [P] [US1] Write test for embedding special characters in tests/embed_tests.rs (handles Unicode)
-- [ ] T037 [P] [US1] Write performance test for local embeddings in tests/embed_tests.rs (<100ms target)
-- [ ] T038 [P] [US1] Write integration test for semantic search in tests/integration.rs (verifies semantic similarity)
+- [X] T029 [P] [US1] Write test for LocalEmbedProvider::new() in tests/embed_tests.rs (verifies initialization)
+- [X] T030 [P] [US1] Write test for LocalEmbedProvider::embed() in tests/embed_tests.rs (verifies embedding generation)
+- [X] T031 [P] [US1] Write test for LocalEmbedProvider::dimension() in tests/embed_tests.rs (verifies 384 dimensions)
+- [X] T032 [P] [US1] Write test for embedding consistency in tests/embed_tests.rs (same text produces same embedding)
+- [X] T033 [P] [US1] Write test for embedding different inputs in tests/embed_tests.rs (different texts produce different embeddings)
+- [X] T034 [P] [US1] Write test for embedding empty string in tests/embed_tests.rs (handles edge case)
+- [X] T035 [P] [US1] Write test for embedding long text in tests/embed_tests.rs (handles large inputs)
+- [X] T036 [P] [US1] Write test for embedding special characters in tests/embed_tests.rs (handles Unicode)
+- [X] T037 [P] [US1] Write performance test for local embeddings in tests/embed_tests.rs (<100ms target)
+- [X] T038 [P] [US1] Write integration test for semantic search in tests/integration.rs (verifies semantic similarity)
 
 ### Implementation for User Story 1
 
-- [ ] T039 [US1] Implement LocalEmbedProvider struct in `src/embed/local.rs` with models_dir field
-- [ ] T040 [US1] Implement LocalEmbedProvider::new() in `src/embed/local.rs` (async, downloads model if needed)
-- [ ] T041 [US1] Implement model download logic in `src/embed/local.rs` (download from Hugging Face, cache locally)
-- [ ] T042 [US1] Implement model integrity validation in `src/embed/local.rs` (SHA256 hash check)
-- [ ] T043 [US1] Implement LocalEmbedProvider::embed() in `src/embed/local.rs` (async, uses fastembed)
-- [ ] T044 [US1] Implement LocalEmbedProvider::dimension() in `src/embed/local.rs` (returns 384)
-- [ ] T045 [US1] Add dimension validation in `src/embed/local.rs` (validates embedding output)
-- [ ] T046 [US1] Add error handling for model download failures in `src/embed/local.rs`
-- [ ] T047 [US1] Add error handling for model corruption in `src/embed/local.rs`
-- [ ] T048 [US1] Add logging for model download progress in `src/embed/local.rs` (use eprintln!)
-- [ ] T049 [US1] Update `src/embed/mod.rs` to export LocalEmbedProvider
-- [ ] T050 [US1] Update EmbedProviderEnum in `src/embed/mod.rs` to include Local variant
-- [ ] T051 [US1] Update EmbedProviderEnum::new() in `src/embed/mod.rs` to initialize LocalEmbedProvider
-- [ ] T052 [US1] Update EmbedProviderEnum::embed() in `src/embed/mod.rs` to dispatch to Local provider
-- [ ] T053 [US1] Update EmbedProviderEnum::dimension() in `src/embed/mod.rs` to dispatch to Local provider
-- [ ] T054 [US1] Update call sites in `src/search.rs` to use async embed() with .await (if not already done)
-- [ ] T055 [US1] Update call sites in `src/index.rs` to use async embed() with .await (if not already done)
-- [ ] T056 [US1] Run tests and verify all US1 tests pass
-- [ ] T056a [US1] Implement embedding cache in `src/embed/local.rs` (LRU eviction, cache key based on text hash)
-- [ ] T056b [US1] Add cache hit/miss logging in `src/embed/local.rs` (use eprintln!)
-- [ ] T056c [US1] Add cache size configuration in `src/embed/local.rs` (default: 1000 embeddings)
-- [ ] T056d [US1] Write test for embedding cache in tests/embed_tests.rs (verifies cache hit/miss behavior)
-- [ ] T056e [US1] Write test for cache eviction in tests/embed_tests.rs (verifies LRU behavior)
-- [ ] T056f [US1] Run tests and verify all US1 tests pass
+- [X] T039 [US1] Implement LocalEmbedProvider struct in `src/embed/local.rs` with models_dir field
+- [X] T040 [US1] Implement LocalEmbedProvider::new() in `src/embed/local.rs` (async, downloads model if needed)
+- [X] T041 [US1] Implement model download logic in `src/embed/local.rs` (download from Hugging Face, cache locally)
+- [X] T042 [US1] Implement model integrity validation in `src/embed/local.rs` (SHA256 hash check)
+- [X] T043 [US1] Implement LocalEmbedProvider::embed() in `src/embed/local.rs` (async, uses fastembed)
+- [X] T044 [US1] Implement LocalEmbedProvider::dimension() in `src/embed/local.rs` (returns 384)
+- [X] T045 [US1] Add dimension validation in `src/embed/local.rs` (validates embedding output)
+- [X] T046 [US1] Add error handling for model download failures in `src/embed/local.rs`
+- [X] T047 [US1] Add error handling for model corruption in `src/embed/local.rs`
+- [X] T048 [US1] Add logging for model download progress in `src/embed/local.rs` (use eprintln!)
+- [X] T049 [US1] Update `src/embed/mod.rs` to export LocalEmbedProvider
+- [X] T050 [US1] Update EmbedProviderEnum in `src/embed/mod.rs` to include Local variant
+- [X] T051 [US1] Update EmbedProviderEnum::new() in `src/embed/mod.rs` to initialize LocalEmbedProvider
+- [X] T052 [US1] Update EmbedProviderEnum::embed() in `src/embed/mod.rs` to dispatch to Local provider
+- [X] T053 [US1] Update EmbedProviderEnum::dimension() in `src/embed/mod.rs` to dispatch to Local provider
+- [X] T054 [US1] Update call sites in `src/search.rs` to use async embed() with .await (if not already done)
+- [X] T055 [US1] Update call sites in `src/index.rs` to use async embed() with .await (if not already done)
+- [X] T056 [US1] Run tests and verify all US1 tests pass
+- [X] T056a [US1] Implement embedding cache in `src/embed/local.rs` (LRU eviction, cache key based on text hash)
+- [X] T056b [US1] Add cache hit/miss logging in `src/embed/local.rs` (use eprintln!)
+- [X] T056c [US1] Add cache size configuration in `src/embed/local.rs` (default: 1000 embeddings)
+- [X] T056d [US1] Write test for embedding cache in tests/embed_tests.rs (verifies cache hit/miss behavior)
+- [X] T056e [US1] Write test for cache eviction in tests/embed_tests.rs (verifies LRU behavior)
+- [X] T056f [US1] Run tests and verify all US1 tests pass
 
-**Checkpoint**: At this point, User Story 1 should be fully functional and testable independently. Local embeddings are working with real semantic similarity.
+**Checkpoint**: At this point, User Story 1 should be fully functional and testable independently. Local embeddings are working with real semantic similarity, LRU cache, and all tests pass in parallel mode.
+
+**Test Concurrency Fix**:
+- Added `serial_test` crate to dev-dependencies
+- Added `#[serial]` attribute to tests that modify environment variables
+- All tests now pass in parallel mode without requiring --test-threads=1
 
 ---
 

@@ -1,4 +1,5 @@
 use fastembed::{EmbeddingModel, InitOptions, TextEmbedding};
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -24,6 +25,59 @@ pub struct LocalEmbedProvider {
     model: Arc<TextEmbedding>,
     #[allow(dead_code)]
     models_dir: Arc<Path>,
+    cache: Arc<tokio::sync::Mutex<EmbeddingCache>>,
+}
+
+/// Simple LRU cache for embeddings
+struct EmbeddingCache {
+    entries: HashMap<u64, Vec<f32>>,
+    access_order: Vec<u64>,
+    max_size: usize,
+}
+
+impl EmbeddingCache {
+    fn new(max_size: usize) -> Self {
+        Self {
+            entries: HashMap::new(),
+            access_order: Vec::new(),
+            max_size,
+        }
+    }
+
+    fn get(&mut self, key: u64) -> Option<&Vec<f32>> {
+        if let Some(pos) = self.access_order.iter().position(|&k| k == key) {
+            // Move to end (most recently used)
+            let key = self.access_order.remove(pos);
+            self.access_order.push(key);
+            self.entries.get(&key)
+        } else {
+            None
+        }
+    }
+
+    fn put(&mut self, key: u64, value: Vec<f32>) {
+        // Evict if at capacity
+        if self.entries.len() >= self.max_size && !self.entries.contains_key(&key) {
+            if let Some(old_key) = self.access_order.first() {
+                self.entries.remove(old_key);
+                self.access_order.remove(0);
+            }
+        }
+
+        // Update or insert
+        if self.entries.contains_key(&key) {
+            if let Some(pos) = self.access_order.iter().position(|&k| k == key) {
+                self.access_order.remove(pos);
+            }
+        }
+
+        self.entries.insert(key, value);
+        self.access_order.push(key);
+    }
+
+    fn len(&self) -> usize {
+        self.entries.len()
+    }
 }
 
 impl LocalEmbedProvider {
@@ -48,7 +102,7 @@ impl LocalEmbedProvider {
 
         // Create models directory if it doesn't exist
         std::fs::create_dir_all(models_dir).unwrap_or_else(|e| {
-            eprintln!("Failed to create models directory: {}", e);
+            eprintln!("Failed to create models directory: {e}");
         });
 
         // Initialize fastembed model
@@ -60,9 +114,18 @@ impl LocalEmbedProvider {
 
         eprintln!("Local embedding provider initialized successfully");
 
+        // Initialize cache with default size of 1000 embeddings
+        let cache_size = std::env::var("LOOM_EMBED_CACHE_SIZE")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(1000);
+
+        eprintln!("Embedding cache initialized with size: {cache_size}");
+
         Self {
             model: Arc::new(model),
             models_dir: models_dir.to_path_buf().into(),
+            cache: Arc::new(tokio::sync::Mutex::new(EmbeddingCache::new(cache_size))),
         }
     }
 
@@ -89,26 +152,55 @@ impl LocalEmbedProvider {
     /// assert!(!embedding.is_empty());
     /// ```
     pub async fn embed(&self, text: &str) -> Result<Vec<f32>> {
+        // Compute cache key from text hash
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let mut hasher = DefaultHasher::new();
+        text.hash(&mut hasher);
+        let cache_key = hasher.finish();
+
+        // Check cache
+        {
+            let mut cache = self.cache.lock().await;
+            if let Some(cached_embedding) = cache.get(cache_key) {
+                eprintln!("Cache hit for text hash: {}", cache_key);
+                return Ok(cached_embedding.clone());
+            }
+            eprintln!("Cache miss for text hash: {}", cache_key);
+        }
+
         // Use fastembed to generate real embeddings
         // fastembed is synchronous, so we use spawn_blocking to avoid blocking the async runtime
         let text = text.to_string();
         let model = self.model.clone();
-        
+
         let embeddings = tokio::task::spawn_blocking(move || {
             model.embed(vec![text], None).map_err(|e| {
                 EmbedError::EmbeddingError(format!("Failed to generate embedding: {}", e))
             })
         })
         .await
-        .map_err(|e| {
-            EmbedError::EmbeddingError(format!("Task join error: {}", e))
-        })??;
+        .map_err(|e| EmbedError::EmbeddingError(format!("Task join error: {}", e)))??;
 
-        // Return the first (and only) embedding
-        embeddings
+        // Get the embedding
+        let embedding = embeddings
             .into_iter()
             .next()
-            .ok_or_else(|| EmbedError::EmbeddingError("No embedding generated".to_string()))
+            .ok_or_else(|| EmbedError::EmbeddingError("No embedding generated".to_string()))?;
+
+        // Store in cache
+        {
+            let mut cache = self.cache.lock().await;
+            cache.put(cache_key, embedding.clone());
+            eprintln!(
+                "Cached embedding for text hash: {} (cache size: {})",
+                cache_key,
+                cache.len()
+            );
+        }
+
+        Ok(embedding)
     }
 
     /// Get the dimension of the embedding vectors

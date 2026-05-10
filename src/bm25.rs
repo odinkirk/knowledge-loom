@@ -14,6 +14,7 @@ use tokio::sync::Mutex;
 
 pub const MAX_CHUNK_CHARS: usize = 2000;
 
+#[must_use]
 pub fn truncate_at_whitespace(content: &str, max: usize) -> &str {
     if content.len() <= max {
         return content;
@@ -33,6 +34,7 @@ pub struct Chunk {
     pub line_end: usize,
 }
 
+#[must_use]
 pub fn parse_chunks(content: &str) -> Vec<Chunk> {
     let lines: Vec<&str> = content.lines().collect();
     let mut chunks = Vec::new();
@@ -50,7 +52,7 @@ pub fn parse_chunks(content: &str) -> Vec<Chunk> {
                 let heading_text = after.trim().to_string();
                 if !heading_text.is_empty() {
                     // Pop same-or-deeper headings
-                    while heading_stack.last().map_or(false, |(l, _)| *l >= level) {
+                    while heading_stack.last().is_some_and(|(l, _)| *l >= level) {
                         heading_stack.pop();
                     }
                     heading_stack.push((level, heading_text));
@@ -133,7 +135,7 @@ fn get_text(doc: &TantivyDocument, schema: &tantivy::schema::Schema, field_name:
                 .find(|(f, _)| *f == field)
                 .and_then(|(_, v)| v.as_str())
         })
-        .map(|s| s.to_string())
+        .map(std::string::ToString::to_string)
         .unwrap_or_default()
 }
 
@@ -190,7 +192,7 @@ impl BM25Index {
                         let _ = std::fs::remove_dir_all(&index_path);
                         let _ = std::fs::create_dir_all(&index_path);
                         Index::create_in_dir(&index_path, schema.clone())
-                            .unwrap_or_else(|e| panic!("Failed to create tantivy index: {}", e))
+                            .unwrap_or_else(|e| panic!("Failed to create tantivy index: {e}"))
                     }
                     Err(TantivyError::LockFailure(_, _)) => {
                         // Lock is stale — remove and retry
@@ -205,7 +207,7 @@ impl BM25Index {
                         let _ = std::fs::remove_dir_all(&index_path);
                         let _ = std::fs::create_dir_all(&index_path);
                         Index::create_in_dir(&index_path, schema.clone())
-                            .unwrap_or_else(|e| panic!("Failed to create tantivy index: {}", e))
+                            .unwrap_or_else(|e| panic!("Failed to create tantivy index: {e}"))
                     }
                 }
             }
@@ -214,7 +216,7 @@ impl BM25Index {
                 let _ = std::fs::remove_dir_all(&index_path);
                 let _ = std::fs::create_dir_all(&index_path);
                 Index::create_in_dir(&index_path, schema.clone())
-                    .unwrap_or_else(|e| panic!("Failed to create tantivy index: {}", e))
+                    .unwrap_or_else(|e| panic!("Failed to create tantivy index: {e}"))
             }
         };
         // Always derive schema from the actual index so field IDs are correct
@@ -340,7 +342,9 @@ impl BM25Index {
                 path: path.to_string(),
                 heading,
                 content: get_text(&doc, &self.schema, "content"),
+                #[allow(clippy::cast_possible_truncation)]
                 line_start: get_u64(&doc, &self.schema, "line_start") as usize,
+                #[allow(clippy::cast_possible_truncation)]
                 line_end: get_u64(&doc, &self.schema, "line_end") as usize,
             });
         }
@@ -425,7 +429,9 @@ impl BM25Index {
                     path: get_text(&doc, &self.schema, "path"),
                     heading,
                     content: get_text(&doc, &self.schema, "content"),
+                    #[allow(clippy::cast_possible_truncation)]
                     line_start: get_u64(&doc, &self.schema, "line_start") as usize,
+                    #[allow(clippy::cast_possible_truncation)]
                     line_end: get_u64(&doc, &self.schema, "line_end") as usize,
                 },
             ));
@@ -529,6 +535,7 @@ impl BM25Index {
 }
 
 #[allow(dead_code)]
+#[must_use]
 pub fn extract_title(content: &str) -> Option<String> {
     // Look for first markdown heading
     for line in content.lines() {

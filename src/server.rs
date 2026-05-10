@@ -476,7 +476,7 @@ impl LoomServer {
                 // Requires LLM API integration (separate plan)
                 Ok(serde_json::json!({"error": "search_smart requires LLM API integration (not yet implemented)"}).to_string())
             }
-            "reindex" => self.maintenance.reindex_all().await.map_err(|e| e),
+            "reindex" => self.maintenance.reindex_all().await,
             "index_status" => match self.maintenance.get_index_status().await {
                 Ok(status) => Ok(serde_json::to_string(&status).unwrap_or_default()),
                 Err(e) => Err(e),
@@ -524,7 +524,7 @@ impl ServerHandler for LoomServer {
     ) -> Result<CallToolResult, McpError> {
         let args = request
             .arguments
-            .map(|m| Value::Object(m))
+            .map(Value::Object)
             .unwrap_or(Value::Object(Default::default()));
 
         match self.dispatch_tool(&request.name, &args).await {

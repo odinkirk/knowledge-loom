@@ -89,9 +89,15 @@ impl OllamaEmbedProvider {
             prompt: text.to_string(),
         };
 
-        let response = self.client.post(&url).json(&request).send().await.map_err(|e| {
-            EmbedError::NetworkError(format!("Failed to send request to Ollama: {}", e))
-        })?;
+        let response = self
+            .client
+            .post(&url)
+            .json(&request)
+            .send()
+            .await
+            .map_err(|e| {
+                EmbedError::NetworkError(format!("Failed to send request to Ollama: {}", e))
+            })?;
 
         if !response.status().is_success() {
             let status = response.status().as_u16();
