@@ -1,9 +1,9 @@
 use std::hash::Hasher;
 use std::sync::Arc;
-use std::time::Duration;
 
 /// Ollama embedding provider configuration
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct OllamaEmbedProvider {
     ollama_url: Arc<String>,
 }

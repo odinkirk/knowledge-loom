@@ -1,6 +1,5 @@
 use std::hash::Hasher;
 use std::path::Path;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 /// Local embedding provider using fastembed
@@ -19,6 +18,7 @@ use std::sync::Arc;
 /// assert_eq!(embedding.len(), 384);
 /// ```
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct LocalEmbedProvider {
     models_dir: Arc<Path>,
 }

@@ -566,18 +566,37 @@ Each platform has unique configuration requirements:
 
 ### Custom Embedding Providers
 
-The system supports pluggable embedding providers:
+The system supports pluggable embedding providers with automatic fallback:
 
 ```rust
 pub trait EmbedProvider: Send + Sync {
     fn embed(&self, text: &str) -> Vec<f32>;
     fn dimension(&self) -> usize;
 }
-
-// Built-in providers:
-// - LocalEmbedProvider: Built-in embeddings
-// - OllamaEmbedProvider: Ollama integration
 ```
+
+**Built-in providers:**
+- **LocalEmbedProvider**: Built-in embeddings using fastembed (all-MiniLM-L6-v2, 384 dimensions)
+- **OllamaEmbedProvider**: Ollama integration (nomic-embed-text-v1.5, 768 dimensions)
+- **OpenRouterEmbedProvider**: OpenRouter integration (openai/text-embedding-ada-002, 1536 dimensions)
+
+**Provider Architecture:**
+- **EmbedProviderEnum**: Enum-based provider selection with automatic fallback
+- **Priority Chain**: OpenRouter > Ollama > Local
+- **Environment Configuration**: Provider selection via environment variables
+- **Fallback Logic**: Automatic fallback on provider failure with warning logging
+- **Performance Targets**: <100ms local, <500ms Ollama, <1s OpenRouter
+
+**Provider Selection Logic:**
+1. Check `OPENROUTER_API_KEY` → Use OpenRouter if available
+2. Check `OLLAMA_URL` → Use Ollama if available
+3. Default → Use Local provider
+
+**Error Handling:**
+- Network errors trigger automatic fallback
+- Dimension mismatches are rejected with warnings
+- Timeouts are handled gracefully
+- All errors are logged for debugging
 
 ### Custom Search Engines
 
