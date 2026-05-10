@@ -45,7 +45,7 @@ impl LoomServer {
     pub async fn new(kb_root: &str) -> Self {
         let vault = Arc::new(Mutex::new(VaultState::new(kb_root).await));
         let bm25 = Arc::new(Mutex::new(BM25Index::new(kb_root).await));
-        let embed = Arc::new(EmbedProviderEnum::new(kb_root).await);
+        let embed = Arc::new(EmbedProviderEnum::new(kb_root));
         let vector = Arc::new(Mutex::new(VectorIndex::new(kb_root).await));
         let graph = Arc::new(Mutex::new(GraphState::new(kb_root).await));
 

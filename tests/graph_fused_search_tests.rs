@@ -6,7 +6,7 @@ async fn test_index_file_replaces_old_chunks() {
     let dir = tempfile::tempdir().unwrap();
     let kb_root = dir.path().to_str().unwrap();
     let index = VectorIndex::new(kb_root).await;
-    let embed = EmbedProviderEnum::new(kb_root).await;
+    let embed = EmbedProviderEnum::new(kb_root);
     let path = dir.path().join("note.md");
 
     // First index
@@ -41,7 +41,7 @@ async fn test_remove_file_embeddings_clears_path() {
     let dir = tempfile::tempdir().unwrap();
     let kb_root = dir.path().to_str().unwrap();
     let index = VectorIndex::new(kb_root).await;
-    let embed = EmbedProviderEnum::new(kb_root).await;
+    let embed = EmbedProviderEnum::new(kb_root);
     let path = dir.path().join("target.md");
 
     std::fs::write(&path, "# Target\nsome content").unwrap();
@@ -150,7 +150,7 @@ async fn test_search_includes_graph_fused_results() {
     )
     .unwrap();
 
-    let embed = Arc::new(EmbedProviderEnum::new(kb_root).await);
+    let embed = Arc::new(EmbedProviderEnum::new(kb_root));
     let vector = Arc::new(Mutex::new(VectorIndex::new(kb_root).await));
 
     {
@@ -193,7 +193,7 @@ async fn test_graph_fused_empty_vector_index_returns_no_fused_results() {
     let engine = SearchEngine::from_components(
         Arc::new(Mutex::new(BM25Index::new(kb_root).await)),
         Arc::new(Mutex::new(VectorIndex::new(kb_root).await)),
-        Arc::new(EmbedProviderEnum::new(kb_root).await),
+        Arc::new(EmbedProviderEnum::new(kb_root)),
         Arc::new(Mutex::new(GraphState::new(kb_root).await)),
     );
 
@@ -232,7 +232,7 @@ async fn test_graph_fused_inner_reranks_by_pagerank() {
     let dir = tempfile::tempdir().unwrap();
     let kb_root = dir.path().to_str().unwrap();
 
-    let embed = Arc::new(EmbedProviderEnum::new(kb_root).await);
+    let embed = Arc::new(EmbedProviderEnum::new(kb_root));
     let vector = Arc::new(Mutex::new(VectorIndex::new(kb_root).await));
 
     // Index two docs with the same content so vector similarity is comparable
@@ -295,7 +295,7 @@ async fn test_index_vault_removes_stale_embeddings() {
     let dir = tempfile::tempdir().unwrap();
     let kb_root = dir.path().to_str().unwrap();
     let index = VectorIndex::new(kb_root).await;
-    let embed = EmbedProviderEnum::new(kb_root).await;
+    let embed = EmbedProviderEnum::new(kb_root);
     let vault = VaultState::new(kb_root).await;
 
     // First vault state: file contains "Old Section"

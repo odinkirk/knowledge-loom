@@ -2,6 +2,7 @@ use std::hash::Hasher;
 use std::path::Path;
 use std::sync::Arc;
 
+#[derive(Clone)]
 #[allow(dead_code)]
 pub struct LocalEmbedProvider {
     models_dir: Arc<Path>,

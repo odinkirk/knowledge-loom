@@ -48,24 +48,35 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
+**Constitutional Compliance**: This phase addresses constitutional requirements:
+- **III. Test-First Development**: TDD approach with 80% coverage target
+- **IV. Integration Testing**: Provider switching and fallback behavior tests
+- **V. Quality Gates**: fmt, clippy, test, coverage, deny checks
+- **VII. Performance Standards**: <100ms local, <500ms Ollama, <1s OpenRouter targets
+- **VIII. Documentation Requirements**: Doc comments and architecture updates
+
 - [ ] T008 Create error types module in src/embed/error.rs
 - [ ] T009 [P] Define EmbedError enum variants in src/embed/error.rs
 - [ ] T010 [P] Implement thiserror derive macro for EmbedError in src/embed/error.rs
 - [ ] T011 Define EmbedProvider trait in src/embed/mod.rs
-- [ ] T012 [P] Add async trait attribute to EmbedProvider in src/embed/mod.rs
+- [ ] T012 [P] Add doc comments to EmbedProvider trait in src/embed/mod.rs
 - [ ] T013 [P] Define embed method signature in EmbedProvider trait in src/embed/mod.rs
 - [ ] T014 [P] Define dimension method signature in EmbedProvider trait in src/embed/mod.rs
 - [ ] T015 Define EmbedProviderEnum struct in src/embed/mod.rs
-- [ ] T016 [P] Add local field to EmbedProviderEnum in src/embed/mod.rs
-- [ ] T017 [P] Add ollama field to EmbedProviderEnum in src/embed/mod.rs
-- [ ] T018 [P] Add openrouter field to EmbedProviderEnum in src/embed/mod.rs
-- [ ] T019 [P] Add use_ollama field to EmbedProviderEnum in src/embed/mod.rs
-- [ ] T020 [P] Add use_openrouter field to EmbedProviderEnum in src/embed/mod.rs
-- [ ] T021 Implement EmbedProviderEnum::new in src/embed/mod.rs
-- [ ] T022 [P] Implement EmbedProviderEnum::embed in src/embed/mod.rs
-- [ ] T023 [P] Implement EmbedProviderEnum::dimension in src/embed/mod.rs
-- [ ] T024 [P] Add integration test scaffolding in tests/integration.rs
-- [ ] T025 [P] Setup performance benchmarks in tests/benchmarks.rs
+- [ ] T016 [P] Add doc comments to EmbedProviderEnum in src/embed/mod.rs
+- [ ] T017 [P] Add local field to EmbedProviderEnum in src/embed/mod.rs
+- [ ] T018 [P] Add ollama field to EmbedProviderEnum in src/embed/mod.rs
+- [ ] T019 [P] Add openrouter field to EmbedProviderEnum in src/embed/mod.rs
+- [ ] T020 [P] Add use_ollama field to EmbedProviderEnum in src/embed/mod.rs
+- [ ] T021 [P] Add use_openrouter field to EmbedProviderEnum in src/embed/mod.rs
+- [ ] T022 Implement EmbedProviderEnum::new in src/embed/mod.rs
+- [ ] T023 [P] Implement EmbedProviderEnum::embed in src/embed/mod.rs
+- [ ] T024 [P] Implement EmbedProviderEnum::dimension in src/embed/mod.rs
+- [ ] T025 [P] Add integration test scaffolding for provider switching in tests/integration.rs
+- [ ] T026 [P] Add integration test scaffolding for fallback behavior in tests/integration.rs
+- [ ] T027 [P] Setup performance benchmarks in tests/benchmarks.rs
+- [ ] T028 [P] Add tarpaulin dependency to Cargo.toml for coverage measurement
+- [ ] T029 [P] Create coverage verification script in scripts/verify_coverage.sh
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -77,26 +88,45 @@
 
 **Independent Test**: Can be fully tested by indexing a test corpus and verifying that semantically similar documents (e.g., "machine learning" and "neural networks") are ranked higher than unrelated documents, delivering accurate semantic search results
 
+**Constitutional Compliance**: This phase addresses constitutional requirements:
+- **III. Test-First Development**: TDD approach with tests written before implementation
+- **V. Quality Gates**: All tests must pass before committing
+- **VII. Performance Standards**: <100ms local embedding target
+- **VIII. Documentation Requirements**: Doc comments for all public APIs
+
 ### Implementation for User Story 1
 
-- [ ] T026 [P] Create LocalEmbedProvider struct in src/embed/local.rs
-- [ ] T027 [P] Add models_dir field to LocalEmbedProvider in src/embed/local.rs
-- [ ] T028 [P] Add model field to LocalEmbedProvider in src/embed/local.rs
-- [ ] T029 Implement LocalEmbedProvider::new in src/embed/local.rs
-- [ ] T030 [P] Implement LocalEmbedProvider::embed in src/embed/local.rs
-- [ ] T031 [P] Implement LocalEmbedProvider::dimension in src/embed/local.rs
-- [ ] T032 [P] Implement model download logic in src/embed/local.rs
-- [ ] T033 [P] Implement model caching in src/embed/local.rs
-- [ ] T034 [P] Implement model integrity validation in src/embed/local.rs
-- [ ] T035 [P] Add SHA256 hash validation in src/embed/local.rs
-- [ ] T036 [P] Implement model auto-retry on corruption in src/embed/local.rs
-- [ ] T037 [P] Add logging for model operations in src/embed/local.rs
-- [ ] T038 [P] Add error handling for model download in src/embed/local.rs
-- [ ] T039 [P] Add error handling for model loading in src/embed/local.rs
-- [ ] T040 [P] Add error handling for embedding generation in src/embed/local.rs
-- [ ] T041 [P] Add unit tests for LocalEmbedProvider in tests/embed_tests.rs
-- [ ] T042 [P] Add integration tests for local provider in tests/integration.rs
-- [ ] T043 [P] Add performance benchmarks for local provider in tests/benchmarks.rs
+- [ ] T030 [P] Write failing test for LocalEmbedProvider::new in tests/embed_tests.rs
+- [ ] T031 [P] Write failing test for LocalEmbedProvider::embed in tests/embed_tests.rs
+- [ ] T032 [P] Write failing test for LocalEmbedProvider::dimension in tests/embed_tests.rs
+- [ ] T033 [P] Write failing test for model download in tests/embed_tests.rs
+- [ ] T034 [P] Write failing test for model caching in tests/embed_tests.rs
+- [ ] T035 [P] Write failing test for model integrity validation in tests/embed_tests.rs
+- [ ] T036 [P] Write failing test for model auto-retry on corruption in tests/embed_tests.rs
+- [ ] T037 [P] Write failing test for error handling in tests/embed_tests.rs
+- [ ] T038 [P] Write failing test for performance (<100ms target) in tests/benchmarks.rs
+- [ ] T039 Create LocalEmbedProvider struct in src/embed/local.rs
+- [ ] T040 [P] Add doc comments to LocalEmbedProvider in src/embed/local.rs
+- [ ] T041 [P] Add models_dir field to LocalEmbedProvider in src/embed/local.rs
+- [ ] T042 [P] Add model field to LocalEmbedProvider in src/embed/local.rs
+- [ ] T043 Implement LocalEmbedProvider::new in src/embed/local.rs (tests should now pass)
+- [ ] T044 [P] Implement LocalEmbedProvider::embed in src/embed/local.rs (tests should now pass)
+- [ ] T045 [P] Implement LocalEmbedProvider::dimension in src/embed/local.rs (tests should now pass)
+- [ ] T046 [P] Implement model download logic in src/embed/local.rs (tests should now pass)
+- [ ] T047 [P] Implement model caching in src/embed/local.rs (tests should now pass)
+- [ ] T048 [P] Implement model integrity validation in src/embed/local.rs (tests should now pass)
+- [ ] T049 [P] Add SHA256 hash validation in src/embed/local.rs (tests should now pass)
+- [ ] T050 [P] Implement model auto-retry on corruption in src/embed/local.rs (tests should now pass)
+- [ ] T051 [P] Add logging for model operations in src/embed/local.rs
+- [ ] T052 [P] Add error handling for model download in src/embed/local.rs (tests should now pass)
+- [ ] T053 [P] Add error handling for model loading in src/embed/local.rs (tests should now pass)
+- [ ] T054 [P] Add error handling for embedding generation in src/embed/local.rs (tests should now pass)
+- [ ] T055 [P] Add integration tests for local provider in tests/integration.rs
+- [ ] T056 [P] Verify performance benchmarks meet <100ms target in tests/benchmarks.rs
+- [ ] T057 [P] Run `cargo fmt --all -- --check` to verify formatting
+- [ ] T058 [P] Run `cargo clippy -- -D warnings` to verify linting
+- [ ] T059 [P] Run `cargo test --all-features` to verify all tests pass
+- [ ] T060 [P] Run code coverage check (minimum 80% required)
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
 
@@ -108,50 +138,90 @@
 
 **Independent Test**: Can be fully tested by setting OLLAMA_URL or OPENROUTER_API_KEY environment variable and verifying that embeddings are generated via the respective API calls, delivering external embedding functionality
 
+**Constitutional Compliance**: This phase addresses constitutional requirements:
+- **III. Test-First Development**: TDD approach with tests written before implementation
+- **IV. Integration Testing**: Provider switching and fallback behavior tests
+- **V. Quality Gates**: All tests must pass before committing
+- **VII. Performance Standards**: <500ms Ollama, <1s OpenRouter targets
+- **VIII. Documentation Requirements**: Doc comments for all public APIs
+
 ### Implementation for User Story 2
 
-- [ ] T044 [P] Create OllamaEmbedProvider struct in src/embed/ollama.rs
-- [ ] T045 [P] Add ollama_url field to OllamaEmbedProvider in src/embed/ollama.rs
-- [ ] T046 [P] Add model field to OllamaEmbedProvider in src/embed/ollama.rs
-- [ ] T047 [P] Add client field to OllamaEmbedProvider in src/embed/ollama.rs
-- [ ] T048 [P] Add timeout field to OllamaEmbedProvider in src/embed/ollama.rs
-- [ ] T049 [P] Implement OllamaEmbedProvider::new in src/embed/ollama.rs
-- [ ] T050 [P] Implement OllamaEmbedProvider::embed in src/embed/ollama.rs
-- [ ] T051 [P] Implement OllamaEmbedProvider::dimension in src/embed/ollama.rs
-- [ ] T052 [P] Implement HTTP request logic in src/embed/ollama.rs
-- [ ] T053 [P] Implement JSON serialization in src/embed/ollama.rs
-- [ ] T054 [P] Implement JSON deserialization in src/embed/ollama.rs
-- [ ] T055 [P] Implement timeout handling in src/embed/ollama.rs
-- [ ] T056 [P] Implement HTTP error handling in src/embed/ollama.rs
-- [ ] T057 [P] Implement dimension validation in src/embed/ollama.rs
-- [ ] T058 [P] Add logging for Ollama operations in src/embed/ollama.rs
-- [ ] T059 [P] Add error handling for network issues in src/embed/ollama.rs
-- [ ] T060 [P] Create OpenRouterEmbedProvider struct in src/embed/openrouter.rs
-- [ ] T061 [P] Add api_key field to OpenRouterEmbedProvider in src/embed/openrouter.rs
-- [ ] T062 [P] Add model field to OpenRouterEmbedProvider in src/embed/openrouter.rs
-- [ ] T063 [P] Add client field to OpenRouterEmbedProvider in src/embed/openrouter.rs
-- [ ] T064 [P] Add timeout field to OpenRouterEmbedProvider in src/embed/openrouter.rs
-- [ ] T065 [P] Implement OpenRouterEmbedProvider::new in src/embed/openrouter.rs
-- [ ] T066 [P] Implement OpenRouterEmbedProvider::embed in src/embed/openrouter.rs
-- [ ] T067 [P] Implement OpenRouterEmbedProvider::dimension in src/embed/openrouter.rs
-- [ ] T068 [P] Implement HTTP request logic in src/embed/openrouter.rs
-- [ ] T069 [P] Implement Bearer token authentication in src/embed/openrouter.rs
-- [ ] T070 [P] Implement JSON serialization in src/embed/openrouter.rs
-- [ ] T071 [P] Implement JSON deserialization in src/embed/openrouter.rs
-- [ ] T072 [P] Implement timeout handling in src/embed/openrouter.rs
-- [ ] T073 [P] Implement HTTP error handling in src/embed/openrouter.rs
-- [ ] T074 [P] Implement dimension validation in src/embed/openrouter.rs
-- [ ] T075 [P] Add logging for OpenRouter operations in src/embed/openrouter.rs
-- [ ] T076 [P] Add error handling for network issues in src/embed/openrouter.rs
-- [ ] T077 [P] Implement provider priority chain in src/embed/mod.rs
-- [ ] T078 [P] Implement fallback logic in EmbedProviderEnum::embed in src/embed/mod.rs
-- [ ] T079 [P] Add warning logging for provider failures in src/embed/mod.rs
-- [ ] T080 [P] Add unit tests for OllamaEmbedProvider in tests/embed_tests.rs
-- [ ] T081 [P] Add unit tests for OpenRouterEmbedProvider in tests/embed_tests.rs
-- [ ] T082 [P] Add integration tests for provider switching in tests/integration.rs
-- [ ] T083 [P] Add integration tests for fallback behavior in tests/integration.rs
-- [ ] T084 [P] Add performance benchmarks for Ollama provider in tests/benchmarks.rs
-- [ ] T085 [P] Add performance benchmarks for OpenRouter provider in tests/benchmarks.rs
+#### Ollama Provider
+
+- [ ] T061 [P] Write failing test for OllamaEmbedProvider::new in tests/embed_tests.rs
+- [ ] T062 [P] Write failing test for OllamaEmbedProvider::embed in tests/embed_tests.rs
+- [ ] T063 [P] Write failing test for OllamaEmbedProvider::dimension in tests/embed_tests.rs
+- [ ] T064 [P] Write failing test for HTTP request logic in tests/embed_tests.rs
+- [ ] T065 [P] Write failing test for timeout handling in tests/embed_tests.rs
+- [ ] T066 [P] Write failing test for HTTP error handling in tests/embed_tests.rs
+- [ ] T067 [P] Write failing test for dimension validation in tests/embed_tests.rs
+- [ ] T068 [P] Write failing test for performance (<500ms target) in tests/benchmarks.rs
+- [ ] T069 Create OllamaEmbedProvider struct in src/embed/ollama.rs
+- [ ] T070 [P] Add doc comments to OllamaEmbedProvider in src/embed/ollama.rs
+- [ ] T071 [P] Add ollama_url field to OllamaEmbedProvider in src/embed/ollama.rs
+- [ ] T072 [P] Add model field to OllamaEmbedProvider in src/embed/ollama.rs
+- [ ] T073 [P] Add client field to OllamaEmbedProvider in src/embed/ollama.rs
+- [ ] T074 [P] Add timeout field to OllamaEmbedProvider in src/embed/ollama.rs
+- [ ] T075 Implement OllamaEmbedProvider::new in src/embed/ollama.rs (tests should now pass)
+- [ ] T076 [P] Implement OllamaEmbedProvider::embed in src/embed/ollama.rs (tests should now pass)
+- [ ] T077 [P] Implement OllamaEmbedProvider::dimension in src/embed/ollama.rs (tests should now pass)
+- [ ] T078 [P] Implement HTTP request logic in src/embed/ollama.rs (tests should now pass)
+- [ ] T079 [P] Implement JSON serialization in src/embed/ollama.rs
+- [ ] T080 [P] Implement JSON deserialization in src/embed/ollama.rs
+- [ ] T081 [P] Implement timeout handling in src/embed/ollama.rs (tests should now pass)
+- [ ] T082 [P] Implement HTTP error handling in src/embed/ollama.rs (tests should now pass)
+- [ ] T083 [P] Implement dimension validation in src/embed/ollama.rs (tests should now pass)
+- [ ] T084 [P] Add logging for Ollama operations in src/embed/ollama.rs
+- [ ] T085 [P] Add error handling for network issues in src/embed/ollama.rs (tests should now pass)
+
+#### OpenRouter Provider
+
+- [ ] T086 [P] Write failing test for OpenRouterEmbedProvider::new in tests/embed_tests.rs
+- [ ] T087 [P] Write failing test for OpenRouterEmbedProvider::embed in tests/embed_tests.rs
+- [ ] T088 [P] Write failing test for OpenRouterEmbedProvider::dimension in tests/embed_tests.rs
+- [ ] T089 [P] Write failing test for HTTP request logic in tests/embed_tests.rs
+- [ ] T090 [P] Write failing test for Bearer token authentication in tests/embed_tests.rs
+- [ ] T091 [P] Write failing test for timeout handling in tests/embed_tests.rs
+- [ ] T092 [P] Write failing test for HTTP error handling in tests/embed_tests.rs
+- [ ] T093 [P] Write failing test for dimension validation in tests/embed_tests.rs
+- [ ] T094 [P] Write failing test for performance (<1s target) in tests/benchmarks.rs
+- [ ] T095 Create OpenRouterEmbedProvider struct in src/embed/openrouter.rs
+- [ ] T096 [P] Add doc comments to OpenRouterEmbedProvider in src/embed/openrouter.rs
+- [ ] T097 [P] Add api_key field to OpenRouterEmbedProvider in src/embed/openrouter.rs
+- [ ] T098 [P] Add model field to OpenRouterEmbedProvider in src/embed/openrouter.rs
+- [ ] T099 [P] Add client field to OpenRouterEmbedProvider in src/embed/openrouter.rs
+- [ ] T100 [P] Add timeout field to OpenRouterEmbedProvider in src/embed/openrouter.rs
+- [ ] T101 Implement OpenRouterEmbedProvider::new in src/embed/openrouter.rs (tests should now pass)
+- [ ] T102 [P] Implement OpenRouterEmbedProvider::embed in src/embed/openrouter.rs (tests should now pass)
+- [ ] T103 [P] Implement OpenRouterEmbedProvider::dimension in src/embed/openrouter.rs (tests should now pass)
+- [ ] T104 [P] Implement HTTP request logic in src/embed/openrouter.rs (tests should now pass)
+- [ ] T105 [P] Implement Bearer token authentication in src/embed/openrouter.rs (tests should now pass)
+- [ ] T106 [P] Implement JSON serialization in src/embed/openrouter.rs
+- [ ] T107 [P] Implement JSON deserialization in src/embed/openrouter.rs
+- [ ] T108 [P] Implement timeout handling in src/embed/openrouter.rs (tests should now pass)
+- [ ] T109 [P] Implement HTTP error handling in src/embed/openrouter.rs (tests should now pass)
+- [ ] T110 [P] Implement dimension validation in src/embed/openrouter.rs (tests should now pass)
+- [ ] T111 [P] Add logging for OpenRouter operations in src/embed/openrouter.rs
+- [ ] T112 [P] Add error handling for network issues in src/embed/openrouter.rs (tests should now pass)
+
+#### Provider Switching and Fallback
+
+- [ ] T113 [P] Write failing test for provider priority chain in tests/integration.rs
+- [ ] T114 [P] Write failing test for fallback logic in tests/integration.rs
+- [ ] T115 [P] Write failing test for provider switching in tests/integration.rs
+- [ ] T116 [P] Write failing test for warning logging for provider failures in tests/integration.rs
+- [ ] T117 [P] Implement provider priority chain in src/embed/mod.rs (tests should now pass)
+- [ ] T118 [P] Implement fallback logic in EmbedProviderEnum::embed in src/embed/mod.rs (tests should now pass)
+- [ ] T119 [P] Add warning logging for provider failures in src/embed/mod.rs (tests should now pass)
+- [ ] T120 [P] Add integration tests for provider switching in tests/integration.rs
+- [ ] T121 [P] Add integration tests for fallback behavior in tests/integration.rs
+- [ ] T122 [P] Verify performance benchmarks meet <500ms Ollama target in tests/benchmarks.rs
+- [ ] T123 [P] Verify performance benchmarks meet <1s OpenRouter target in tests/benchmarks.rs
+- [ ] T124 [P] Run `cargo fmt --all -- --check` to verify formatting
+- [ ] T125 [P] Run `cargo clippy -- -D warnings` to verify linting
+- [ ] T126 [P] Run `cargo test --all-features` to verify all tests pass
+- [ ] T127 [P] Run code coverage check (minimum 80% required)
 
 **Checkpoint**: At this point, User Stories 1 AND 2 should both work independently
 
@@ -161,26 +231,35 @@
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] T086 [P] Add doc comments (`///`) to all public functions in src/embed/
-- [ ] T087 [P] Add doc comments (`///`) to all public structs in src/embed/
-- [ ] T088 [P] Add inline comments for complex algorithms in src/embed/
-- [ ] T089 [P] Update ARCHITECTURE.md with embedding architecture changes
-- [ ] T090 [P] Update CHANGELOG.md with new embedding features
-- [ ] T091 [P] Update README.md with embedding provider configuration
-- [ ] T092 [P] Update README.md with OLLAMA_URL setup instructions
-- [ ] T093 [P] Update README.md with OPENROUTER_API_KEY setup instructions
-- [ ] T094 [P] Update README.md with OPENROUTER_MODEL setup instructions
-- [ ] T095 [P] Update README.md with fallback behavior documentation
-- [ ] T096 Code cleanup and refactoring in src/embed/
-- [ ] T097 Performance optimization for embedding generation
-- [ ] T098 [P] Run `cargo fmt --all -- --check` to verify formatting
-- [ ] T099 [P] Run `cargo clippy -- -D warnings` to verify linting
-- [ ] T100 [P] Run `cargo test --all-features` to verify all tests pass
-- [ ] T101 [P] Run code coverage check (minimum 80% required)
-- [ ] T102 [P] Run `cargo deny check licenses bans sources` for security
-- [ ] T103 Security hardening and dependency updates
-- [ ] T104 Verify MCP protocol compliance (no MCP changes in this feature)
-- [ ] T105 Verify performance targets (<100ms local, <500ms Ollama, <1s OpenRouter)
+**Constitutional Compliance**: This phase addresses constitutional requirements:
+- **V. Quality Gates**: All quality gates must pass before merge
+- **VIII. Documentation Requirements**: Complete documentation updates
+- **IX. Output Conventions**: Use eprintln! instead of println!
+
+- [ ] T128 [P] Add doc comments (`///`) to all public functions in src/embed/
+- [ ] T129 [P] Add doc comments (`///`) to all public structs in src/embed/
+- [ ] T130 [P] Add doc comments (`///`) to all public enums in src/embed/
+- [ ] T131 [P] Add inline comments for complex algorithms in src/embed/
+- [ ] T132 [P] Verify all debug output uses eprintln! instead of println! (Section IX)
+- [ ] T133 [P] Update ARCHITECTURE.md with embedding architecture changes
+- [ ] T134 [P] Update CHANGELOG.md with new embedding features
+- [ ] T135 [P] Update README.md with embedding provider configuration
+- [ ] T136 [P] Update README.md with OLLAMA_URL setup instructions
+- [ ] T137 [P] Update README.md with OPENROUTER_API_KEY setup instructions
+- [ ] T138 [P] Update README.md with OPENROUTER_MODEL setup instructions
+- [ ] T139 [P] Update README.md with fallback behavior documentation
+- [ ] T140 Code cleanup and refactoring in src/embed/
+- [ ] T141 Performance optimization for embedding generation
+- [ ] T142 [P] Run `cargo fmt --all -- --check` to verify formatting
+- [ ] T143 [P] Run `cargo clippy -- -D warnings` to verify linting
+- [ ] T144 [P] Run `cargo test --all-features` to verify all tests pass
+- [ ] T145 [P] Run code coverage check (minimum 80% required)
+- [ ] T146 [P] Run `cargo deny check licenses bans sources` for security
+- [ ] T147 Security hardening and dependency updates
+- [ ] T148 Verify MCP protocol compliance (no MCP changes in this feature)
+- [ ] T149 Verify performance targets (<100ms local, <500ms Ollama, <1s OpenRouter)
+- [ ] T150 [P] Create comprehensive test coverage report
+- [ ] T151 [P] Document any constitutional deviations with justification
 
 ---
 
@@ -274,12 +353,24 @@ Task: "Add timeout field to OpenRouterEmbedProvider in src/embed/openrouter.rs"
 
 ### Quality Gates (Must Pass Before Merge)
 
+**Constitutional Compliance Requirements**:
+- **III. Test-First Development**: TDD approach with 80% coverage minimum
+- **IV. Integration Testing**: Provider switching and fallback behavior tests
+- **V. Quality Gates**: All quality gates must pass
+- **VII. Performance Standards**: <100ms local, <500ms Ollama, <1s OpenRouter
+- **VIII. Documentation Requirements**: Doc comments and architecture updates
+- **IX. Output Conventions**: Use eprintln! instead of println!
+
+**Quality Gate Checklist**:
 - **Formatting**: `cargo fmt --all -- --check` must pass
 - **Linting**: `cargo clippy -- -D warnings` must pass
 - **Testing**: `cargo test --all-features` must pass
 - **Coverage**: Minimum 80% line coverage (measured via tarpaulin or similar)
 - **Security**: `cargo deny check licenses bans sources` must pass
 - **CI**: All GitHub Actions workflows must pass
+- **Performance**: All performance targets must be met
+- **Documentation**: All public APIs must have doc comments
+- **Output Conventions**: All debug output must use eprintln!
 
 ### Parallel Team Strategy
 
@@ -309,3 +400,46 @@ With multiple developers:
 - Mock external dependencies (Ollama, network calls)
 - Stop at any checkpoint to validate story independently
 - Avoid: vague tasks, same file conflicts, cross-story dependencies that break independence
+
+## Constitutional Compliance Summary
+
+This implementation plan addresses all constitutional requirements:
+
+### III. Test-First Development (NON-NEGOTIABLE)
+- ✅ TDD approach enforced: Write tests first → Get approval → Tests fail → Then implement
+- ✅ Red-Green-Refactor cycle strictly enforced
+- ✅ All tests must pass before committing
+- ✅ 80% code coverage minimum enforced via T145, T060, T127, T145
+
+### IV. Integration Testing
+- ✅ Integration tests for provider switching: T025, T113-T116, T120
+- ✅ Integration tests for fallback behavior: T026, T113-T116, T121
+- ✅ Integration tests for inter-module communication: T055, T120-T121
+
+### V. Quality Gates
+- ✅ Formatting checks: T057, T124, T142
+- ✅ Linting checks: T058, T125, T143
+- ✅ Testing checks: T059, T126, T144
+- ✅ Coverage checks: T060, T127, T145, T150
+- ✅ Security checks: T146
+- ✅ CI compliance: T148
+
+### VII. Performance Standards
+- ✅ Local embedding <100ms target: T038, T056
+- ✅ Ollama embedding <500ms target: T068, T122
+- ✅ OpenRouter embedding <1s target: T094, T123
+- ✅ Performance verification: T149
+
+### VIII. Documentation Requirements
+- ✅ Doc comments for public functions: T012, T040, T070, T096, T128
+- ✅ Doc comments for public structs: T016, T040, T070, T096, T129
+- ✅ Doc comments for public enums: T130
+- ✅ Inline comments for complex algorithms: T131
+- ✅ ARCHITECTURE.md updates: T133
+- ✅ CHANGELOG.md updates: T134
+- ✅ README.md updates: T135-T139
+
+### IX. Output Conventions (CRITICAL)
+- ✅ Use eprintln! instead of println!: T132
+- ✅ Reserve println! only for user-facing CLI output
+- ✅ All debug/logging output must use eprintln! or proper logging frameworks

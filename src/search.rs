@@ -32,7 +32,7 @@ impl SearchEngine {
     pub async fn new(kb_root: &str) -> Self {
         let bm25 = Arc::new(Mutex::new(BM25Index::new(kb_root).await));
         let vector = Arc::new(Mutex::new(VectorIndex::new(kb_root).await));
-        let embed = Arc::new(EmbedProviderEnum::new(kb_root).await);
+        let embed = Arc::new(EmbedProviderEnum::new(kb_root));
         let graph = Arc::new(Mutex::new(GraphState::new(kb_root).await));
         Self {
             bm25,

@@ -15,7 +15,7 @@ mod tests {
     async fn make_edit_manager_for_test(kb_root: &str) -> EditManager {
         let vault = Arc::new(Mutex::new(VaultState::new(kb_root).await));
         let bm25 = Arc::new(Mutex::new(BM25Index::new(kb_root).await));
-        let embed = Arc::new(EmbedProviderEnum::new(kb_root).await);
+        let embed = Arc::new(EmbedProviderEnum::new(kb_root));
         let vector = Arc::new(Mutex::new(VectorIndex::new(kb_root).await));
         let graph = Arc::new(Mutex::new(GraphState::new(kb_root).await));
         EditManager::new(kb_root.to_string(), vault, bm25, embed, vector, graph)
@@ -401,8 +401,8 @@ mod tests {
         let vector = Arc::new(Mutex::new(
             VectorIndex::new(kb_root.to_str().unwrap()).await,
         ));
-        let embed = Arc::new(
-            EmbedProviderEnum::new(kb_root.to_str().unwrap()).await,
+        let embed: Arc<EmbedProviderEnum> = Arc::new(
+            EmbedProviderEnum::new(kb_root.to_str().unwrap()),
         );
         let graph = Arc::new(Mutex::new(GraphState::new(kb_root.to_str().unwrap()).await));
 
@@ -482,7 +482,7 @@ mod tests {
 
         let bm25 = Arc::new(Mutex::new(BM25Index::new(kb_root).await));
         let vector = Arc::new(Mutex::new(VectorIndex::new(kb_root).await));
-        let embed = Arc::new(EmbedProviderEnum::new(kb_root).await);
+        let embed = Arc::new(EmbedProviderEnum::new(kb_root));
         let graph = Arc::new(Mutex::new(GraphState::new(kb_root).await));
         let engine = SearchEngine::from_components(bm25, vector, embed, graph);
 
@@ -505,7 +505,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let kb_root = dir.path().to_str().unwrap();
         let index = VectorIndex::new(kb_root).await;
-        let embed = EmbedProviderEnum::new(kb_root).await;
+        let embed = EmbedProviderEnum::new(kb_root);
         let vault = VaultState::new(kb_root).await;
 
         // First vault state: file has two sections
