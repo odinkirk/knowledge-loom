@@ -242,7 +242,11 @@ impl BM25Index {
         }
     }
 
-    pub async fn index_file(&mut self, path: &Path, content: &str) -> Result<(), tantivy::TantivyError> {
+    pub async fn index_file(
+        &mut self,
+        path: &Path,
+        content: &str,
+    ) -> Result<(), tantivy::TantivyError> {
         let path_str = path
             .strip_prefix(&self.kb_root)
             .unwrap_or(path)
@@ -318,7 +322,10 @@ impl BM25Index {
         let path_field = self.schema.get_field("path").unwrap();
         let path_term = Term::from_field_text(path_field, &relative_path);
         let term_query = TermQuery::new(path_term, IndexRecordOption::Basic);
-        let top_docs = searcher.search(&term_query, &tantivy::collector::TopDocs::with_limit(1000).order_by_score())?;
+        let top_docs = searcher.search(
+            &term_query,
+            &tantivy::collector::TopDocs::with_limit(1000).order_by_score(),
+        )?;
 
         let mut chunks = Vec::new();
         for (_, doc_address) in top_docs {
@@ -374,7 +381,10 @@ impl BM25Index {
         query_parser.set_conjunction_by_default();
 
         let query = query_parser.parse_query(query)?;
-        let top_docs = searcher.search(&query, &tantivy::collector::TopDocs::with_limit(limit).order_by_score())?;
+        let top_docs = searcher.search(
+            &query,
+            &tantivy::collector::TopDocs::with_limit(limit).order_by_score(),
+        )?;
 
         Ok(top_docs)
     }
@@ -395,7 +405,10 @@ impl BM25Index {
         );
 
         let query = query_parser.parse_query(query)?;
-        let top_docs = searcher.search(&query, &tantivy::collector::TopDocs::with_limit(limit).order_by_score())?;
+        let top_docs = searcher.search(
+            &query,
+            &tantivy::collector::TopDocs::with_limit(limit).order_by_score(),
+        )?;
 
         let mut results = Vec::new();
         for (score, doc_address) in top_docs {
@@ -463,7 +476,10 @@ impl BM25Index {
             (Occur::Must, path_query),
         ]);
 
-        let top_docs = searcher.search(&boolean_query, &tantivy::collector::TopDocs::with_limit(limit).order_by_score())?;
+        let top_docs = searcher.search(
+            &boolean_query,
+            &tantivy::collector::TopDocs::with_limit(limit).order_by_score(),
+        )?;
 
         let mut results = Vec::new();
         for (score, doc_address) in top_docs {

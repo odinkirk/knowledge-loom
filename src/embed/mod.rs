@@ -117,7 +117,7 @@ impl EmbedProviderEnum {
         let openrouter_api_key = std::env::var("OPENROUTER_API_KEY").ok();
         let openrouter_model = std::env::var("OPENROUTER_MODEL")
             .unwrap_or_else(|_| "openai/text-embedding-ada-002".to_string());
-        
+
         // Provider priority: OpenRouter > Ollama > Local
         if let Some(api_key) = openrouter_api_key {
             eprintln!("Using OpenRouter embedding provider");

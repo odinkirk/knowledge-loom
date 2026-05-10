@@ -25,23 +25,15 @@ pub enum EmbedError {
 
     /// Dimension mismatch between providers
     #[error("Dimension mismatch: expected {expected}, got {actual}")]
-    DimensionMismatch {
-        expected: usize,
-        actual: usize,
-    },
+    DimensionMismatch { expected: usize, actual: usize },
 
     /// Timeout occurred during operation
     #[error("Operation timed out after {timeout_secs} seconds")]
-    Timeout {
-        timeout_secs: u64,
-    },
+    Timeout { timeout_secs: u64 },
 
     /// HTTP error occurred (for external providers)
     #[error("HTTP error: {status} - {message}")]
-    HttpError {
-        status: u16,
-        message: String,
-    },
+    HttpError { status: u16, message: String },
 
     /// Invalid response format from external provider
     #[error("Invalid response format: {0}")]
@@ -176,7 +168,13 @@ mod tests {
         assert!(matches!(err, EmbedError::ConfigurationError(_)));
 
         let err = EmbedError::dimension_mismatch(384, 512);
-        assert!(matches!(err, EmbedError::DimensionMismatch { expected: 384, actual: 512 }));
+        assert!(matches!(
+            err,
+            EmbedError::DimensionMismatch {
+                expected: 384,
+                actual: 512
+            }
+        ));
 
         let err = EmbedError::timeout(5);
         assert!(matches!(err, EmbedError::Timeout { timeout_secs: 5 }));
@@ -228,8 +226,7 @@ mod tests {
     #[test]
     fn test_error_from_json() {
         // Create a JSON error by trying to parse invalid JSON
-        let json_err = serde_json::from_str::<serde_json::Value>("invalid json")
-            .unwrap_err();
+        let json_err = serde_json::from_str::<serde_json::Value>("invalid json").unwrap_err();
         let embed_err = EmbedError::from(json_err);
         assert!(matches!(embed_err, EmbedError::JsonError(_)));
     }

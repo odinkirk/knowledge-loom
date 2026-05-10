@@ -76,7 +76,7 @@ impl OpenRouterEmbedProvider {
         // TODO: Implement actual OpenRouter API call
         // For now, return a hash-based stub
         eprintln!("OpenRouter embed called with: {}", text);
-        
+
         // Stub implementation - return hash-based embedding
         let hash = self.hash_text(text);
         let mut embedding = Vec::with_capacity(1536); // OpenAI ada-002 dimension

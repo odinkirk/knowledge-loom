@@ -1,7 +1,7 @@
 // Performance benchmarks for embedding providers
 // These benchmarks measure the performance of different embedding providers
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use knowledge_loom::embed::{LocalEmbedProvider, OllamaEmbedProvider, OpenRouterEmbedProvider};
 use std::path::PathBuf;
 
@@ -11,7 +11,7 @@ fn bench_local_provider(c: &mut Criterion) {
     let provider = LocalEmbedProvider::new(&models_dir);
 
     let mut group = c.benchmark_group("local_provider");
-    
+
     // Benchmark different text lengths
     for text_len in [10, 50, 100, 500, 1000].iter() {
         let text = "a".repeat(*text_len);
@@ -19,7 +19,7 @@ fn bench_local_provider(c: &mut Criterion) {
             b.iter(|| provider.embed(black_box(&text)))
         });
     }
-    
+
     group.finish();
 }
 
@@ -28,7 +28,7 @@ fn bench_ollama_provider(c: &mut Criterion) {
     let provider = OllamaEmbedProvider::new("http://localhost:11434".to_string());
 
     let mut group = c.benchmark_group("ollama_provider");
-    
+
     // Benchmark different text lengths
     for text_len in [10, 50, 100, 500, 1000].iter() {
         let text = "a".repeat(*text_len);
@@ -36,7 +36,7 @@ fn bench_ollama_provider(c: &mut Criterion) {
             b.iter(|| provider.embed(black_box(&text)))
         });
     }
-    
+
     group.finish();
 }
 
@@ -45,7 +45,7 @@ fn bench_openrouter_provider(c: &mut Criterion) {
     let provider = OpenRouterEmbedProvider::new("test-key", "openai/text-embedding-ada-002");
 
     let mut group = c.benchmark_group("openrouter_provider");
-    
+
     // Benchmark different text lengths
     for text_len in [10, 50, 100, 500, 1000].iter() {
         let text = "a".repeat(*text_len);
@@ -53,7 +53,7 @@ fn bench_openrouter_provider(c: &mut Criterion) {
             b.iter(|| provider.embed(black_box(&text)))
         });
     }
-    
+
     group.finish();
 }
 
@@ -77,8 +77,10 @@ fn bench_embedding_consistency(c: &mut Criterion) {
 fn bench_batch_embedding(c: &mut Criterion) {
     let models_dir = PathBuf::from(".knowledge-loom-index/models");
     let provider = LocalEmbedProvider::new(&models_dir);
-    
-    let texts: Vec<String> = (0..100).map(|i| format!("Test text number {}", i)).collect();
+
+    let texts: Vec<String> = (0..100)
+        .map(|i| format!("Test text number {}", i))
+        .collect();
 
     c.bench_function("batch_embedding_100", |b| {
         b.iter(|| {

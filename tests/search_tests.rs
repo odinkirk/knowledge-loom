@@ -401,9 +401,8 @@ mod tests {
         let vector = Arc::new(Mutex::new(
             VectorIndex::new(kb_root.to_str().unwrap()).await,
         ));
-        let embed: Arc<EmbedProviderEnum> = Arc::new(
-            EmbedProviderEnum::new(kb_root.to_str().unwrap()),
-        );
+        let embed: Arc<EmbedProviderEnum> =
+            Arc::new(EmbedProviderEnum::new(kb_root.to_str().unwrap()));
         let graph = Arc::new(Mutex::new(GraphState::new(kb_root.to_str().unwrap()).await));
 
         // Create engine from components
@@ -487,9 +486,7 @@ mod tests {
         let engine = SearchEngine::from_components(bm25, vector, embed, graph);
 
         // Empty pagerank map: no boost expected, function should return Ok
-        let query_vec = {
-            engine.embed.embed("alpha")
-        };
+        let query_vec = { engine.embed.embed("alpha") };
         let pagerank = std::collections::HashMap::new();
         let result = engine
             .search_graph_fused_inner(&query_vec, &pagerank, 5)

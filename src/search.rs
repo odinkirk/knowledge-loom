@@ -68,9 +68,7 @@ impl SearchEngine {
         // Pre-hoist shared computations before the join to avoid mutex contention:
         // both the semantic branch and graph-fused branch would otherwise race on
         // self.embed and self.graph locks, serializing what should be parallel work.
-        let query_vec = {
-            self.embed.embed(query)
-        };
+        let query_vec = { self.embed.embed(query) };
         let cached_pagerank = { self.graph.lock().await.get_cached_analytics().await.0 };
 
         let (bm25_results, semantic_results, graph_results, fused_results) = tokio::join!(

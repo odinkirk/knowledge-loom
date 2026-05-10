@@ -238,12 +238,20 @@ async fn test_graph_fused_inner_reranks_by_pagerank() {
     // Index two docs with the same content so vector similarity is comparable
     {
         let v = vector.lock().await;
-        v.index_file(&dir.path().join("high_pr.md"), "async futures in rust", &embed)
-            .await
-            .unwrap();
-        v.index_file(&dir.path().join("low_pr.md"), "async futures in rust", &embed)
-            .await
-            .unwrap();
+        v.index_file(
+            &dir.path().join("high_pr.md"),
+            "async futures in rust",
+            &embed,
+        )
+        .await
+        .unwrap();
+        v.index_file(
+            &dir.path().join("low_pr.md"),
+            "async futures in rust",
+            &embed,
+        )
+        .await
+        .unwrap();
     }
 
     let engine = SearchEngine::from_components(
@@ -255,9 +263,7 @@ async fn test_graph_fused_inner_reranks_by_pagerank() {
         Arc::new(Mutex::new(GraphState::new(kb_root).await)),
     );
 
-    let query_vec = {
-        embed.embed("async futures")
-    };
+    let query_vec = { embed.embed("async futures") };
 
     // Build a pagerank map where high_pr dominates
     let mut pagerank: std::collections::HashMap<String, f64> = std::collections::HashMap::new();

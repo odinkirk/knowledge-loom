@@ -9,7 +9,9 @@ pub struct OllamaEmbedProvider {
 
 impl OllamaEmbedProvider {
     pub fn new(ollama_url: String) -> Self {
-        Self { ollama_url: ollama_url.into() }
+        Self {
+            ollama_url: ollama_url.into(),
+        }
     }
 
     pub fn embed(&self, text: &str) -> Vec<f32> {

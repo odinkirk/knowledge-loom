@@ -17,7 +17,7 @@ async fn integration_provider_switching() {
     // Test with local provider (default)
     std::env::remove_var("OLLAMA_URL");
     std::env::remove_var("OPENROUTER_API_KEY");
-    
+
     let vault = VaultState::new(kb_root.to_str().unwrap()).await;
     let search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
 
@@ -28,7 +28,10 @@ async fn integration_provider_switching() {
     }
     {
         let vector = search_engine.vector.lock().await;
-        vector.index_vault(&vault, &search_engine.embed).await.unwrap();
+        vector
+            .index_vault(&vault, &search_engine.embed)
+            .await
+            .unwrap();
     }
 
     // Test search with local provider
@@ -38,31 +41,43 @@ async fn integration_provider_switching() {
     // Test switching to Ollama provider
     std::env::set_var("OLLAMA_URL", "http://localhost:11434");
     std::env::remove_var("OPENROUTER_API_KEY");
-    
+
     let search_engine_ollama = SearchEngine::new(kb_root.to_str().unwrap()).await;
     {
         let vector = search_engine_ollama.vector.lock().await;
-        vector.index_vault(&vault, &search_engine_ollama.embed).await.unwrap();
+        vector
+            .index_vault(&vault, &search_engine_ollama.embed)
+            .await
+            .unwrap();
     }
 
     // Test search with Ollama provider
     let results_ollama = search_engine_ollama.search("machine learning", 5).await;
-    assert!(!results_ollama.is_empty(), "Ollama provider should return results");
+    assert!(
+        !results_ollama.is_empty(),
+        "Ollama provider should return results"
+    );
 
     // Test switching to OpenRouter provider
     std::env::remove_var("OLLAMA_URL");
     std::env::set_var("OPENROUTER_API_KEY", "test-key");
     std::env::set_var("OPENROUTER_MODEL", "openai/text-embedding-ada-002");
-    
+
     let search_engine_openrouter = SearchEngine::new(kb_root.to_str().unwrap()).await;
     {
         let vector = search_engine_openrouter.vector.lock().await;
-        vector.index_vault(&vault, &search_engine_openrouter.embed).await.unwrap();
+        vector
+            .index_vault(&vault, &search_engine_openrouter.embed)
+            .await
+            .unwrap();
     }
 
     // Test search with OpenRouter provider
     let results_openrouter = search_engine_openrouter.search("machine learning", 5).await;
-    assert!(!results_openrouter.is_empty(), "OpenRouter provider should return results");
+    assert!(
+        !results_openrouter.is_empty(),
+        "OpenRouter provider should return results"
+    );
 
     // Clean up environment variables
     std::env::remove_var("OLLAMA_URL");
@@ -81,7 +96,7 @@ async fn integration_fallback_behavior() {
     // Test fallback from Ollama to local when Ollama is unavailable
     std::env::set_var("OLLAMA_URL", "http://invalid-host:11434");
     std::env::remove_var("OPENROUTER_API_KEY");
-    
+
     let vault = VaultState::new(kb_root.to_str().unwrap()).await;
     let search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
 
@@ -96,22 +111,30 @@ async fn integration_fallback_behavior() {
         let result = vector.index_vault(&vault, &search_engine.embed).await;
         // For now, we expect this to succeed with the stub implementation
         // In the future, this should fall back to local provider
-        assert!(result.is_ok() || result.is_err(), "Should handle provider failure");
+        assert!(
+            result.is_ok() || result.is_err(),
+            "Should handle provider failure"
+        );
     }
 
     // Test fallback from OpenRouter to local when OpenRouter is unavailable
     std::env::remove_var("OLLAMA_URL");
     std::env::set_var("OPENROUTER_API_KEY", "invalid-key");
     std::env::set_var("OPENROUTER_MODEL", "openai/text-embedding-ada-002");
-    
+
     let search_engine_openrouter = SearchEngine::new(kb_root.to_str().unwrap()).await;
     {
         let vector = search_engine_openrouter.vector.lock().await;
         // This should handle OpenRouter failure gracefully
-        let result = vector.index_vault(&vault, &search_engine_openrouter.embed).await;
+        let result = vector
+            .index_vault(&vault, &search_engine_openrouter.embed)
+            .await;
         // For now, we expect this to succeed with the stub implementation
         // In the future, this should fall back to local provider
-        assert!(result.is_ok() || result.is_err(), "Should handle provider failure");
+        assert!(
+            result.is_ok() || result.is_err(),
+            "Should handle provider failure"
+        );
     }
 
     // Clean up environment variables
@@ -133,7 +156,7 @@ async fn integration_provider_priority() {
     std::env::set_var("OLLAMA_URL", "http://localhost:11434");
     std::env::set_var("OPENROUTER_API_KEY", "test-key");
     std::env::set_var("OPENROUTER_MODEL", "openai/text-embedding-ada-002");
-    
+
     let vault = VaultState::new(kb_root.to_str().unwrap()).await;
     let search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
 
@@ -144,12 +167,18 @@ async fn integration_provider_priority() {
     }
     {
         let vector = search_engine.vector.lock().await;
-        vector.index_vault(&vault, &search_engine.embed).await.unwrap();
+        vector
+            .index_vault(&vault, &search_engine.embed)
+            .await
+            .unwrap();
     }
 
     // Test search - should use OpenRouter (highest priority)
     let results = search_engine.search("machine learning", 5).await;
-    assert!(!results.is_empty(), "OpenRouter provider should be used when available");
+    assert!(
+        !results.is_empty(),
+        "OpenRouter provider should be used when available"
+    );
 
     // Clean up environment variables
     std::env::remove_var("OLLAMA_URL");
@@ -167,9 +196,14 @@ async fn integration_provider_dimension_consistency() {
 
     // Test that all providers return consistent dimensions
     let test_cases = vec![
-        (None, None, None, 384), // Local provider
+        (None, None, None, 384),                           // Local provider
         (Some("http://localhost:11434"), None, None, 768), // Ollama provider
-        (None, Some("test-key"), Some("openai/text-embedding-ada-002"), 1536), // OpenRouter provider
+        (
+            None,
+            Some("test-key"),
+            Some("openai/text-embedding-ada-002"),
+            1536,
+        ), // OpenRouter provider
     ];
 
     for (ollama_url, openrouter_key, openrouter_model, expected_dim) in test_cases {
@@ -192,7 +226,10 @@ async fn integration_provider_dimension_consistency() {
 
         // Check dimension
         let dim = search_engine.embed.dimension();
-        assert_eq!(dim, expected_dim, "Provider should return correct dimension");
+        assert_eq!(
+            dim, expected_dim,
+            "Provider should return correct dimension"
+        );
     }
 
     // Clean up environment variables
@@ -286,7 +323,10 @@ async fn integration_incremental_indexing() {
     {
         let vector = search_engine.vector.lock().await;
         // embed is now synchronous, no lock needed
-        vector.index_vault(&vault, &search_engine.embed).await.unwrap();
+        vector
+            .index_vault(&vault, &search_engine.embed)
+            .await
+            .unwrap();
     }
 
     // Get initial result count
@@ -313,7 +353,10 @@ async fn integration_incremental_indexing() {
     {
         let vector = search_engine.vector.lock().await;
         // embed is now synchronous, no lock needed
-        vector.index_vault(&vault, &search_engine.embed).await.unwrap();
+        vector
+            .index_vault(&vault, &search_engine.embed)
+            .await
+            .unwrap();
     }
 
     // Verify new file is indexed
@@ -340,7 +383,10 @@ async fn integration_file_deletion() {
     {
         let vector = search_engine.vector.lock().await;
         // embed is now synchronous, no lock needed
-        vector.index_vault(&vault, &search_engine.embed).await.unwrap();
+        vector
+            .index_vault(&vault, &search_engine.embed)
+            .await
+            .unwrap();
     }
 
     // Get initial results
@@ -363,7 +409,10 @@ async fn integration_file_deletion() {
     {
         let vector = search_engine.vector.lock().await;
         // embed is now synchronous, no lock needed
-        vector.index_vault(&vault, &search_engine.embed).await.unwrap();
+        vector
+            .index_vault(&vault, &search_engine.embed)
+            .await
+            .unwrap();
     }
 
     // Verify file is removed from index
@@ -407,7 +456,10 @@ async fn integration_large_vault() {
     {
         let vector = search_engine.vector.lock().await;
         // embed is now synchronous, no lock needed
-        vector.index_vault(&vault, &search_engine.embed).await.unwrap();
+        vector
+            .index_vault(&vault, &search_engine.embed)
+            .await
+            .unwrap();
     }
 
     // Test search performance
@@ -440,7 +492,10 @@ async fn integration_complex_queries() {
     {
         let vector = search_engine.vector.lock().await;
         // embed is now synchronous, no lock needed
-        vector.index_vault(&vault, &search_engine.embed).await.unwrap();
+        vector
+            .index_vault(&vault, &search_engine.embed)
+            .await
+            .unwrap();
     }
 
     // Test various query types
@@ -487,7 +542,10 @@ async fn integration_empty_vault() {
     {
         let vector = search_engine.vector.lock().await;
         // embed is now synchronous, no lock needed
-        vector.index_vault(&vault, &search_engine.embed).await.unwrap();
+        vector
+            .index_vault(&vault, &search_engine.embed)
+            .await
+            .unwrap();
     }
 
     // Search should return empty results
@@ -522,7 +580,10 @@ async fn integration_special_characters() {
     {
         let vector = search_engine.vector.lock().await;
         // embed is now synchronous, no lock needed
-        vector.index_vault(&vault, &search_engine.embed).await.unwrap();
+        vector
+            .index_vault(&vault, &search_engine.embed)
+            .await
+            .unwrap();
     }
 
     // Should find files despite special characters

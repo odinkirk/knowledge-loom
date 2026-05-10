@@ -454,9 +454,7 @@ mod tests {
         let root = tmp.path().to_str().unwrap().to_string();
         let vault = Arc::new(Mutex::new(crate::vault::VaultState::new(&root).await));
         let bm25 = Arc::new(Mutex::new(crate::bm25::BM25Index::new(&root).await));
-        let embed = Arc::new(
-            crate::embed::EmbedProviderEnum::new(&root),
-        );
+        let embed = Arc::new(crate::embed::EmbedProviderEnum::new(&root));
         let vector = Arc::new(Mutex::new(crate::index::VectorIndex::new(&root).await));
         let graph = Arc::new(Mutex::new(crate::graph::GraphState::new(&root).await));
         let em = EditManager::new(root, vault.clone(), bm25, embed, vector, graph);
