@@ -156,24 +156,48 @@ impl EmbedProviderEnum {
             Self::Ollama(p) => {
                 match p.embed(text).await {
                     Ok(embedding) => Ok(embedding),
-                    Err(e) => {
-                        eprintln!("Ollama provider failed: {}, falling back to local", e);
+                    Err(ollama_error) => {
+                        eprintln!(
+                            "Ollama provider failed: {}, falling back to local",
+                            ollama_error
+                        );
                         // Fall back to local provider
                         let models_dir = std::path::PathBuf::from(".knowledge-loom-index/models");
                         let local = LocalEmbedProvider::new(&models_dir);
-                        local.embed(text).await
+                        match local.embed(text).await {
+                            Ok(embedding) => Ok(embedding),
+                            Err(local_error) => {
+                                // Wrap both errors with context about which providers failed
+                                Err(EmbedError::Custom(format!(
+                                    "Both Ollama and local providers failed. Ollama error: {}, Local error: {}",
+                                    ollama_error, local_error
+                                )))
+                            }
+                        }
                     }
                 }
             }
             Self::OpenRouter(p) => {
                 match p.embed(text).await {
                     Ok(embedding) => Ok(embedding),
-                    Err(e) => {
-                        eprintln!("OpenRouter provider failed: {}, falling back to local", e);
+                    Err(openrouter_error) => {
+                        eprintln!(
+                            "OpenRouter provider failed: {}, falling back to local",
+                            openrouter_error
+                        );
                         // Fall back to local provider
                         let models_dir = std::path::PathBuf::from(".knowledge-loom-index/models");
                         let local = LocalEmbedProvider::new(&models_dir);
-                        local.embed(text).await
+                        match local.embed(text).await {
+                            Ok(embedding) => Ok(embedding),
+                            Err(local_error) => {
+                                // Wrap both errors with context about which providers failed
+                                Err(EmbedError::Custom(format!(
+                                    "Both OpenRouter and local providers failed. OpenRouter error: {}, Local error: {}",
+                                    openrouter_error, local_error
+                                )))
+                            }
+                        }
                     }
                 }
             }

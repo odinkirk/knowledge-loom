@@ -68,7 +68,17 @@ impl SearchEngine {
         // Pre-hoist shared computations before the join to avoid mutex contention:
         // both the semantic branch and graph-fused branch would otherwise race on
         // self.embed and self.graph locks, serializing what should be parallel work.
-        let query_vec = { self.embed.embed(query).await.unwrap_or_default() };
+        let query_vec = {
+            match self.embed.embed(query).await {
+                Ok(vec) => vec,
+                Err(e) => {
+                    eprintln!("Failed to generate embedding for query: {}. Using empty vector as fallback.", e);
+                    // Return empty vector as fallback - this will result in poor search results
+                    // but prevents the entire search from failing
+                    Vec::new()
+                }
+            }
+        };
         let cached_pagerank = { self.graph.lock().await.get_cached_analytics().await.0 };
 
         let (bm25_results, semantic_results, graph_results, fused_results) = tokio::join!(
