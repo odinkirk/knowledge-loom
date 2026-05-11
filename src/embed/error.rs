@@ -1,6 +1,7 @@
 use thiserror::Error;
 
 /// Errors that can occur during embedding operations
+#[allow(dead_code)]
 #[derive(Error, Debug)]
 pub enum EmbedError {
     /// Error occurred while downloading the model
@@ -68,6 +69,7 @@ pub enum EmbedError {
     Custom(String),
 }
 
+#[allow(dead_code)]
 impl EmbedError {
     /// Create a model download error
     pub fn model_download_error(msg: impl Into<String>) -> Self {

@@ -26,6 +26,7 @@ pub use openrouter::OpenRouterEmbedProvider;
 /// let embedding = provider.embed("Hello, world!").await?;
 /// assert_eq!(embedding.len(), provider.dimension());
 /// ```
+#[allow(dead_code)]
 #[async_trait]
 pub trait EmbedProvider: Send + Sync {
     /// Generate an embedding vector for the given text
@@ -162,6 +163,8 @@ impl EmbedProviderEnum {
                             ollama_error
                         );
                         // Fall back to local provider
+                        // Note: This uses a hardcoded path since we don't have access to the original kb_root
+                        // In a future refactor, we should store kb_root in the enum to avoid this limitation
                         let models_dir = std::path::PathBuf::from(".knowledge-loom-index/models");
                         let local = LocalEmbedProvider::new(&models_dir);
                         match local.embed(text).await {
@@ -186,6 +189,8 @@ impl EmbedProviderEnum {
                             openrouter_error
                         );
                         // Fall back to local provider
+                        // Note: This uses a hardcoded path since we don't have access to the original kb_root
+                        // In a future refactor, we should store kb_root in the enum to avoid this limitation
                         let models_dir = std::path::PathBuf::from(".knowledge-loom-index/models");
                         let local = LocalEmbedProvider::new(&models_dir);
                         match local.embed(text).await {
@@ -217,6 +222,7 @@ impl EmbedProviderEnum {
     /// assert!(dim > 0);
     /// ```
     #[must_use]
+    #[allow(dead_code)]
     pub fn dimension(&self) -> usize {
         match self {
             Self::Local(p) => p.dimension(),

@@ -58,11 +58,22 @@ impl OpenRouterEmbedProvider {
     /// );
     /// ```
     pub fn new(api_key: impl Into<String>, model: impl Into<String>) -> Self {
-        let timeout = Duration::from_secs(10);
+        // Make timeout configurable via environment variable
+        let timeout_secs = std::env::var("OPENROUTER_TIMEOUT")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(10); // Default to 10 seconds
+        let timeout = Duration::from_secs(timeout_secs);
+
         let client = Client::builder()
             .timeout(timeout)
             .build()
             .expect("Failed to create HTTP client");
+
+        eprintln!(
+            "OpenRouter embedding provider initialized successfully with {}s timeout",
+            timeout_secs
+        );
 
         Self {
             api_key: api_key.into(),
@@ -117,7 +128,9 @@ impl OpenRouterEmbedProvider {
             .await
             .map_err(|e| {
                 if e.is_timeout() {
-                    EmbedError::Timeout { timeout_secs: 10 }
+                    EmbedError::Timeout {
+                        timeout_secs: self.timeout.as_secs(),
+                    }
                 } else if e.is_connect() {
                     EmbedError::NetworkError(format!("Failed to connect to OpenRouter: {}", e))
                 } else {
@@ -165,6 +178,7 @@ impl OpenRouterEmbedProvider {
     /// assert_eq!(dim, 1536); // for openai/text-embedding-ada-002
     /// ```
     #[must_use]
+    #[allow(dead_code)]
     pub fn dimension(&self) -> usize {
         1536 // OpenAI ada-002 dimension
     }

@@ -72,7 +72,8 @@ impl SearchEngine {
             match self.embed.embed(query).await {
                 Ok(vec) => vec,
                 Err(e) => {
-                    eprintln!("Failed to generate embedding for query: {}. Using empty vector as fallback.", e);
+                    // Log a clear warning that embedding generation failed
+                    eprintln!("WARNING: Failed to generate embedding for query: {}. Search results will be degraded (no semantic similarity). Error: {}", query, e);
                     // Return empty vector as fallback - this will result in poor search results
                     // but prevents the entire search from failing
                     Vec::new()

@@ -26,6 +26,9 @@ pub struct LocalEmbedProvider {
     #[allow(dead_code)]
     models_dir: Arc<Path>,
     cache: Arc<tokio::sync::Mutex<EmbeddingCache>>,
+    /// The dimension of the embedding vectors (384 for all-MiniLM-L6-v2)
+    #[allow(dead_code)]
+    dimension: usize,
 }
 
 /// Simple LRU cache for embeddings
@@ -44,12 +47,13 @@ impl EmbeddingCache {
         }
     }
 
-    fn get(&mut self, key: u64) -> Option<&Vec<f32>> {
+    fn get(&mut self, key: u64) -> Option<Vec<f32>> {
         if let Some(pos) = self.access_order.iter().position(|&k| k == key) {
             // Move to end (most recently used)
             let key = self.access_order.remove(pos);
             self.access_order.push(key);
-            self.entries.get(&key)
+            // Return a cloned value to avoid race conditions
+            self.entries.get(&key).cloned()
         } else {
             None
         }
@@ -75,6 +79,7 @@ impl EmbeddingCache {
         self.access_order.push(key);
     }
 
+    #[allow(dead_code)]
     fn len(&self) -> usize {
         self.entries.len()
     }
@@ -122,10 +127,14 @@ impl LocalEmbedProvider {
 
         eprintln!("Embedding cache initialized with size: {cache_size}");
 
+        // The dimension is a constant for all-MiniLM-L6-v2
+        let dimension = 384;
+
         Self {
             model: Arc::new(model),
             models_dir: models_dir.to_path_buf().into(),
             cache: Arc::new(tokio::sync::Mutex::new(EmbeddingCache::new(cache_size))),
+            dimension,
         }
     }
 
@@ -164,10 +173,10 @@ impl LocalEmbedProvider {
         {
             let mut cache = self.cache.lock().await;
             if let Some(cached_embedding) = cache.get(cache_key) {
-                eprintln!("Cache hit for text hash: {}", cache_key);
-                return Ok(cached_embedding.clone());
+                // Cache hit - no logging in production
+                return Ok(cached_embedding);
             }
-            eprintln!("Cache miss for text hash: {}", cache_key);
+            // Cache miss - no logging in production
         }
 
         // Use fastembed to generate real embeddings
@@ -193,11 +202,7 @@ impl LocalEmbedProvider {
         {
             let mut cache = self.cache.lock().await;
             cache.put(cache_key, embedding.clone());
-            eprintln!(
-                "Cached embedding for text hash: {} (cache size: {})",
-                cache_key,
-                cache.len()
-            );
+            // No logging in production
         }
 
         Ok(embedding)
@@ -216,16 +221,9 @@ impl LocalEmbedProvider {
     /// assert_eq!(dim, 384); // for all-MiniLM-L6-v2
     /// ```
     #[must_use]
+    #[allow(dead_code)]
     pub fn dimension(&self) -> usize {
-        // Get the actual dimension from the model
-        // For all-MiniLM-L6-v2, this should be 384
-        self.model
-            .embed(vec!["test"], None)
-            .expect("Failed to get model dimension")
-            .into_iter()
-            .next()
-            .map(|v| v.len())
-            .unwrap_or(384)
+        self.dimension
     }
 }
 

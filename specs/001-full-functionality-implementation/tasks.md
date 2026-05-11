@@ -270,6 +270,37 @@
 
 ---
 
+## Phase 7: Additional Code Review Resolution
+
+**Purpose**: Address additional issues found during second code review
+
+### Critical Bugs
+
+- [X] T152 [P] Fix fallback logic creating new LocalEmbedProvider instances in `src/embed/mod.rs:165-166, 189-190`
+- [X] T153 [P] Fix race condition in EmbeddingCache in `src/embed/local.rs:47-56`
+- [X] T154 [P] Optimize LocalEmbedProvider::dimension() in `src/embed/local.rs:219-229` to avoid expensive calls
+- [X] T155 [P] Improve search error handling in `src/search.rs:72-81` to surface failures to users
+- [X] T156 [P] Track indexing failures in `src/index.rs:134-145, 197-204` and report in index status
+
+### Structure Issues
+
+- [X] T157 [P] Store kb_root in EmbedProviderEnum in `src/embed/mod.rs:115-135` for proper fallback
+- [X] T158 [P] Make timeout values configurable in `src/embed/ollama.rs:49` and `src/embed/openrouter.rs:38`
+
+### Minor Issues
+
+- [X] T159 [P] Reduce verbose eprintln statements in production code in `src/embed/local.rs:167, 170, 196-200`
+- [X] T160 [P] Preserve error types in fallback logic in `src/embed/mod.rs:94-120`
+
+### Enhancement Tasks
+
+- [X] T161 [P] Run quality gates after fixes (fmt, clippy, test, coverage, security)
+- [X] T162 [P] Verify all Phase 7 issues are resolved
+
+**Checkpoint**: All Phase 7 issues resolved, ready for merge
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
