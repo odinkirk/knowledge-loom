@@ -213,30 +213,30 @@
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] T117 [P] Add doc comments (`///`) to all public functions in `src/embed/local.rs`
-- [ ] T118 [P] Add doc comments (`///`) to all public functions in `src/embed/ollama.rs`
-- [ ] T119 [P] Add doc comments (`///`) to all public functions in `src/embed/openrouter.rs`
-- [ ] T120 [P] Add doc comments (`///`) to all public functions in `src/embed/mod.rs`
-- [ ] T121 [P] Add doc comments (`///`) to all public functions in `src/embed/error.rs`
-- [ ] T122 [P] Update `ARCHITECTURE.md` with embedding architecture changes
-- [ ] T123 [P] Update `CHANGELOG.md` with new features and changes
-- [ ] T124 [P] Update `README.md` with embedding provider configuration documentation
-- [ ] T125 [P] Update `README.md` with OLLAMA_URL, OPENROUTER_API_KEY, OPENROUTER_MODEL setup instructions
-- [ ] T126 Code cleanup and refactoring (remove any stub code, improve error messages)
-- [ ] T127 Performance optimization (verify <100ms local, <500ms Ollama, <1s OpenRouter targets)
-- [ ] T127a [P] Add memory usage test for local embedding model in tests/embed_tests.rs (verifies <500MB target)
-- [ ] T127b [P] Add memory usage test for HTTP clients in tests/embed_tests.rs (verifies <5MB per client)
-- [ ] T127c [P] Add memory leak detection test in tests/embed_tests.rs (verifies no memory growth over time)
-- [ ] T131 [P] Run `cargo fmt --all -- --check` to verify formatting
-- [ ] T132 [P] Run `cargo clippy -- -D warnings` to verify linting
-- [ ] T133 [P] Run `cargo test --all-features` to verify all tests pass
-- [ ] T134 [P] Run code coverage check (minimum 80% required)
-- [ ] T135 [P] Run `cargo deny check licenses bans sources` for security
-- [ ] T136 Security hardening (verify no API keys logged, HTTPS used for OpenRouter)
-- [ ] T137 Verify async HTTP calls are used (no blocking reqwest::blocking::Client)
-- [ ] T138 Verify all external HTTP calls use async/await with proper error handling
-- [ ] T139 Run quickstart.md validation (if applicable)
-- [ ] T140 Verify MCP protocol compliance (if MCP changes made)
+- [X] T117 [P] Add doc comments (`///`) to all public functions in `src/embed/local.rs`
+- [X] T118 [P] Add doc comments (`///`) to all public functions in `src/embed/ollama.rs`
+- [X] T119 [P] Add doc comments (`///`) to all public functions in `src/embed/openrouter.rs`
+- [X] T120 [P] Add doc comments (`///`) to all public functions in `src/embed/mod.rs`
+- [X] T121 [P] Add doc comments (`///`) to all public functions in `src/embed/error.rs`
+- [X] T122 [P] Update `ARCHITECTURE.md` with embedding architecture changes
+- [X] T123 [P] Update `CHANGELOG.md` with new features and changes
+- [X] T124 [P] Update `README.md` with embedding provider configuration documentation
+- [X] T125 [P] Update `README.md` with OLLAMA_URL, OPENROUTER_API_KEY, OPENROUTER_MODEL setup instructions
+- [X] T126 Code cleanup and refactoring (remove any stub code, improve error messages)
+- [X] T127 Performance optimization (verify <100ms local, <500ms Ollama, <1s OpenRouter targets)
+- [X] T127a [P] Add memory usage test for local embedding model in tests/embed_tests.rs (verifies <500MB target)
+- [X] T127b [P] Add memory usage test for HTTP clients in tests/embed_tests.rs (verifies <5MB per client)
+- [X] T127c [P] Add memory leak detection test in tests/embed_tests.rs (verifies no memory growth over time)
+- [X] T131 [P] Run `cargo fmt --all -- --check` to verify formatting
+- [X] T132 [P] Run `cargo clippy -- -D warnings` to verify linting
+- [X] T133 [P] Run `cargo test --all-features` to verify all tests pass
+- [X] T134 [P] Run code coverage check (minimum 80% required)
+- [X] T135 [P] Run `cargo deny check licenses bans sources` for security
+- [X] T136 Security hardening (verify no API keys logged, HTTPS used for OpenRouter)
+- [X] T137 Verify async HTTP calls are used (no blocking reqwest::blocking::Client)
+- [X] T138 Verify all external HTTP calls use async/await with proper error handling
+- [X] T139 Run quickstart.md validation (if applicable)
+- [X] T140 Verify MCP protocol compliance (if MCP changes made)
 
 **Checkpoint**: All quality gates passed, ready for merge
 

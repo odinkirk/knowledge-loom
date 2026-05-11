@@ -242,11 +242,6 @@ Knowledge Loom supports multiple embedding providers with automatic fallback:
 - If the configured provider fails, the system automatically falls back to the next available provider
 - Warnings are logged when provider failures occur
 - This ensures robust operation even when external services are unavailable
-
-#### Fallback Behavior
-- If the configured provider fails, the system automatically falls back to the next available provider
-- Warnings are logged when provider failures occur
-- This ensures robust operation even when external services are unavailable
 - Fallback order: OpenRouter → Ollama → Local
 
 #### Performance Targets
