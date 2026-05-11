@@ -11,7 +11,7 @@ pub struct MaintenanceManager {
     pub kb_root: PathBuf,
     pub vault_state: Arc<Mutex<VaultState>>,
     pub bm25_index: Arc<Mutex<BM25Index>>,
-    pub embed_provider: Arc<Mutex<EmbedProviderEnum>>,
+    pub embed_provider: Arc<EmbedProviderEnum>,
     pub vector_index: Arc<Mutex<VectorIndex>>,
     pub graph_state: Arc<Mutex<GraphState>>,
 }
@@ -21,7 +21,7 @@ impl MaintenanceManager {
         kb_root: String,
         vault_state: Arc<Mutex<VaultState>>,
         bm25_index: Arc<Mutex<BM25Index>>,
-        embed_provider: Arc<Mutex<EmbedProviderEnum>>,
+        embed_provider: Arc<EmbedProviderEnum>,
         vector_index: Arc<Mutex<VectorIndex>>,
         graph_state: Arc<Mutex<GraphState>>,
     ) -> Self {
@@ -49,11 +49,10 @@ impl MaintenanceManager {
 
         // Rebuild vector index
         status_lines.push("Rebuilding vector index...".to_string());
-        let embed_lock = self.embed_provider.lock().await;
         self.vector_index
             .lock()
             .await
-            .index_vault(&*self.vault_state.lock().await, &*embed_lock)
+            .index_vault(&*self.vault_state.lock().await, &self.embed_provider)
             .await
             .map_err(|e| e.to_string())?;
         status_lines.push("  Vector index rebuilt".to_string());

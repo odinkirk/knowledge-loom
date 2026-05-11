@@ -262,8 +262,7 @@ impl GraphState {
 
         let graph_data = GraphData { nodes, edges };
 
-        let data = bincode::serialize(&graph_data)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+        let data = bincode::serialize(&graph_data).map_err(std::io::Error::other)?;
         std::fs::write(graph_path, data)
     }
 

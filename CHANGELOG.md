@@ -16,6 +16,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - MSRV set to Rust 1.75 for modern async trait support
 - Standardized code formatting with rustfmt.toml
 - Enhanced Clippy linting configuration
+- **Multiple embedding providers** with automatic fallback support:
+  - LocalEmbedProvider: Built-in fastembed integration (all-MiniLM-L6-v2, 384 dimensions)
+  - OllamaEmbedProvider: Ollama HTTP API integration (nomic-embed-text-v1.5, 768 dimensions)
+  - OpenRouterEmbedProvider: OpenRouter HTTP API integration (openai/text-embedding-embedding-ada-002, 1536 dimensions)
+- **Provider priority chain**: OpenRouter > Ollama > Local with automatic fallback
+- **Environment configuration**: OLLAMA_URL, OPENROUTER_API_KEY, OPENROUTER_MODEL
+- **Performance targets**: <100ms local, <500ms Ollama, <1s OpenRouter
+- **Comprehensive error handling**: Network errors, timeouts, dimension mismatches
+- **Logging with eprintln!**: Debug output uses stderr to avoid MCP server pollution
 
 ### Changed
 - Updated installation process to use `.knowledge-loom` directory structure

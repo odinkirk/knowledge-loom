@@ -27,7 +27,7 @@ pub struct LoomServer {
     pub kb_root: String,
     pub vault: Arc<Mutex<VaultState>>,
     pub bm25: Arc<Mutex<BM25Index>>,
-    pub embed: Arc<Mutex<EmbedProviderEnum>>,
+    pub embed: Arc<EmbedProviderEnum>,
     pub vector: Arc<Mutex<VectorIndex>>,
     pub graph: Arc<Mutex<GraphState>>,
     pub edits: Arc<EditManager>,
@@ -45,7 +45,7 @@ impl LoomServer {
     pub async fn new(kb_root: &str) -> Self {
         let vault = Arc::new(Mutex::new(VaultState::new(kb_root).await));
         let bm25 = Arc::new(Mutex::new(BM25Index::new(kb_root).await));
-        let embed = Arc::new(Mutex::new(EmbedProviderEnum::new(kb_root).await));
+        let embed = Arc::new(EmbedProviderEnum::new(kb_root));
         let vector = Arc::new(Mutex::new(VectorIndex::new(kb_root).await));
         let graph = Arc::new(Mutex::new(GraphState::new(kb_root).await));
 
@@ -476,7 +476,7 @@ impl LoomServer {
                 // Requires LLM API integration (separate plan)
                 Ok(serde_json::json!({"error": "search_smart requires LLM API integration (not yet implemented)"}).to_string())
             }
-            "reindex" => self.maintenance.reindex_all().await.map_err(|e| e),
+            "reindex" => self.maintenance.reindex_all().await,
             "index_status" => match self.maintenance.get_index_status().await {
                 Ok(status) => Ok(serde_json::to_string(&status).unwrap_or_default()),
                 Err(e) => Err(e),
@@ -524,7 +524,7 @@ impl ServerHandler for LoomServer {
     ) -> Result<CallToolResult, McpError> {
         let args = request
             .arguments
-            .map(|m| Value::Object(m))
+            .map(Value::Object)
             .unwrap_or(Value::Object(Default::default()));
 
         match self.dispatch_tool(&request.name, &args).await {

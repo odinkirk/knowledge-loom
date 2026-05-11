@@ -196,8 +196,58 @@ loom_grep "pattern.*test" --file-filter "*.md"
 |----------|----------|---------|---------|
 | `KB_ROOT` | Yes | - | Root path for knowledge base (set by installer) |
 | `VAULT_PATH` | Optional | - | Path to document collection — enables graph analytics |
+| `OLLAMA_URL` | Optional | None | URL of Ollama server for external embeddings |
+| `OPENROUTER_API_KEY` | Optional | None | API key for OpenRouter embeddings |
+| `OPENROUTER_MODEL` | Optional | `openai/text-embedding-ada-002` | Model to use for OpenRouter embeddings |
 
 Add optional vars to the `env` block in `.mcp.json` after installation.
+
+### Embedding Provider Configuration
+
+Knowledge Loom supports multiple embedding providers with automatic fallback:
+
+**Provider Priority**: OpenRouter > Ollama > Local
+
+#### Local Provider (Default)
+- **Model**: all-MiniLM-L6-v2 (384 dimensions)
+- **Performance**: <100ms per embedding
+- **Setup**: No configuration required, works out of the box
+- **Storage**: Models cached in `.knowledge-loom-index/models/`
+
+#### Ollama Provider
+- **Model**: nomic-embed-text-v1.5 (768 dimensions)
+- **Performance**: <500ms per embedding
+- **Setup**: Set `OLLAMA_URL` environment variable
+- **Example**:
+  ```bash
+  export OLLAMA_URL="http://localhost:11434"
+  ```
+
+#### OpenRouter Provider
+- **Model**: openai/text-embedding-ada-002 (1536 dimensions) by default
+- **Performance**: <1s per embedding
+- **Setup**: Set `OPENROUTER_API_KEY` and optionally `OPENROUTER_MODEL`
+- **Example**:
+  ```bash
+  export OPENROUTER_API_KEY="your-api-key"
+  export OPENROUTER_MODEL="openai/text-embedding-ada-002"
+  ```
+
+#### Provider Selection Logic
+1. If `OPENROUTER_API_KEY` is set → Use OpenRouter
+2. Else if `OLLAMA_URL` is set → Use Ollama
+3. Else → Use local provider
+
+#### Fallback Behavior
+- If the configured provider fails, the system automatically falls back to the next available provider
+- Warnings are logged when provider failures occur
+- This ensures robust operation even when external services are unavailable
+- Fallback order: OpenRouter → Ollama → Local
+
+#### Performance Targets
+- **Local embeddings**: <100ms per embedding
+- **Ollama embeddings**: <500ms per embedding
+- **OpenRouter embeddings**: <1s per embedding
 
 ### Platform Configuration
 

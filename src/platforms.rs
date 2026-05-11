@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 const MCP_CONFIG_KEY: &str = "knowledge-loom";
-const AGENT_INSTRUCTIONS: &str = r#"# Knowledge Loom MCP Tools
+const AGENT_INSTRUCTIONS: &str = r"# Knowledge Loom MCP Tools
 
 This project uses knowledge-loom as its MCP server. Use `loom_*` tools
 before grep, glob, or file reads.
@@ -33,7 +33,7 @@ before grep, glob, or file reads.
 2. Use `loom_read_section` or `loom_read_lines` for targeted reads.
 3. Use `loom_replace_lines` or `loom_insert_after_heading` for surgical edits.
 4. Call `loom_reindex` after external file changes.
-"#;
+";
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum PlatformName {

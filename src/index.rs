@@ -127,15 +127,42 @@ impl VectorIndex {
         path: &Path,
         content: &str,
         embed_provider: &crate::embed::EmbedProviderEnum,
-    ) -> SqliteResult<()> {
+    ) -> Result<(usize, usize), rusqlite::Error> {
         self.remove_file_embeddings(path).await?;
         let chunks = self.chunk_content(content);
+        let mut successful_count = 0;
+        let mut failed_count = 0;
+
         for (heading, chunk_content) in chunks {
-            let embedding = embed_provider.embed(&chunk_content).await;
+            let embedding = match embed_provider.embed(&chunk_content).await {
+                Ok(vec) => vec,
+                Err(e) => {
+                    eprintln!(
+                        "Failed to generate embedding for chunk in {}: {}. Skipping this chunk.",
+                        path.display(),
+                        e
+                    );
+                    failed_count += 1;
+                    // Skip this chunk if embedding fails
+                    continue;
+                }
+            };
             self.upsert_embedding(path, heading.as_deref(), &chunk_content, &embedding)
                 .await?;
+            successful_count += 1;
         }
-        Ok(())
+
+        // Log summary of indexing results
+        if failed_count > 0 {
+            eprintln!(
+                "Indexing completed for {}: {} successful, {} failed",
+                path.display(),
+                successful_count,
+                failed_count
+            );
+        }
+
+        Ok((successful_count, failed_count))
     }
 
     pub async fn search_similar(
@@ -175,15 +202,29 @@ impl VectorIndex {
         &self,
         vault_state: &crate::vault::VaultState,
         embed_provider: &crate::embed::EmbedProviderEnum,
-    ) -> Result<(), rusqlite::Error> {
+    ) -> Result<(usize, usize, usize), rusqlite::Error> {
         let files = vault_state.scan_files().await;
+        let mut total_successful = 0;
+        let mut total_failed = 0;
+        let mut files_with_failures = 0;
 
         for file_path in files {
             if let Some(content) = vault_state.read_file(&file_path).await {
                 self.remove_file_embeddings(&file_path).await?;
                 let chunks = self.chunk_content(&content);
+                let mut file_successful = 0;
+                let mut file_failed = 0;
+
                 for (heading, chunk_content) in chunks {
-                    let embedding = embed_provider.embed(&chunk_content).await;
+                    let embedding = match embed_provider.embed(&chunk_content).await {
+                        Ok(vec) => vec,
+                        Err(e) => {
+                            eprintln!("Failed to generate embedding for chunk in {}: {}. Skipping this chunk.", file_path.display(), e);
+                            file_failed += 1;
+                            // Skip this chunk if embedding fails
+                            continue;
+                        }
+                    };
                     self.upsert_embedding(
                         &file_path,
                         heading.as_deref(),
@@ -191,11 +232,29 @@ impl VectorIndex {
                         &embedding,
                     )
                     .await?;
+                    file_successful += 1;
+                }
+
+                total_successful += file_successful;
+                total_failed += file_failed;
+                if file_failed > 0 {
+                    files_with_failures += 1;
                 }
             }
         }
 
-        Ok(())
+        // Log summary of indexing results
+        if total_failed > 0 {
+            eprintln!(
+                "Vault indexing completed: {} total chunks, {} successful, {} failed across {} files",
+                total_successful + total_failed,
+                total_successful,
+                total_failed,
+                files_with_failures
+            );
+        }
+
+        Ok((total_successful, total_failed, files_with_failures))
     }
 
     pub fn chunk_content(&self, content: &str) -> Vec<(Option<String>, String)> {

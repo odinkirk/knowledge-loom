@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+#[must_use]
 pub fn expand_path(path: &str) -> String {
     if let Some(rest) = path.strip_prefix("~/") {
         if let Some(home) = dirs::home_dir() {
@@ -53,18 +54,22 @@ struct RepoStateEntry {
     pub status: String,
 }
 
+#[must_use]
 pub fn config_dir() -> PathBuf {
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("/tmp"))
         .join(".knowledge-loom")
 }
 
+#[must_use]
 pub fn config_path() -> PathBuf {
     config_dir().join("watch.toml")
 }
+#[must_use]
 pub fn pid_path() -> PathBuf {
     config_dir().join("daemon.pid")
 }
+#[must_use]
 pub fn state_path() -> PathBuf {
     config_dir().join("daemon-state.json")
 }
@@ -150,12 +155,14 @@ pub fn add_repo(
     } else {
         DaemonConfig::default()
     };
-    let alias = alias.map(|s| s.to_string()).unwrap_or_else(|| {
-        Path::new(path)
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_else(|| "repo".to_string())
-    });
+    let alias = alias
+        .map(std::string::ToString::to_string)
+        .unwrap_or_else(|| {
+            Path::new(path)
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| "repo".to_string())
+        });
     // Deduplicate by path
     if config.repos.iter().any(|r| r.path == path) {
         return Ok(());

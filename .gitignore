@@ -23,6 +23,11 @@ build/
 target/
 **/*.rs.bk
 *.pdb
+*.rlib
+*.prof*
+debug/
+release/
+*.log
 
 # Environment
 .env
@@ -66,3 +71,4 @@ edit-smoke.md
 # Loom install targets (when embedding loom inside another project)
 .loom/
 .knowledge-loom/
+.fastembed_cache/
