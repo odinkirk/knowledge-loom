@@ -20,6 +20,7 @@ pub struct ChunkDoc {
     pub content: String,
     pub line_start: usize,
     pub line_end: usize,
+    pub chunk_ordinal: u64,
 }
 
 fn get_text(doc: &TantivyDocument, schema: &tantivy::schema::Schema, field_name: &str) -> String {
@@ -71,6 +72,7 @@ impl BM25Index {
         let _path = schema_builder.add_text_field("path", STRING | STORED);
         let _line_start = schema_builder.add_u64_field("line_start", STORED);
         let _line_end = schema_builder.add_u64_field("line_end", STORED);
+        let _chunk_ordinal = schema_builder.add_u64_field("chunk_ordinal", STORED);
         let schema = schema_builder.build();
 
         // Open or create index; recreate if the stored schema doesn't match
@@ -172,6 +174,10 @@ impl BM25Index {
                 self.schema.get_field("line_end").unwrap(),
                 chunk.line_end as u64,
             );
+            doc.add_u64(
+                self.schema.get_field("chunk_ordinal").unwrap(),
+                chunk.ordinal,
+            );
             writer_lock.add_document(doc)?;
         }
         writer_lock.commit()?;
@@ -242,10 +248,45 @@ impl BM25Index {
                 line_start: get_u64(&doc, &self.schema, "line_start") as usize,
                 #[allow(clippy::cast_possible_truncation)]
                 line_end: get_u64(&doc, &self.schema, "line_end") as usize,
+                chunk_ordinal: get_u64(&doc, &self.schema, "chunk_ordinal"),
             });
         }
         chunks.sort_by_key(|c| c.line_start);
         Ok(chunks)
+    }
+
+    #[allow(dead_code)]
+    pub async fn get_chunk_by_ordinal(
+        &self,
+        path: &str,
+        ordinal: u64,
+    ) -> Result<ChunkDoc, TantivyError> {
+        // Validate ordinal >= 1
+        if ordinal < 1 {
+            return Err(TantivyError::InvalidArgument(
+                "Ordinal must be >= 1".to_string(),
+            ));
+        }
+
+        // Get all chunks for the path
+        let chunks = self.get_chunks_for_path(path).await?;
+
+        // Validate ordinal <= chunk count
+        if ordinal as usize > chunks.len() {
+            return Err(TantivyError::InvalidArgument(format!(
+                "Ordinal {} exceeds chunk count {}",
+                ordinal,
+                chunks.len()
+            )));
+        }
+
+        // Find chunk with matching ordinal
+        chunks
+            .into_iter()
+            .find(|c| c.chunk_ordinal == ordinal)
+            .ok_or_else(|| {
+                TantivyError::InvalidArgument(format!("Chunk with ordinal {} not found", ordinal))
+            })
     }
 
     #[allow(dead_code)]
@@ -329,6 +370,7 @@ impl BM25Index {
                     line_start: get_u64(&doc, &self.schema, "line_start") as usize,
                     #[allow(clippy::cast_possible_truncation)]
                     line_end: get_u64(&doc, &self.schema, "line_end") as usize,
+                    chunk_ordinal: get_u64(&doc, &self.schema, "chunk_ordinal"),
                 },
             ));
         }
@@ -403,6 +445,7 @@ impl BM25Index {
                         content,
                         line_start: get_u64(&doc, &self.schema, "line_start") as usize,
                         line_end: get_u64(&doc, &self.schema, "line_end") as usize,
+                        chunk_ordinal: get_u64(&doc, &self.schema, "chunk_ordinal"),
                     },
                 ));
             }

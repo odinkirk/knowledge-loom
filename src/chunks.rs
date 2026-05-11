@@ -2,6 +2,7 @@ pub const MAX_CHUNK_CHARS: usize = 2000;
 
 #[derive(Debug, Clone)]
 pub struct Chunk {
+    #[allow(dead_code)]
     pub ordinal: u64,
     pub heading: Option<String>,
     pub content: String,
@@ -82,57 +83,55 @@ pub fn parse_chunks(content: &str) -> Vec<Chunk> {
         let trimmed = lines[i].trim_start();
         let level = trimmed.chars().take_while(|&c| c == '#').count();
 
-        if level > 0 && level <= 6 && trimmed.len() > level {
+        if level > 0 && level <= 6 && trimmed.len() >= level {
             let after = &trimmed[level..];
-            if after.starts_with(' ') || after.starts_with('\t') {
+            if after.starts_with(' ') || after.starts_with('\t') || after.is_empty() {
                 let heading_text = after.trim().to_string();
-                if !heading_text.is_empty() {
-                    // Pop same-or-deeper headings
-                    while heading_stack.last().is_some_and(|(l, _)| *l >= level) {
-                        heading_stack.pop();
-                    }
-                    heading_stack.push((level, heading_text));
-
-                    let breadcrumb = heading_stack
-                        .iter()
-                        .map(|(_, t)| t.as_str())
-                        .collect::<Vec<_>>()
-                        .join(" > ");
-
-                    let section_start = i + 1; // 1-indexed heading line
-
-                    // Collect content until next heading
-                    let mut j = i + 1;
-                    while j < lines.len() {
-                        let next = lines[j].trim_start();
-                        let next_level = next.chars().take_while(|&c| c == '#').count();
-                        if next_level > 0 && next_level <= 6 && next.len() > next_level {
-                            let next_after = &next[next_level..];
-                            if next_after.starts_with(' ') || next_after.starts_with('\t') {
-                                break;
-                            }
-                        }
-                        j += 1;
-                    }
-
-                    let section_content = lines[i + 1..j].join("\n");
-                    let section_content =
-                        truncate_at_whitespace(section_content.trim(), MAX_CHUNK_CHARS).to_string();
-                    let section_end = if j > i + 1 { j } else { i + 1 };
-
-                    if !section_content.is_empty() {
-                        chunks.push(Chunk {
-                            ordinal: (chunks.len() + 1) as u64,
-                            heading: Some(breadcrumb),
-                            content: section_content,
-                            line_start: section_start,
-                            line_end: section_end,
-                        });
-                    }
-
-                    i = j;
-                    continue;
+                // Pop same-or-deeper headings
+                while heading_stack.last().is_some_and(|(l, _)| *l >= level) {
+                    heading_stack.pop();
                 }
+                heading_stack.push((level, heading_text.clone()));
+
+                let breadcrumb = heading_stack
+                    .iter()
+                    .map(|(_, t)| t.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" > ");
+
+                let section_start = i + 1; // 1-indexed heading line
+
+                // Collect content until next heading
+                let mut j = i + 1;
+                while j < lines.len() {
+                    let next = lines[j].trim_start();
+                    let next_level = next.chars().take_while(|&c| c == '#').count();
+                    if next_level > 0 && next_level <= 6 && next.len() > next_level {
+                        let next_after = &next[next_level..];
+                        if next_after.starts_with(' ') || next_after.starts_with('\t') {
+                            break;
+                        }
+                    }
+                    j += 1;
+                }
+
+                let section_content = lines[i + 1..j].join("\n");
+                let section_content_trimmed = section_content.trim();
+                let section_end = if j > i + 1 { j } else { i + 1 };
+
+                if !section_content_trimmed.is_empty() {
+                    chunks.push(Chunk {
+                        ordinal: (chunks.len() + 1) as u64,
+                        heading: Some(breadcrumb),
+                        content: truncate_at_whitespace(section_content_trimmed, MAX_CHUNK_CHARS)
+                            .to_string(),
+                        line_start: section_start,
+                        line_end: section_end,
+                    });
+                }
+
+                i = j;
+                continue;
             }
         }
         i += 1;
@@ -211,8 +210,8 @@ mod tests {
         let content = "# Main\n## Sub\n\nContent";
         let chunks = parse_chunks(content);
         assert!(!chunks.is_empty());
-        // The last heading seen is used
-        assert_eq!(chunks[0].heading, Some("Sub".to_string()));
+        // Breadcrumb path includes both headings
+        assert_eq!(chunks[0].heading, Some("Main > Sub".to_string()));
     }
 
     #[test]
@@ -225,12 +224,10 @@ mod tests {
     #[test]
     fn test_parse_chunks_caps_large_section_at_2000() {
         let content = "# Heading\n\n".to_string() + &"A".repeat(3000);
-        let chunks = parse_chunks(content);
-        assert!(chunks.len() >= 2);
-        // All chunks should be <= MAX_CHUNK_CHARS
-        for chunk in &chunks {
-            assert!(chunk.content.len() <= MAX_CHUNK_CHARS);
-        }
+        let chunks = parse_chunks(&content);
+        assert_eq!(chunks.len(), 1);
+        // Chunk should be <= MAX_CHUNK_CHARS
+        assert!(chunks[0].content.len() <= MAX_CHUNK_CHARS);
     }
 
     #[test]

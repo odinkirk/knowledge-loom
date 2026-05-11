@@ -11,6 +11,8 @@ pub struct SectionResult {
     pub content: String,
     pub line_start: usize,
     pub line_end: usize,
+    #[allow(dead_code)]
+    pub chunk_ordinal: u64,
     pub score: f32,
 }
 
@@ -120,6 +122,7 @@ impl SearchEngine {
                     content: chunk.content.clone(),
                     line_start: chunk.line_start,
                     line_end: chunk.line_end,
+                    chunk_ordinal: chunk.chunk_ordinal,
                     score: *score,
                 });
         }
@@ -191,6 +194,7 @@ impl SearchEngine {
                             content: c.content,
                             line_start: c.line_start,
                             line_end: c.line_end,
+                            chunk_ordinal: c.chunk_ordinal,
                             score: 0.0,
                         })
                         .collect();
