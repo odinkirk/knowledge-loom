@@ -1,3 +1,4 @@
+use crate::chunks;
 use crate::vault::VaultState;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -11,111 +12,6 @@ use tantivy::{
     Index, IndexWriter, TantivyDocument, TantivyError, Term,
 };
 use tokio::sync::Mutex;
-
-pub const MAX_CHUNK_CHARS: usize = 2000;
-
-#[must_use]
-pub fn truncate_at_whitespace(content: &str, max: usize) -> &str {
-    if content.len() <= max {
-        return content;
-    }
-    let slice = &content[..max];
-    match slice.rfind(|c: char| c.is_whitespace()) {
-        Some(pos) if pos > 0 => content[..pos].trim_end(),
-        _ => &content[..max],
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Chunk {
-    pub heading: Option<String>,
-    pub content: String,
-    pub line_start: usize,
-    pub line_end: usize,
-}
-
-#[must_use]
-pub fn parse_chunks(content: &str) -> Vec<Chunk> {
-    let lines: Vec<&str> = content.lines().collect();
-    let mut chunks = Vec::new();
-    // heading_stack: (level, text)
-    let mut heading_stack: Vec<(usize, String)> = Vec::new();
-    let mut i = 0;
-
-    while i < lines.len() {
-        let trimmed = lines[i].trim_start();
-        let level = trimmed.chars().take_while(|&c| c == '#').count();
-
-        if level > 0 && level <= 6 && trimmed.len() > level {
-            let after = &trimmed[level..];
-            if after.starts_with(' ') || after.starts_with('\t') {
-                let heading_text = after.trim().to_string();
-                if !heading_text.is_empty() {
-                    // Pop same-or-deeper headings
-                    while heading_stack.last().is_some_and(|(l, _)| *l >= level) {
-                        heading_stack.pop();
-                    }
-                    heading_stack.push((level, heading_text));
-
-                    let breadcrumb = heading_stack
-                        .iter()
-                        .map(|(_, t)| t.as_str())
-                        .collect::<Vec<_>>()
-                        .join(" > ");
-
-                    let section_start = i + 1; // 1-indexed heading line
-
-                    // Collect content until next heading
-                    let mut j = i + 1;
-                    while j < lines.len() {
-                        let next = lines[j].trim_start();
-                        let next_level = next.chars().take_while(|&c| c == '#').count();
-                        if next_level > 0 && next_level <= 6 && next.len() > next_level {
-                            let next_after = &next[next_level..];
-                            if next_after.starts_with(' ') || next_after.starts_with('\t') {
-                                break;
-                            }
-                        }
-                        j += 1;
-                    }
-
-                    let section_content = lines[i + 1..j].join("\n");
-                    let section_content =
-                        truncate_at_whitespace(section_content.trim(), MAX_CHUNK_CHARS).to_string();
-                    let section_end = if j > i + 1 { j } else { i + 1 };
-
-                    if !section_content.is_empty() {
-                        chunks.push(Chunk {
-                            heading: Some(breadcrumb),
-                            content: section_content,
-                            line_start: section_start,
-                            line_end: section_end,
-                        });
-                    }
-
-                    i = j;
-                    continue;
-                }
-            }
-        }
-        i += 1;
-    }
-
-    // Headingless fallback
-    if chunks.is_empty() {
-        let full = truncate_at_whitespace(content.trim(), MAX_CHUNK_CHARS).to_string();
-        if !full.is_empty() {
-            chunks.push(Chunk {
-                heading: None,
-                content: full,
-                line_start: 1,
-                line_end: lines.len(),
-            });
-        }
-    }
-
-    chunks
-}
 
 #[derive(Debug, Clone)]
 pub struct ChunkDoc {
@@ -257,7 +153,7 @@ impl BM25Index {
         let path_field = self.schema.get_field("path").unwrap();
         let path_term = Term::from_field_text(path_field, &path_str);
 
-        let chunks = parse_chunks(content);
+        let chunks = chunks::parse_chunks(content);
         let mut writer_lock = self.writer.lock().await;
         writer_lock.delete_term(path_term);
         for chunk in chunks {

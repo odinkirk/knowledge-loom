@@ -2,6 +2,7 @@ use std::env::args;
 use std::process::exit;
 
 mod bm25;
+mod chunks;
 mod daemon;
 mod edits;
 mod embed;

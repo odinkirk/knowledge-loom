@@ -6,6 +6,7 @@ pub const GITIGNORE_ENTRY_BIN: &str = ".knowledge-loom/";
 pub const GITIGNORE_ENTRY_INDEX: &str = ".knowledge-loom-index/";
 
 pub mod bm25;
+pub mod chunks;
 pub mod daemon;
 pub mod edits;
 pub mod embed;

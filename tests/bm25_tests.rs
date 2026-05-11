@@ -3,7 +3,8 @@ mod tests {
 
     use tempfile::TempDir;
 
-    use knowledge_loom::bm25::{extract_title, parse_chunks, truncate_at_whitespace, BM25Index};
+    use knowledge_loom::bm25::{extract_title, BM25Index};
+    use knowledge_loom::chunks::{parse_chunks, truncate_at_whitespace};
 
     #[tokio::test]
     async fn test_bm25_create_index() {
