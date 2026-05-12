@@ -167,17 +167,17 @@ Phase 6 (Polish) ← Depends on all user stories
 - [X] T055 [P] [US2] Update Server module to include ordinal in MCP responses in src/server.rs
 - [X] T056 [P] [US2] Update `ChunkResponse` struct to include ordinal in src/server.rs
 - [X] T057 [P] [US2] Pass through ordinal from BM25 results in src/server.rs
-- [ ] T058 [P] [US2] Write test for ordinal assignment in `parse_chunks()` in tests/chunks_tests.rs
-- [ ] T059 [P] [US2] Write test for ordinal sequentiality in `parse_chunks()` in tests/chunks_tests.rs
-- [ ] T060 [P] [US2] Write test for `get_chunk_by_ordinal()` with valid ordinal in tests/bm25_tests.rs
-- [ ] T061 [P] [US2] Write test for `get_chunk_by_ordinal()` with first chunk in tests/bm25_tests.rs
-- [ ] T062 [P] [US2] Write test for `get_chunk_by_ordinal()` with last chunk in tests/bm25_tests.rs
-- [ ] T063 [P] [US2] Write test for `get_chunk_by_ordinal()` with file not found in tests/bm25_tests.rs
-- [ ] T064 [P] [US2] Write test for `get_chunk_by_ordinal()` with ordinal = 0 in tests/bm25_tests.rs
-- [ ] T065 [P] [US2] Write test for `get_chunk_by_ordinal()` with ordinal > chunk count in tests/bm25_tests.rs
-- [ ] T066 [P] [US2] Write test for `get_chunk_by_ordinal()` with empty file in tests/bm25_tests.rs
-- [ ] T067 [P] [US2] Write test for `get_chunk_by_ordinal()` with index corruption in tests/bm25_tests.rs
-- [ ] T068 [P] [US2] Write test for `get_chunk_by_ordinal()` with ingestion in progress in tests/bm25_tests.rs
+- [X] T058 [P] [US2] Write test for ordinal assignment in `parse_chunks()` in tests/chunks_tests.rs
+- [X] T059 [P] [US2] Write test for ordinal sequentiality in `parse_chunks()` in tests/chunks_tests.rs
+- [X] T060 [P] [US2] Write test for `get_chunk_by_ordinal()` with valid ordinal in tests/bm25_tests.rs
+- [X] T061 [P] [US2] Write test for `get_chunk_by_ordinal()` with first chunk in tests/bm25_tests.rs
+- [X] T062 [P] [US2] Write test for `get_chunk_by_ordinal()` with last chunk in tests/bm25_tests.rs
+- [X] T063 [P] [US2] Write test for `get_chunk_by_ordinal()` with file not found in tests/bm25_tests.rs
+- [X] T064 [P] [US2] Write test for `get_chunk_by_ordinal()` with ordinal = 0 in tests/bm25_tests.rs
+- [X] T065 [P] [US2] Write test for `get_chunk_by_ordinal()` with ordinal > chunk count in tests/bm25_tests.rs
+- [X] T066 [P] [US2] Write test for `get_chunk_by_ordinal()` with empty file in tests/bm25_tests.rs
+- [X] T067 [P] [US2] Write test for `get_chunk_by_ordinal()` with index corruption in tests/bm25_tests.rs
+- [X] T068 [P] [US2] Write test for `get_chunk_by_ordinal()` with ingestion in progress in tests/bm25_tests.rs
 - [ ] T069 [P] [US2] Write test for edit triggers re-indexing in tests/edits_tests.rs
 - [ ] T070 [P] [US2] Write test for re-indexing updates ordinals in tests/edits_tests.rs
 - [ ] T071 [P] [US2] Write test for corpus re-ingestion on failure in tests/edits_tests.rs
@@ -189,14 +189,14 @@ Phase 6 (Polish) ← Depends on all user stories
 - [ ] T077 [P] [US2] Write test for graph includes ordinal in tests/graph_tests.rs
 - [ ] T078 [P] [US2] Write test for vault uses chunks module in tests/vault_tests.rs
 - [ ] T079 [P] [US2] Write test for MCP tool includes ordinal in tests/server_tests.rs
-- [ ] T080 [P] [US2] Write test for schema compatibility with ordinal field in tests/bm25_tests.rs
-- [ ] T081 [P] [US2] Write test for ordinal uniqueness within file in tests/bm25_tests.rs
-- [ ] T082 [P] [US2] Write test for ordinal consistency after re-indexing in tests/bm25_tests.rs
-- [ ] T083 [P] [US2] Write test for concurrent chunk retrievals in tests/bm25_tests.rs
-- [ ] T084 [P] [US2] Write test for retrieval during re-indexing in tests/bm25_tests.rs
-- [ ] T085 [P] [US2] Write test for multi-byte content with ordinals in tests/chunks_tests.rs
-- [ ] T086 [P] [US2] Write test for large file (100+ chunks) with ordinals in tests/chunks_tests.rs
-- [ ] T087 [P] [US2] Write test for boundary cases with ordinals in tests/chunks_tests.rs
+- [X] T080 [P] [US2] Write test for schema compatibility with ordinal field in tests/bm25_tests.rs
+- [X] T081 [P] [US2] Write test for ordinal uniqueness within file in tests/bm25_tests.rs
+- [X] T082 [P] [US2] Write test for ordinal consistency after re-indexing in tests/bm25_tests.rs
+- [X] T083 [P] [US2] Write test for concurrent chunk retrievals in tests/bm25_tests.rs
+- [X] T084 [P] [US2] Write test for retrieval during re-indexing in tests/bm25_tests.rs
+- [X] T085 [P] [US2] Write test for multi-byte content with ordinals in tests/chunks_tests.rs
+- [X] T086 [P] [US2] Write test for large file (100+ chunks) with ordinals in tests/chunks_tests.rs
+- [X] T087 [P] [US2] Write test for boundary cases with ordinals in tests/chunks_tests.rs
 - [ ] T088 [P] [US2] Write test for ordinal preservation after edit in tests/edits_tests.rs
 - [ ] T089 [P] [US2] Write test for ordinal reassignment after chunk split in tests/edits_tests.rs
 - [ ] T090 [P] [US2] Write test for ordinal reassignment after chunk merge in tests/edits_tests.rs
