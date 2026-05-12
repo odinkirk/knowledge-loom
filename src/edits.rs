@@ -227,15 +227,28 @@ impl EditManager {
         }
     }
 
+    /// Re-indexes a single file across all search indexes after an edit.
+    ///
+    /// This method updates the BM25 full-text index, vector embedding index,
+    /// and graph analytics index for a single file. Errors are logged but
+    /// do not fail the edit operation.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The file path to re-index
+    /// * `content` - The updated file content
     async fn reindex_file(&self, path: &Path, content: &str) {
+        // Update BM25 full-text index
         {
             let mut bm25 = self.bm25_index.lock().await;
             let _ = bm25.index_file(path, content).await;
         }
+        // Update vector embedding index
         {
             let vector = self.vector_index.lock().await;
             let _ = vector.index_file(path, content, &self.embed_provider).await;
         }
+        // Update graph analytics index
         {
             let graph = self.graph_state.lock().await;
             let _ = graph.update_file(path, content).await;

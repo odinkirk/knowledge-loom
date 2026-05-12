@@ -1,12 +1,21 @@
 pub const MAX_CHUNK_CHARS: usize = 2000;
 
+/// Represents a chunk of markdown content with metadata.
+///
+/// A chunk contains the actual content, heading context (as a breadcrumb path),
+/// ordinal position within the file, and line number information.
 #[derive(Debug, Clone)]
 pub struct Chunk {
+    /// Sequential ordinal number (1-based) of this chunk within the file
     #[allow(dead_code)]
     pub ordinal: u64,
+    /// Heading breadcrumb path (e.g., "Main > Sub") or None if no heading
     pub heading: Option<String>,
+    /// The actual chunk content (truncated at MAX_CHUNK_CHARS)
     pub content: String,
+    /// Starting line number (1-based) of this chunk in the source file
     pub line_start: usize,
+    /// Ending line number (1-based) of this chunk in the source file
     pub line_end: usize,
 }
 
@@ -37,7 +46,8 @@ pub fn truncate_at_whitespace(content: &str, max: usize) -> &str {
         return content;
     }
 
-    // Find safe character boundary
+    // Find safe character boundary by iterating through character indices
+    // This ensures we never split a multi-byte UTF-8 character (like emojis or CJK)
     let safe_max = content
         .char_indices()
         .map(|(i, _)| i)
@@ -46,6 +56,7 @@ pub fn truncate_at_whitespace(content: &str, max: usize) -> &str {
         .unwrap_or(content.len());
 
     let slice = &content[..safe_max];
+    // Try to truncate at whitespace for better readability
     match slice.rfind(|c: char| c.is_whitespace()) {
         Some(pos) if pos > 0 => content[..pos].trim_end(),
         _ => slice,
@@ -121,6 +132,7 @@ pub fn parse_chunks(content: &str) -> Vec<Chunk> {
 
                 if !section_content_trimmed.is_empty() {
                     chunks.push(Chunk {
+                        // Assign sequential ordinal: current chunk count + 1 (1-based indexing)
                         ordinal: (chunks.len() + 1) as u64,
                         heading: Some(breadcrumb),
                         content: truncate_at_whitespace(section_content_trimmed, MAX_CHUNK_CHARS)
@@ -137,11 +149,12 @@ pub fn parse_chunks(content: &str) -> Vec<Chunk> {
         i += 1;
     }
 
-    // Headingless fallback
+    // Headingless fallback: if no headings found, treat entire content as single chunk
     if chunks.is_empty() {
         let full = truncate_at_whitespace(content.trim(), MAX_CHUNK_CHARS).to_string();
         if !full.is_empty() {
             chunks.push(Chunk {
+                // First chunk gets ordinal 1
                 ordinal: 1,
                 heading: None,
                 content: full,

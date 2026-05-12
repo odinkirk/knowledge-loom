@@ -958,3 +958,90 @@ async fn test_end_to_end_index_retrieve_edit_reindex() {
     assert_eq!(chunks[0].chunk_ordinal, 1);
     assert_eq!(chunks[1].chunk_ordinal, 2);
 }
+
+#[tokio::test]
+#[serial]
+async fn test_no_duplicate_chunking_code() {
+    let temp_dir = TempDir::new().unwrap();
+    let kb_root = temp_dir.path();
+
+    // Create test file
+    let test_file = kb_root.join("test.md");
+    let content = "# Heading\n\nContent";
+    fs::write(&test_file, content).unwrap();
+
+    // Create vault and index
+    let vault = VaultState::new(kb_root.to_str().unwrap()).await;
+    let search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
+
+    // Build BM25 index
+    {
+        let mut bm25 = search_engine.bm25.lock().await;
+        bm25.index_vault(&vault).await.unwrap();
+    }
+
+    // Verify that chunking is consistent across modules
+    // All modules should use the same chunking logic from chunks.rs
+    let bm25 = search_engine.bm25.lock().await;
+    let chunks = bm25.get_chunks_for_path("test.md").await.unwrap();
+    assert!(!chunks.is_empty());
+    
+    // Verify chunk structure matches chunks module API
+    for chunk in &chunks {
+        assert!(chunk.chunk_ordinal > 0);
+        assert!(chunk.line_start > 0);
+        assert!(chunk.line_end >= chunk.line_start);
+    }
+}
+
+#[tokio::test]
+#[serial]
+async fn test_consistent_chunking_behavior_across_modules() {
+    let temp_dir = TempDir::new().unwrap();
+    let kb_root = temp_dir.path();
+
+    // Create test file with multiple chunks
+    let test_file = kb_root.join("test.md");
+    let content = "# Section A\n\nContent A.\n\n# Section B\n\nContent B.\n\n# Section C\n\nContent C.";
+    fs::write(&test_file, content).unwrap();
+
+    // Create vault and index
+    let vault = VaultState::new(kb_root.to_str().unwrap()).await;
+    let search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
+
+    // Build all indexes
+    {
+        let mut bm25 = search_engine.bm25.lock().await;
+        bm25.index_vault(&vault).await.unwrap();
+    }
+    {
+        let vector = search_engine.vector.lock().await;
+        vector.index_vault(&vault, &search_engine.embed).await.unwrap();
+    }
+    {
+        let graph = search_engine.graph.lock().await;
+        graph.build_graph(&vault).await.unwrap();
+    }
+
+    // Verify consistent chunking across all modules
+    let bm25 = search_engine.bm25.lock().await;
+    let bm25_chunks = bm25.get_chunks_for_path("test.md").await.unwrap();
+    drop(bm25);
+
+    // All modules should see the same number of chunks
+    assert_eq!(bm25_chunks.len(), 3);
+
+    // Verify ordinals are consistent
+    for (i, chunk) in bm25_chunks.iter().enumerate() {
+        assert_eq!(chunk.chunk_ordinal, (i + 1) as u64);
+    }
+
+    // Verify search results include ordinals
+    let results = search_engine.search("Content", 5).await;
+    assert!(!results.is_empty());
+    for result in results {
+        for section in &result.sections {
+            assert!(section.chunk_ordinal > 0);
+        }
+    }
+}

@@ -268,6 +268,28 @@ impl BM25Index {
     }
 
     #[allow(dead_code)]
+    /// Retrieves a chunk by its ordinal position within a file.
+    ///
+    /// This method allows precise chunk retrieval using 1-based ordinal numbers.
+    /// Returns an error if ingestion is in progress, ordinal is out of bounds,
+    /// or the chunk is not found.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The file path (relative to kb_root)
+    /// * `ordinal` - The 1-based ordinal number of the chunk to retrieve
+    ///
+    /// # Returns
+    ///
+    /// A `ChunkDoc` containing the chunk metadata and content
+    ///
+    /// # Errors
+    ///
+    /// Returns `TantivyError::InvalidArgument` if:
+    /// - Ingestion is in progress
+    /// - Ordinal is < 1
+    /// - Ordinal exceeds chunk count
+    /// - Chunk with ordinal not found
     pub async fn get_chunk_by_ordinal(
         &self,
         path: &str,

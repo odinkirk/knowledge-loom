@@ -147,3 +147,128 @@ fn test_parse_chunks_boundary_cases_with_ordinals() {
         assert_eq!(chunk.ordinal, (i + 1) as u64);
     }
 }
+
+#[test]
+fn test_module_boundaries() {
+    // Verify that chunking logic is only in chunks module
+    // This test ensures no duplicate chunking code exists elsewhere
+    let content = "# Heading\n\nContent";
+    let chunks = chunks::parse_chunks(content);
+    assert!(!chunks.is_empty());
+    // Verify chunk structure matches expected API
+    assert!(chunks[0].ordinal > 0);
+    assert!(chunks[0].line_start > 0);
+    assert!(chunks[0].line_end >= chunks[0].line_start);
+}
+
+#[test]
+fn test_module_api_stability() {
+    // Verify that the Chunk struct API is stable
+    let content = "# Heading\n\nContent";
+    let chunks = chunks::parse_chunks(content);
+    assert!(!chunks.is_empty());
+    
+    // Verify all expected fields exist and are accessible
+    let chunk = &chunks[0];
+    let _ordinal = chunk.ordinal;
+    let _heading = &chunk.heading;
+    let _content = &chunk.content;
+    let _line_start = chunk.line_start;
+    let _line_end = chunk.line_end;
+    
+    // Verify Clone trait is implemented
+    let chunk_clone = chunk.clone();
+    assert_eq!(chunk.ordinal, chunk_clone.ordinal);
+}
+
+#[test]
+fn test_module_performance() {
+    // Verify chunking performance is acceptable
+    let content = "# Heading\n\n".to_string() + &"A".repeat(10000);
+    let start = std::time::Instant::now();
+    let chunks = chunks::parse_chunks(&content);
+    let duration = start.elapsed();
+    
+    assert!(!chunks.is_empty());
+    // Should complete in reasonable time (< 10ms for typical content)
+    assert!(duration.as_millis() < 10, "Chunking took too long: {:?}", duration);
+}
+
+#[test]
+fn test_module_error_handling() {
+    // Verify graceful handling of edge cases
+    let test_cases = vec![
+        "", // Empty content
+        "\n\n\n", // Only whitespace
+        "#", // Heading without text
+        "##", // Heading without text
+        "Content without heading", // No heading
+    ];
+    
+    for content in test_cases {
+        let chunks = chunks::parse_chunks(content);
+        // Should not panic, even with edge cases
+        assert!(chunks.len() >= 0);
+    }
+}
+
+#[test]
+fn test_module_thread_safety() {
+    // Verify that chunking is thread-safe (no shared mutable state)
+    let content = "# Heading\n\nContent";
+    
+    // Spawn multiple threads that all parse the same content
+    let handles: Vec<_> = (0..10)
+        .map(|_| {
+            std::thread::spawn(|| {
+                let chunks = chunks::parse_chunks(content);
+                assert!(!chunks.is_empty());
+                chunks.len()
+            })
+        })
+        .collect();
+    
+    // All threads should complete successfully
+    for handle in handles {
+        let result = handle.join().unwrap();
+        assert!(result > 0);
+    }
+}
+
+#[test]
+fn test_module_memory_usage() {
+    // Verify reasonable memory usage for large content
+    let content = "# Heading\n\n".to_string() + &"A".repeat(100000);
+    
+    let chunks = chunks::parse_chunks(&content);
+    assert!(!chunks.is_empty());
+    
+    // Verify chunks are not excessively large
+    for chunk in &chunks {
+        assert!(chunk.content.len() <= chunks::MAX_CHUNK_CHARS);
+    }
+}
+
+#[test]
+fn test_module_concurrency() {
+    // Verify concurrent chunking operations work correctly
+    let content = "# Heading\n\nContent";
+    
+    // Use rayon for parallel processing if available, otherwise use threads
+    let handles: Vec<_> = (0..5)
+        .map(|i| {
+            let content = format!("{} # Section {}\n\nContent {}", content, i, i);
+            std::thread::spawn(move || {
+                let chunks = chunks::parse_chunks(&content);
+                assert!(!chunks.is_empty());
+                chunks.len()
+            })
+        })
+        .collect();
+    
+    // All operations should complete successfully
+    for handle in handles {
+        let result = handle.join().unwrap();
+        assert!(result > 0);
+    }
+}

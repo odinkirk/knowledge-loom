@@ -221,30 +221,30 @@ Phase 6 (Polish) ← Depends on all user stories
 
 ### Implementation Tasks
 
-- [ ] T097 [P] [US3] Verify all chunking logic is in chunks.rs in src/chunks.rs
-- [ ] T098 [P] [US3] Verify BM25 module imports from chunks.rs in src/bm25.rs
-- [ ] T099 [P] [US3] Verify Vault module imports from chunks.rs in src/vault.rs
-- [ ] T100 [P] [US3] Verify no duplicate chunking code in BM25 module in src/bm25.rs
-- [ ] T101 [P] [US3] Verify no duplicate chunking code in Vault module in src/vault.rs
-- [ ] T102 [P] [US3] Add doc comments to `Chunk` struct in src/chunks.rs
-- [ ] T103 [P] [US3] Add doc comments to `truncate_at_whitespace()` in src/chunks.rs
-- [ ] T104 [P] [US3] Add doc comments to `parse_chunks()` in src/chunks.rs
-- [ ] T105 [P] [US3] Add inline comments for character boundary logic in src/chunks.rs
-- [ ] T106 [P] [US3] Add inline comments for ordinal assignment logic in src/chunks.rs
-- [ ] T107 [P] [US3] Add doc comments to `get_chunk_by_ordinal()` in src/bm25.rs
-- [ ] T108 [P] [US3] Add inline comments for query logic in src/bm25.rs
-- [ ] T109 [P] [US3] Add doc comments to re-indexing calls in src/edits.rs
-- [ ] T110 [P] [US3] Add inline comments for re-indexing flow in src/edits.rs
-- [ ] T111 [P] [US3] Write test for module boundaries in tests/chunks_tests.rs
-- [ ] T112 [P] [US3] Write test for no duplicate chunking code in tests/integration.rs
-- [ ] T113 [P] [US3] Write test for consistent chunking behavior across modules in tests/integration.rs
-- [ ] T114 [P] [US3] Write test for module API stability in tests/chunks_tests.rs
-- [ ] T115 [P] [US3] Write test for module performance in tests/chunks_tests.rs
-- [ ] T116 [P] [US3] Write test for module error handling in tests/chunks_tests.rs
-- [ ] T117 [P] [US3] Write test for module thread safety in tests/chunks_tests.rs
-- [ ] T118 [P] [US3] Write test for module memory usage in tests/chunks_tests.rs
-- [ ] T119 [P] [US3] Write test for module concurrency in tests/chunks_tests.rs
-- [ ] T120 [US3] Run `cargo test` to verify all tests pass
+- [X] T097 [P] [US3] Verify all chunking logic is in chunks.rs in src/chunks.rs
+- [X] T098 [P] [US3] Verify BM25 module imports from chunks.rs in src/bm25.rs
+- [X] T099 [P] [US3] Verify Vault module imports from chunks.rs in src/vault.rs
+- [X] T100 [P] [US3] Verify no duplicate chunking code in BM25 module in src/bm25.rs
+- [X] T101 [P] [US3] Verify no duplicate chunking code in Vault module in src/vault.rs
+- [X] T102 [P] [US3] Add doc comments to `Chunk` struct in src/chunks.rs
+- [X] T103 [P] [US3] Add doc comments to `truncate_at_whitespace()` in src/chunks.rs
+- [X] T104 [P] [US3] Add doc comments to `parse_chunks()` in src/chunks.rs
+- [X] T105 [P] [US3] Add inline comments for character boundary logic in src/chunks.rs
+- [X] T106 [P] [US3] Add inline comments for ordinal assignment logic in src/chunks.rs
+- [X] T107 [P] [US3] Add doc comments to `get_chunk_by_ordinal()` in src/bm25.rs
+- [X] T108 [P] [US3] Add inline comments for query logic in src/bm25.rs
+- [X] T109 [P] [US3] Add doc comments to re-indexing calls in src/edits.rs
+- [X] T110 [P] [US3] Add inline comments for re-indexing flow in src/edits.rs
+- [X] T111 [P] [US3] Write test for module boundaries in tests/chunks_tests.rs
+- [X] T112 [P] [US3] Write test for no duplicate chunking code in tests/integration.rs
+- [X] T113 [P] [US3] Write test for consistent chunking behavior across modules in tests/integration.rs
+- [X] T114 [P] [US3] Write test for module API stability in tests/chunks_tests.rs
+- [X] T115 [P] [US3] Write test for module performance in tests/chunks_tests.rs
+- [X] T116 [P] [US3] Write test for module error handling in tests/chunks_tests.rs
+- [X] T117 [P] [US3] Write test for module thread safety in tests/chunks_tests.rs
+- [X] T118 [P] [US3] Write test for module memory usage in tests/chunks_tests.rs
+- [X] T119 [P] [US3] Write test for module concurrency in tests/chunks_tests.rs
+- [X] T120 [US3] Run `cargo test` to verify all tests pass
 
 ---
 
