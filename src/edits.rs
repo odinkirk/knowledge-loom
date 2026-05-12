@@ -237,21 +237,35 @@ impl EditManager {
     ///
     /// * `path` - The file path to re-index
     /// * `content` - The updated file content
-    async fn reindex_file(&self, path: &Path, content: &str) {
+    async fn reindex_file(&self, path: &Path, content: &str) -> Result<(), String> {
+        let mut errors = Vec::new();
+
         // Update BM25 full-text index
         {
             let mut bm25 = self.bm25_index.lock().await;
-            let _ = bm25.index_file(path, content).await;
+            if let Err(e) = bm25.index_file(path, content).await {
+                errors.push(format!("BM25 index update failed: {}", e));
+            }
         }
         // Update vector embedding index
         {
             let vector = self.vector_index.lock().await;
-            let _ = vector.index_file(path, content, &self.embed_provider).await;
+            if let Err(e) = vector.index_file(path, content, &self.embed_provider).await {
+                errors.push(format!("Vector index update failed: {}", e));
+            }
         }
         // Update graph analytics index
         {
             let graph = self.graph_state.lock().await;
-            let _ = graph.update_file(path, content).await;
+            if let Err(e) = graph.update_file(path, content).await {
+                errors.push(format!("Graph index update failed: {}", e));
+            }
+        }
+
+        if !errors.is_empty() {
+            Err(errors.join("; "))
+        } else {
+            Ok(())
         }
     }
 
@@ -283,7 +297,9 @@ impl EditManager {
             let new_content = new_lines.join("\n");
             vault_lock.write_file(file_path, &new_content).await?;
         } // vault_lock dropped
-        self.reindex_file(file_path, new_content).await;
+        self.reindex_file(file_path, new_content)
+            .await
+            .map_err(|e| std::io::Error::other(format!("Re-indexing failed: {}", e)))?;
         Ok(())
     }
 
@@ -332,7 +348,9 @@ impl EditManager {
                 ));
             }
         } // vault_lock dropped
-        self.reindex_file(file_path, &new_content).await;
+        self.reindex_file(file_path, &new_content)
+            .await
+            .map_err(|e| std::io::Error::other(format!("Re-indexing failed: {}", e)))?;
         Ok(())
     }
 
@@ -355,7 +373,9 @@ impl EditManager {
             new_content = content_buf;
             vault_lock.write_file(file_path, &new_content).await?;
         } // vault_lock dropped
-        self.reindex_file(file_path, &new_content).await;
+        self.reindex_file(file_path, &new_content)
+            .await
+            .map_err(|e| std::io::Error::other(format!("Re-indexing failed: {}", e)))?;
         Ok(())
     }
 
@@ -368,7 +388,9 @@ impl EditManager {
             let vault_lock = self.vault_state.lock().await;
             vault_lock.write_file(&file_path, content).await?;
         } // vault_lock dropped
-        self.reindex_file(&file_path, content).await;
+        self.reindex_file(&file_path, content)
+            .await
+            .map_err(|e| std::io::Error::other(format!("Re-indexing failed: {}", e)))?;
         Ok(file_path)
     }
 
@@ -381,7 +403,9 @@ impl EditManager {
             let vault_lock = self.vault_state.lock().await;
             vault_lock.write_file(file_path, new_content).await?;
         } // vault_lock dropped
-        self.reindex_file(file_path, new_content).await;
+        self.reindex_file(file_path, new_content)
+            .await
+            .map_err(|e| std::io::Error::other(format!("Re-indexing failed: {}", e)))?;
         Ok(())
     }
 

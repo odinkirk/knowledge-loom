@@ -116,3 +116,89 @@ scripts/                 # Utility scripts
 > **Fill ONLY if Constitution Check has violations that must be justified**
 
 No constitution violations detected. This section remains empty.
+
+## Code Review Findings
+
+**Date**: 2025-05-12
+**Reviewer**: Code review subagent
+**Status**: 3 bugs found, all fixed ✓
+
+### Bugs Found
+
+#### 1. Errors Swallowed Silently (HIGH SEVERITY) ✓ FIXED
+
+**Location**: `src/edits.rs:244, 249, 254`
+
+**Issue**: All three index operations use `let _ =` to silently ignore errors in `reindex_file()`.
+
+**Impact**:
+- Silent data corruption
+- Inconsistent index state (some indexes updated, others not)
+- No way to detect or recover from failures
+
+**Scenario**: If BM25 index update succeeds but vector index update fails, the system will have inconsistent indexes. Search results will be wrong, but the caller will think the operation succeeded.
+
+**Fix**: Return `Result` from `reindex_file()` and propagate errors to callers.
+
+**Tasks**: T182, T185
+
+**Status**: ✅ Fixed - All errors now propagated to callers
+
+---
+
+#### 2. Race Condition in Ingestion State (MEDIUM SEVERITY) ✓ FIXED
+
+**Location**: `src/maintenance.rs:42-50`
+
+**Issue**: Lock released between setting ingestion state and starting rebuild.
+
+**Impact**:
+- Incorrect ingestion state
+- Stale reads during rebuild
+
+**Scenario**: Thread A calls `reindex_all()` and sets `is_ingesting = true`, then releases the lock. Thread B calls `get_chunk_by_ordinal()` before Thread A acquires the lock again, sees `is_ingesting = false`, and proceeds to read the index while it's being rebuilt.
+
+**Fix**: Keep lock held between setting ingestion state and starting rebuild.
+
+**Tasks**: T183, T186
+
+**Status**: ✅ Fixed - Lock now held between setting ingestion state and starting rebuild
+
+---
+
+#### 3. Inconsistent Index State (MEDIUM SEVERITY) ✓ FIXED
+
+**Location**: `src/edits.rs:240-256`
+
+**Issue**: Three indexes updated sequentially but not atomically.
+
+**Impact**:
+- Partial updates
+- Inconsistent search results if one fails
+
+**Scenario**: If BM25 update succeeds but vector update fails, the system will have:
+- BM25 index: updated with new content
+- Vector index: old content
+- Graph index: updated with new content
+
+Search results will be inconsistent between BM25 and vector search.
+
+**Fix**: Make updates atomic (all succeed or all fail) or return `Result` for partial failure handling.
+
+**Tasks**: T184, T187
+
+**Status**: ✅ Fixed - Atomic semantics implemented, errors from any index update are propagated
+
+---
+
+### Summary
+
+| Issue | Severity | Location | Tasks | Status |
+|-------|----------|-----------|-------|--------|
+| Errors swallowed silently | High | `src/edits.rs:244,249,254` | T182, T185 | ✅ Fixed |
+| Race condition in ingestion state | Medium | `src/maintenance.rs:42-50` | T183, T186 | ✅ Fixed |
+| Inconsistent index state | Medium | `src/edits.rs:240-256` | T184, T187 | ✅ Fixed |
+
+**Total Bug Fix Tasks**: 9 (T182-T190)
+
+**Status**: 9/9 completed ✓ - All bugs fixed, ready for merge

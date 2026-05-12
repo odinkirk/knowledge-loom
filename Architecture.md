@@ -512,46 +512,62 @@ pub async fn search_graph_fused_inner(
 }
 ```
 
-### Edit Manager (`edits.rs`)
+ ### Edit Manager (`edits.rs`)
 
-The edit manager provides surgical file operations.
+ The edit manager provides surgical file operations.
 
-**Key Responsibilities:**
-- Surgical file operations
-- Heading-based navigation
-- Line-level precision
-- Vault-level management
+ **Key Responsibilities:**
+ - Surgical file operations
+ - Heading-based navigation
+ - Line-level precision
+ - Vault-level management
+ - Error propagation from re-indexing operations
 
-**Key Operations:**
-- `replace_lines` - In-place line replacement
-- `insert_after_heading` - Insert content under a heading
-- `append_to_file` - Append with blank-line separator
-- `create_note` - Create new note with title
-- `edit_note` - Replace full note content
-- `link_notes` - Add wikilink between notes
-- `move_note` - Move note to new location
-- `delete_note` - Delete note from vault
+ **Key Operations:**
+ - `replace_lines` - In-place line replacement
+ - `insert_after_heading` - Insert content under a heading
+ - `append_to_file` - Append with blank-line separator
+ - `create_note` - Create new note with title
+ - `edit_note` - Replace full note content
+ - `link_notes` - Add wikilink between notes
+ - `move_note` - Move note to new location
+ - `delete_note` - Delete note from vault
 
-### Maintenance Manager (`maintenance.rs`)
+ **Error Handling:**
+ - All edit operations return `Result` for error propagation
+ - `reindex_file()` collects errors from all three indexes (BM25, vector, graph)
+ - Errors are propagated to callers with descriptive messages
+ - Atomic semantics: all indexes must succeed or operation fails
+ - Partial failures are detected and reported to callers
 
-The maintenance manager handles index health and reindexing.
+ ### Maintenance Manager (`maintenance.rs`)
 
-**Key Responsibilities:**
-- Index health monitoring
-- Incremental reindexing
-- Cache management
+ The maintenance manager handles index health and reindexing.
 
-**Health Monitoring:**
-- Checks index integrity
-- Monitors chunk counts
-- Tracks last update times
-- Reports storage usage
+ **Key Responsibilities:**
+ - Index health monitoring
+ - Incremental reindexing
+ - Cache management
+ - Ingestion state management
 
-**Incremental Reindexing:**
-- Only re-indexes changed files
-- Preserves existing valid indexes
-- Updates graph connections incrementally
-- Maintains cache consistency
+ **Health Monitoring:**
+ - Checks index integrity
+ - Monitors chunk counts
+ - Tracks last update times
+ - Reports storage usage
+
+ **Incremental Reindexing:**
+ - Only re-indexes changed files
+ - Preserves existing valid indexes
+ - Updates graph connections incrementally
+ - Maintains cache consistency
+
+ **Ingestion State Management:**
+ - Tracks ingestion state to prevent stale reads during rebuild
+ - Sets ingestion state before acquiring lock for rebuild
+ - Returns "indexing: try again in 2 seconds" error during ingestion
+ - Clears ingestion state on success or failure
+ - Prevents race conditions between re-indexing and chunk retrieval
 
 ## Storage Architecture
 

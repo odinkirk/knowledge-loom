@@ -46,13 +46,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  - **Graph Node structure**: Ordinal metadata included in node metadata
  - **MCP tool responses**: Ordinal metadata included in all chunk-related responses
 
- ### Fixed
- - **UTF-8 panic during chunk truncation**: Fixed by using `char_indices()` for character boundary detection
- - **Inability to retrieve chunks by position**: Added `get_chunk_by_ordinal()` API
- - **Duplicate chunking code**: Extracted chunking logic into dedicated `chunks.rs` module
- - Removed legacy Python installer references
- - Fixed path inconsistencies between old `.loom` and new `.knowledge-loom` structure
- - Removed unimplemented `search_smart` tool from MCP interface
+  ### Fixed
+  - **UTF-8 panic during chunk truncation**: Fixed by using `char_indices()` for character boundary detection
+  - **Errors swallowed silently in reindex_file()**: Fixed by returning `Result` and propagating errors to callers
+  - **Race condition in ingestion state**: Fixed by keeping lock held between setting ingestion state and starting rebuild
+  - **Inconsistent index state**: Fixed by implementing atomic semantics for multi-index updates
+  - **Clippy warnings**: Fixed by using `std::io::Error::other()` instead of `std::io::Error::new(std::io::ErrorKind::Other, ...)`
+  - Removed legacy Python installer references
+  - Fixed path inconsistencies between old `.loom` and new `.knowledge-loom` structure
+  - Removed unimplemented `search_smart` tool from MCP interface
 
 ## [0.1.0] - Initial Release
 

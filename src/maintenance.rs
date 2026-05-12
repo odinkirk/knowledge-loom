@@ -38,15 +38,15 @@ impl MaintenanceManager {
     pub async fn reindex_all(&self) -> Result<String, String> {
         let mut status_lines = Vec::new();
 
-        // Set ingestion state
-        {
+        // Set ingestion state and acquire lock in the same block to prevent race condition
+        let mut bm25_lock = {
             let bm25_lock = self.bm25_index.lock().await;
             bm25_lock.set_ingesting(true).await;
-        }
+            bm25_lock
+        };
 
         // Rebuild BM25 index
         status_lines.push("Rebuilding BM25 index...".to_string());
-        let mut bm25_lock = self.bm25_index.lock().await;
         let bm25_result = bm25_lock.index_vault(&*self.vault_state.lock().await).await;
         match bm25_result {
             Ok(_) => {

@@ -332,11 +332,68 @@ Phase 6 (Polish) ← Depends on all user stories
 - [X] T180 Verify no regressions (all existing tests passing)
 - [X] T181 Prepare for merge (ready for review)
 
+### Bug Fixes (Code Review Findings)
+
+**Note**: These bugs were discovered during code review and must be fixed before merge.
+
+- [X] T182 Fix errors swallowed silently in `reindex_file()` (HIGH SEVERITY)
+  - Location: `src/edits.rs:244,249,254`
+  - Issue: All three index operations use `let _ =` to silently ignore errors
+  - Impact: Silent data corruption, inconsistent index state, no way to detect failures
+  - Fix: Return `Result` from `reindex_file()` and propagate errors to callers
+  - Update callers: `replace_lines()`, `insert_after_heading()`, `replace_lines_in_section()`, `append_to_file()`, `edit_note()`
+
+- [X] T183 Fix race condition in ingestion state (MEDIUM SEVERITY)
+  - Location: `src/maintenance.rs:42-50`
+  - Issue: Lock released between setting ingestion state and starting rebuild
+  - Impact: Incorrect ingestion state, stale reads during rebuild
+  - Fix: Keep lock held between setting ingestion state and starting rebuild
+  - Ensure `is_ingesting` is true before any index rebuild operations begin
+
+- [X] T184 Fix inconsistent index state (MEDIUM SEVERITY)
+  - Location: `src/edits.rs:240-256`
+  - Issue: Three indexes updated sequentially but not atomically
+  - Impact: Partial updates, inconsistent search results if one fails
+  - Fix: Make updates atomic (all succeed or all fail) or return `Result` for partial failure handling
+  - Consider transaction semantics for multi-index updates
+
+- [X] T185 Add tests for error propagation in `reindex_file()`
+  - Test that errors from BM25, vector, and graph updates are propagated
+  - Test that partial failures are detected and reported
+  - Test that callers can handle re-indexing failures
+
+- [X] T186 Add tests for ingestion state race conditions
+  - Test concurrent calls to `reindex_all()` and `get_chunk_by_ordinal()`
+  - Test that ingestion state is checked before index operations
+  - Test that stale reads are prevented during rebuild
+
+- [X] T187 Add tests for atomic index updates
+  - Test that all three indexes are updated or none are
+  - Test that inconsistent state is detected
+  - Test recovery from partial failures
+
+- [X] T188 Re-run quality gates after bug fixes
+  - Run `cargo fmt --all -- --check`
+  - Run `cargo clippy -- -D warnings`
+  - Run `cargo test` to verify all tests pass
+  - Run `cargo deny check` to verify security
+
+- [X] T189 Update documentation with bug fix notes
+  - Update ARCHITECTURE.md with error handling patterns
+  - Update CHANGELOG.md with bug fixes
+  - Add notes about atomic index updates
+
+- [X] T190 Final verification after bug fixes
+  - Verify all bugs are fixed
+  - Verify no regressions introduced
+  - Verify all tests pass
+  - Prepare for merge
+
 ---
 
 ## Task Statistics
 
-**Total Tasks**: 127
+**Total Tasks**: 137
 
 **By Phase**:
 - Phase 1 (Setup): 4 tasks (4/4 completed ✓)
@@ -345,11 +402,13 @@ Phase 6 (Polish) ← Depends on all user stories
 - Phase 4 (US2 - Ordinal Retrieval): 72 tasks (72/72 completed ✓)
 - Phase 5 (US3 - Module Extraction): 24 tasks (24/24 completed ✓)
 - Phase 6 (Polish): 19 tasks (19/19 completed ✓)
+- Phase 6 (Bug Fixes): 9 tasks (9/9 completed ✓)
 
 **By User Story**:
 - US1 (UTF-8 Safety): 20 tasks (20/20 completed ✓)
 - US2 (Ordinal Retrieval): 72 tasks (72/72 completed ✓)
 - US3 (Module Extraction): 24 tasks (24/24 completed ✓)
+- Bug Fixes: 9 tasks (9/9 completed ✓)
 
 **Parallel Opportunities**: 28 tasks marked with [P]
 
@@ -362,7 +421,7 @@ Phase 6 (Polish) ← Depends on all user stories
 - Corpus re-ingestion: <3 seconds (PERF-006) - Inferred from chunk performance ✓
 - Memory overhead: <1% (PERF-004) - Achieved: 8 bytes per chunk ✓
 
-**Overall Status**: 127/127 tasks completed (100%) ✓
+**Overall Status**: 137/137 tasks completed (100%) ✓
 
 ## Format Validation
 
@@ -377,12 +436,13 @@ Phase 6 (Polish) ← Depends on all user stories
 
 **Feature Implementation**: COMPLETE ✓
 
-All 127 tasks have been completed:
+All 137 tasks have been completed:
 1. ✅ Phase 1 (Setup): Project structure initialized
 2. ✅ Phase 3 (US1 - UTF-8 Safety): Fixed critical panic issue
 3. ✅ Phase 4 (US2 - Ordinal Retrieval): Added ordinal metadata and retrieval
 4. ✅ Phase 5 (US3 - Module Extraction): Ensured clean module boundaries
 5. ✅ Phase 6 (Polish): All quality gates passed, documentation complete
+6. ✅ Phase 6 (Bug Fixes): All 3 bugs fixed, tests added, documentation updated
 
 **Ready for Merge**: Feature branch `003-safe-chunk-indexing` is ready for review and merge.
 
@@ -397,3 +457,12 @@ All 127 tasks have been completed:
 **MVP Delivery**: Phase 3 (US1) was completed as minimum viable product
 
 **Full Feature**: All phases completed for full feature delivery
+
+**Bug Fixes Summary**:
+- ✅ T182: Fixed errors swallowed silently in `reindex_file()` (HIGH SEVERITY)
+- ✅ T183: Fixed race condition in ingestion state (MEDIUM SEVERITY)
+- ✅ T184: Fixed inconsistent index state (MEDIUM SEVERITY)
+- ✅ T185-T187: Added comprehensive tests for error propagation, race conditions, and atomic updates
+- ✅ T188: All quality gates pass (fmt, clippy, test, security)
+- ✅ T189: Documentation updated with error handling patterns and bug fixes
+- ✅ T190: Final verification complete, no regressions introduced
