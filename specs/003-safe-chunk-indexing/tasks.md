@@ -145,28 +145,28 @@ Phase 6 (Polish) ← Depends on all user stories
 - [X] T033 [P] [US2] Add error handling for file not found in `get_chunk_by_ordinal()` in src/bm25.rs
 - [X] T034 [P] [US2] Add error handling for index corruption in `get_chunk_by_ordinal()` in src/bm25.rs
 - [ ] T035 [P] [US2] Add ingestion state check to `get_chunk_by_ordinal()` in src/bm25.rs
-- [ ] T036 [P] [US2] Update Edits module to trigger re-indexing after edits in src/edits.rs
-- [ ] T037 [P] [US2] Add re-indexing call after `edit_file()` in src/edits.rs
-- [ ] T038 [P] [US2] Add re-indexing call after `edit_section()` in src/edits.rs
-- [ ] T039 [P] [US2] Add re-indexing call after `edit_lines()` in src/edits.rs
-- [ ] T040 [P] [US2] Add corpus re-ingestion on re-indexing failure in src/edits.rs
-- [ ] T041 [P] [US2] Add error handling for re-indexing failures in src/edits.rs
-- [ ] T042 [P] [US2] Add concurrent edit serialization in src/edits.rs
-- [ ] T043 [P] [US2] Add edit request queuing during re-indexing in src/edits.rs
-- [ ] T044 [P] [US2] Add re-indexing failure logging in src/edits.rs
-- [ ] T045 [P] [US2] Add user notification for re-indexing failure in src/edits.rs
-- [ ] T046 [P] [US2] Update Search module to include ordinal in results in src/search.rs
-- [ ] T047 [P] [US2] Update `SearchResult` struct to include ordinal in src/search.rs
-- [ ] T048 [P] [US2] Pass through ordinal from BM25 results in src/search.rs
-- [ ] T049 [P] [US2] Update Graph module to include ordinal in node metadata in src/graph.rs
-- [ ] T050 [P] [US2] Update `Node` struct to include ordinal in src/graph.rs
-- [ ] T051 [P] [US2] Pass through ordinal from chunk data in src/graph.rs
-- [ ] T052 [P] [US2] Update Vault module to use chunks.rs in src/vault.rs
-- [ ] T053 [P] [US2] Import `parse_chunks` from chunks.rs in src/vault.rs
-- [ ] T054 [P] [US2] Update chunking calls to use chunks module in src/vault.rs
-- [ ] T055 [P] [US2] Update Server module to include ordinal in MCP responses in src/server.rs
-- [ ] T056 [P] [US2] Update `ChunkResponse` struct to include ordinal in src/server.rs
-- [ ] T057 [P] [US2] Pass through ordinal from BM25 results in src/server.rs
+- [X] T036 [P] [US2] Update Edits module to trigger re-indexing after edits in src/edits.rs
+- [X] T037 [P] [US2] Add re-indexing call after `edit_file()` in src/edits.rs
+- [X] T038 [P] [US2] Add re-indexing call after `edit_section()` in src/edits.rs
+- [X] T039 [P] [US2] Add re-indexing call after `edit_lines()` in src/edits.rs
+- [X] T040 [P] [US2] Add corpus re-ingestion on re-indexing failure in src/edits.rs
+- [X] T041 [P] [US2] Add error handling for re-indexing failures in src/edits.rs
+- [X] T042 [P] [US2] Add concurrent edit serialization in src/edits.rs
+- [X] T043 [P] [US2] Add edit request queuing during re-indexing in src/edits.rs
+- [X] T044 [P] [US2] Add re-indexing failure logging in src/edits.rs
+- [X] T045 [P] [US2] Add user notification for re-indexing failure in src/edits.rs
+- [X] T046 [P] [US2] Update Search module to include ordinal in results in src/search.rs
+- [X] T047 [P] [US2] Update `SearchResult` struct to include ordinal in src/search.rs
+- [X] T048 [P] [US2] Pass through ordinal from BM25 results in src/search.rs
+- [X] T049 [P] [US2] Update Graph module to include ordinal in node metadata in src/graph.rs
+- [X] T050 [P] [US2] Update `Node` struct to include ordinal in src/graph.rs
+- [X] T051 [P] [US2] Pass through ordinal from chunk data in src/graph.rs
+- [X] T052 [P] [US2] Update Vault module to use chunks.rs in src/vault.rs
+- [X] T053 [P] [US2] Import `parse_chunks` from chunks.rs in src/vault.rs
+- [X] T054 [P] [US2] Update chunking calls to use chunks module in src/vault.rs
+- [X] T055 [P] [US2] Update Server module to include ordinal in MCP responses in src/server.rs
+- [X] T056 [P] [US2] Update `ChunkResponse` struct to include ordinal in src/server.rs
+- [X] T057 [P] [US2] Pass through ordinal from BM25 results in src/server.rs
 - [ ] T058 [P] [US2] Write test for ordinal assignment in `parse_chunks()` in tests/chunks_tests.rs
 - [ ] T059 [P] [US2] Write test for ordinal sequentiality in `parse_chunks()` in tests/chunks_tests.rs
 - [ ] T060 [P] [US2] Write test for `get_chunk_by_ordinal()` with valid ordinal in tests/bm25_tests.rs
