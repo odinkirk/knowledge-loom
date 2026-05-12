@@ -341,7 +341,13 @@ async fn test_graph_includes_ordinal() {
     .unwrap();
 
     // Update graph with the file
-    graph.update_file(&note_path, "# Section A\n\nContent A.\n\n# Section B\n\nContent B.").await.unwrap();
+    graph
+        .update_file(
+            &note_path,
+            "# Section A\n\nContent A.\n\n# Section B\n\nContent B.",
+        )
+        .await
+        .unwrap();
 
     // Verify graph state exists
     let graph_lock = graph.graph.lock().await;

@@ -863,7 +863,8 @@ async fn test_cross_module_ordinal_handling() {
 
     // Create test file with multiple chunks
     let test_file = kb_root.join("test.md");
-    let content = "# Section A\n\nContent A.\n\n# Section B\n\nContent B.\n\n# Section C\n\nContent C.";
+    let content =
+        "# Section A\n\nContent A.\n\n# Section B\n\nContent B.\n\n# Section C\n\nContent C.";
     fs::write(&test_file, content).unwrap();
 
     // Create vault and index
@@ -896,7 +897,10 @@ async fn test_cross_module_ordinal_handling() {
     assert!(!results.is_empty());
     for result in results {
         for section in &result.sections {
-            assert!(section.chunk_ordinal > 0, "Section should have valid ordinal");
+            assert!(
+                section.chunk_ordinal > 0,
+                "Section should have valid ordinal"
+            );
         }
     }
 
@@ -985,7 +989,7 @@ async fn test_no_duplicate_chunking_code() {
     let bm25 = search_engine.bm25.lock().await;
     let chunks = bm25.get_chunks_for_path("test.md").await.unwrap();
     assert!(!chunks.is_empty());
-    
+
     // Verify chunk structure matches chunks module API
     for chunk in &chunks {
         assert!(chunk.chunk_ordinal > 0);
@@ -1002,7 +1006,8 @@ async fn test_consistent_chunking_behavior_across_modules() {
 
     // Create test file with multiple chunks
     let test_file = kb_root.join("test.md");
-    let content = "# Section A\n\nContent A.\n\n# Section B\n\nContent B.\n\n# Section C\n\nContent C.";
+    let content =
+        "# Section A\n\nContent A.\n\n# Section B\n\nContent B.\n\n# Section C\n\nContent C.";
     fs::write(&test_file, content).unwrap();
 
     // Create vault and index
@@ -1016,7 +1021,10 @@ async fn test_consistent_chunking_behavior_across_modules() {
     }
     {
         let vector = search_engine.vector.lock().await;
-        vector.index_vault(&vault, &search_engine.embed).await.unwrap();
+        vector
+            .index_vault(&vault, &search_engine.embed)
+            .await
+            .unwrap();
     }
     {
         let graph = search_engine.graph.lock().await;

@@ -154,23 +154,66 @@ loom_find_path_between "ml-basics" "advanced-topics"
 loom_rank_notes
 ```
 
-### Editing with Precision
+ ### Editing with Precision
 
-```bash
-# Read a specific section
-loom_read_section "notes.md" "Introduction"
+ ```bash
+ # Read a specific section
+ loom_read_section "notes.md" "Introduction"
 
-# Insert content after a heading
-loom_insert_after_heading "notes.md" "Introduction" "New content here"
+ # Insert content after a heading
+ loom_insert_after_heading "notes.md" "Introduction" "New content here"
 
-# Replace exact line range
-loom_replace_lines "notes.md" 10 20 "Updated content"
+ # Replace exact line range
+ loom_replace_lines "notes.md" 10 20 "Updated content"
 
-# Append to file with separator
-loom_append_to_file "notes.md" "Additional notes"
-```
+ # Append to file with separator
+ loom_append_to_file "notes.md" "Additional notes"
+ ```
 
-### Graph Exploration
+ ### Chunk Retrieval with Ordinals
+
+ ```bash
+ # Retrieve a specific chunk by ordinal number
+ loom_get_chunk "notes.md" 3
+
+ # Results include ordinal metadata for precise reference
+ # {
+ #   "path": "notes.md",
+ #   "heading": "Introduction > Getting Started",
+ #   "content": "This is the third chunk...",
+ #   "line_start": 45,
+ #   "line_end": 67,
+ #   "chunk_ordinal": 3
+ # }
+
+ # Search results now include ordinal metadata
+ loom_search "machine learning" --top-k 10
+ # Each result section has chunk_ordinal field
+
+ # Graph nodes include ordinal metadata
+ loom_find_connections "neural-networks"
+ # Each node has chunk_ordinal for precise reference
+ ```
+
+ **Ordinal Metadata:**
+ - Chunks are numbered sequentially starting from 1
+ - Ordinals are unique within a file
+ - Ordinals are preserved across re-indexing when chunk count doesn't change
+ - Ordinals are reassigned when chunks are split or merged
+
+ **Re-indexing Behavior:**
+ - Edits trigger automatic file-specific re-indexing
+ - Re-indexing failures trigger corpus re-ingestion (<3 seconds)
+ - During re-ingestion, requests return "indexing: try again in 2 seconds"
+
+ **Index Rebuild Instructions:**
+ ```bash
+ # If you need to rebuild indexes (e.g., after schema changes)
+ rm -rf .knowledge-loom-index
+ loom_init
+ ```
+
+ ### Graph Exploration
 
 ```bash
 # Detect thematic communities

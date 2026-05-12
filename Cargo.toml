@@ -8,6 +8,14 @@ license = "MIT OR Apache-2.0"
 name = "loom"
 path = "src/main.rs"
 
+[[bench]]
+name = "chunk_bench"
+harness = false
+
+[[bench]]
+name = "bm25_bench"
+harness = false
+
 [dependencies]
 fastembed = "4"
 tantivy = "0.26"  # Upgraded to fix lz4_flex vulnerability

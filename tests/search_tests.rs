@@ -773,7 +773,12 @@ mod tests {
 
         // Index the file using BM25
         let mut bm25 = engine.bm25.lock().await;
-        bm25.index_file(&kb_root.join("test.md"), "# Section A\n\nContent A.\n\n# Section B\n\nContent B.").await.unwrap();
+        bm25.index_file(
+            &kb_root.join("test.md"),
+            "# Section A\n\nContent A.\n\n# Section B\n\nContent B.",
+        )
+        .await
+        .unwrap();
         {
             let mut writer = bm25.writer.lock().await;
             writer.commit().unwrap();

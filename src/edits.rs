@@ -513,7 +513,10 @@ mod tests {
 
         // Verify re-indexing occurred by checking BM25 index
         let bm25 = em.bm25_index.lock().await;
-        let chunks = bm25.get_chunks_for_path(path.to_str().unwrap()).await.unwrap();
+        let chunks = bm25
+            .get_chunks_for_path(path.to_str().unwrap())
+            .await
+            .unwrap();
         assert!(!chunks.is_empty());
         assert!(chunks[0].content.contains("New content A"));
     }
@@ -530,7 +533,10 @@ mod tests {
 
         // Verify ordinals are updated
         let bm25 = em.bm25_index.lock().await;
-        let chunks = bm25.get_chunks_for_path(path.to_str().unwrap()).await.unwrap();
+        let chunks = bm25
+            .get_chunks_for_path(path.to_str().unwrap())
+            .await
+            .unwrap();
         assert_eq!(chunks.len(), 3);
         assert_eq!(chunks[0].chunk_ordinal, 1);
         assert_eq!(chunks[1].chunk_ordinal, 2);
@@ -549,7 +555,10 @@ mod tests {
 
         // Verify ordinals are preserved
         let bm25 = em.bm25_index.lock().await;
-        let chunks = bm25.get_chunks_for_path(path.to_str().unwrap()).await.unwrap();
+        let chunks = bm25
+            .get_chunks_for_path(path.to_str().unwrap())
+            .await
+            .unwrap();
         assert_eq!(chunks.len(), 2);
         assert_eq!(chunks[0].chunk_ordinal, 1);
         assert_eq!(chunks[1].chunk_ordinal, 2);
@@ -567,7 +576,10 @@ mod tests {
 
         // Verify ordinals are reassigned
         let bm25 = em.bm25_index.lock().await;
-        let chunks = bm25.get_chunks_for_path(path.to_str().unwrap()).await.unwrap();
+        let chunks = bm25
+            .get_chunks_for_path(path.to_str().unwrap())
+            .await
+            .unwrap();
         assert_eq!(chunks.len(), 3);
         assert_eq!(chunks[0].chunk_ordinal, 1);
         assert_eq!(chunks[1].chunk_ordinal, 2);
@@ -586,7 +598,10 @@ mod tests {
 
         // Verify ordinals are reassigned
         let bm25 = em.bm25_index.lock().await;
-        let chunks = bm25.get_chunks_for_path(path.to_str().unwrap()).await.unwrap();
+        let chunks = bm25
+            .get_chunks_for_path(path.to_str().unwrap())
+            .await
+            .unwrap();
         assert_eq!(chunks.len(), 2);
         assert_eq!(chunks[0].chunk_ordinal, 1);
         assert_eq!(chunks[1].chunk_ordinal, 2);
@@ -665,8 +680,14 @@ mod tests {
 
         // Verify both files are indexed
         let bm25 = em.bm25_index.lock().await;
-        let chunks1 = bm25.get_chunks_for_path(path.to_str().unwrap()).await.unwrap();
-        let chunks2 = bm25.get_chunks_for_path(path2.to_str().unwrap()).await.unwrap();
+        let chunks1 = bm25
+            .get_chunks_for_path(path.to_str().unwrap())
+            .await
+            .unwrap();
+        let chunks2 = bm25
+            .get_chunks_for_path(path2.to_str().unwrap())
+            .await
+            .unwrap();
         assert!(!chunks1.is_empty());
         assert!(!chunks2.is_empty());
         drop(bm25);
@@ -687,7 +708,10 @@ mod tests {
 
         // Verify the file is still indexed after the edit
         let bm25 = em.bm25_index.lock().await;
-        let chunks = bm25.get_chunks_for_path(path.to_str().unwrap()).await.unwrap();
+        let chunks = bm25
+            .get_chunks_for_path(path.to_str().unwrap())
+            .await
+            .unwrap();
         assert!(!chunks.is_empty());
         assert!(chunks[0].content.contains("Updated content A"));
     }
@@ -708,7 +732,9 @@ mod tests {
             let path_clone_inner = path_clone.clone();
             let handle = tokio::spawn(async move {
                 let new_content = format!("# A\n\nContent A version {}.\n\n# B\n\nContent B.", i);
-                em_arc_clone.edit_note(&path_clone_inner, &new_content).await
+                em_arc_clone
+                    .edit_note(&path_clone_inner, &new_content)
+                    .await
             });
             handles.push(handle);
         }
@@ -726,7 +752,10 @@ mod tests {
 
         // Verify the final state is consistent
         let bm25 = em_arc.bm25_index.lock().await;
-        let chunks = bm25.get_chunks_for_path(path.to_str().unwrap()).await.unwrap();
+        let chunks = bm25
+            .get_chunks_for_path(path.to_str().unwrap())
+            .await
+            .unwrap();
         assert!(!chunks.is_empty());
     }
 
@@ -757,7 +786,10 @@ mod tests {
 
         // Verify the edit was processed
         let bm25 = em.bm25_index.lock().await;
-        let chunks = bm25.get_chunks_for_path(path.to_str().unwrap()).await.unwrap();
+        let chunks = bm25
+            .get_chunks_for_path(path.to_str().unwrap())
+            .await
+            .unwrap();
         assert!(!chunks.is_empty());
     }
 
@@ -775,7 +807,10 @@ mod tests {
 
         // Verify the file is still indexed
         let bm25 = em.bm25_index.lock().await;
-        let chunks = bm25.get_chunks_for_path(path.to_str().unwrap()).await.unwrap();
+        let chunks = bm25
+            .get_chunks_for_path(path.to_str().unwrap())
+            .await
+            .unwrap();
         assert!(!chunks.is_empty());
     }
 
@@ -793,7 +828,10 @@ mod tests {
         // User notification is handled by the edit operation
         // This test verifies the operation completes successfully
         let bm25 = em.bm25_index.lock().await;
-        let chunks = bm25.get_chunks_for_path(path.to_str().unwrap()).await.unwrap();
+        let chunks = bm25
+            .get_chunks_for_path(path.to_str().unwrap())
+            .await
+            .unwrap();
         assert!(!chunks.is_empty());
     }
 }

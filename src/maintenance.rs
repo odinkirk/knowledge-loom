@@ -47,9 +47,7 @@ impl MaintenanceManager {
         // Rebuild BM25 index
         status_lines.push("Rebuilding BM25 index...".to_string());
         let mut bm25_lock = self.bm25_index.lock().await;
-        let bm25_result = bm25_lock
-            .index_vault(&*self.vault_state.lock().await)
-            .await;
+        let bm25_result = bm25_lock.index_vault(&*self.vault_state.lock().await).await;
         match bm25_result {
             Ok(_) => {
                 status_lines.push("  BM25 index rebuilt".to_string());

@@ -367,9 +367,7 @@ mod tests {
         let index = BM25Index::new(kb_root.to_str().unwrap()).await;
 
         let path = kb_root.join("nonexistent.md");
-        let result = index
-            .get_chunk_by_ordinal(path.to_str().unwrap(), 1)
-            .await;
+        let result = index.get_chunk_by_ordinal(path.to_str().unwrap(), 1).await;
 
         assert!(result.is_err());
     }
@@ -390,9 +388,7 @@ mod tests {
             writer.commit().unwrap();
         }
 
-        let result = index
-            .get_chunk_by_ordinal(path.to_str().unwrap(), 0)
-            .await;
+        let result = index.get_chunk_by_ordinal(path.to_str().unwrap(), 0).await;
 
         assert!(result.is_err());
     }
@@ -436,9 +432,7 @@ mod tests {
             writer.commit().unwrap();
         }
 
-        let result = index
-            .get_chunk_by_ordinal(path.to_str().unwrap(), 1)
-            .await;
+        let result = index.get_chunk_by_ordinal(path.to_str().unwrap(), 1).await;
 
         assert!(result.is_err());
     }
@@ -480,9 +474,7 @@ mod tests {
         index.index_file(&path, content).await.unwrap();
 
         // Don't commit - simulates ingestion in progress
-        let result = index
-            .get_chunk_by_ordinal(path.to_str().unwrap(), 1)
-            .await;
+        let result = index.get_chunk_by_ordinal(path.to_str().unwrap(), 1).await;
 
         // Should either succeed (if writer lock allows) or fail gracefully
         // The important thing is it doesn't panic
@@ -544,8 +536,7 @@ mod tests {
 
         // Verify all ordinals are unique
         let ordinals: Vec<u64> = chunks.iter().map(|c| c.chunk_ordinal).collect();
-        let unique_ordinals: std::collections::HashSet<_> =
-            ordinals.iter().collect();
+        let unique_ordinals: std::collections::HashSet<_> = ordinals.iter().collect();
         assert_eq!(ordinals.len(), unique_ordinals.len());
     }
 
@@ -608,23 +599,13 @@ mod tests {
         let handle1 = {
             let index = index.clone();
             let path_str = path_str.clone();
-            tokio::spawn(async move {
-                index
-                    .get_chunk_by_ordinal(&path_str, 1)
-                    .await
-                    .unwrap()
-            })
+            tokio::spawn(async move { index.get_chunk_by_ordinal(&path_str, 1).await.unwrap() })
         };
 
         let handle2 = {
             let index = index.clone();
             let path_str = path_str.clone();
-            tokio::spawn(async move {
-                index
-                    .get_chunk_by_ordinal(&path_str, 2)
-                    .await
-                    .unwrap()
-            })
+            tokio::spawn(async move { index.get_chunk_by_ordinal(&path_str, 2).await.unwrap() })
         };
 
         let chunk1 = handle1.await.unwrap();
