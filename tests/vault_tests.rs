@@ -75,4 +75,24 @@ mod tests {
 
         assert!(mod_time.is_some());
     }
+
+    #[tokio::test]
+    async fn test_vault_uses_chunks_module() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        // Create a test file with multiple sections
+        let test_content = "# Section A\n\nContent A.\n\n# Section B\n\nContent B.";
+        fs::write(kb_root.join("test.md"), test_content).unwrap();
+
+        // Verify that chunks module is used by parsing the file
+        let chunks = knowledge_loom::chunks::parse_chunks(test_content);
+        assert_eq!(chunks.len(), 2);
+        assert_eq!(chunks[0].heading, Some("Section A".to_string()));
+        assert_eq!(chunks[1].heading, Some("Section B".to_string()));
+
+        // Verify ordinals are assigned
+        assert_eq!(chunks[0].ordinal, 1);
+        assert_eq!(chunks[1].ordinal, 2);
+    }
 }

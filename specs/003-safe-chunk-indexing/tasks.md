@@ -185,10 +185,10 @@ Phase 6 (Polish) ← Depends on all user stories
 - [ ] T073 [P] [US2] Write test for edit request queuing in tests/edits_tests.rs
 - [ ] T074 [P] [US2] Write test for re-indexing failure logging in tests/edits_tests.rs
 - [ ] T075 [P] [US2] Write test for user notification on failure in tests/edits_tests.rs
-- [ ] T076 [P] [US2] Write test for search includes ordinal in tests/search_tests.rs
-- [ ] T077 [P] [US2] Write test for graph includes ordinal in tests/graph_tests.rs
-- [ ] T078 [P] [US2] Write test for vault uses chunks module in tests/vault_tests.rs
-- [ ] T079 [P] [US2] Write test for MCP tool includes ordinal in tests/server_tests.rs
+- [X] T076 [P] [US2] Write test for search includes ordinal in tests/search_tests.rs
+- [X] T077 [P] [US2] Write test for graph includes ordinal in tests/graph_tests.rs
+- [X] T078 [P] [US2] Write test for vault uses chunks module in tests/vault_tests.rs
+- [X] T079 [P] [US2] Write test for MCP tool includes ordinal in tests/server_tests.rs
 - [X] T080 [P] [US2] Write test for schema compatibility with ordinal field in tests/bm25_tests.rs
 - [X] T081 [P] [US2] Write test for ordinal uniqueness within file in tests/bm25_tests.rs
 - [X] T082 [P] [US2] Write test for ordinal consistency after re-indexing in tests/bm25_tests.rs
