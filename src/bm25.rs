@@ -1,3 +1,4 @@
+use crate::chunks;
 use crate::vault::VaultState;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -12,111 +13,6 @@ use tantivy::{
 };
 use tokio::sync::Mutex;
 
-pub const MAX_CHUNK_CHARS: usize = 2000;
-
-#[must_use]
-pub fn truncate_at_whitespace(content: &str, max: usize) -> &str {
-    if content.len() <= max {
-        return content;
-    }
-    let slice = &content[..max];
-    match slice.rfind(|c: char| c.is_whitespace()) {
-        Some(pos) if pos > 0 => content[..pos].trim_end(),
-        _ => &content[..max],
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Chunk {
-    pub heading: Option<String>,
-    pub content: String,
-    pub line_start: usize,
-    pub line_end: usize,
-}
-
-#[must_use]
-pub fn parse_chunks(content: &str) -> Vec<Chunk> {
-    let lines: Vec<&str> = content.lines().collect();
-    let mut chunks = Vec::new();
-    // heading_stack: (level, text)
-    let mut heading_stack: Vec<(usize, String)> = Vec::new();
-    let mut i = 0;
-
-    while i < lines.len() {
-        let trimmed = lines[i].trim_start();
-        let level = trimmed.chars().take_while(|&c| c == '#').count();
-
-        if level > 0 && level <= 6 && trimmed.len() > level {
-            let after = &trimmed[level..];
-            if after.starts_with(' ') || after.starts_with('\t') {
-                let heading_text = after.trim().to_string();
-                if !heading_text.is_empty() {
-                    // Pop same-or-deeper headings
-                    while heading_stack.last().is_some_and(|(l, _)| *l >= level) {
-                        heading_stack.pop();
-                    }
-                    heading_stack.push((level, heading_text));
-
-                    let breadcrumb = heading_stack
-                        .iter()
-                        .map(|(_, t)| t.as_str())
-                        .collect::<Vec<_>>()
-                        .join(" > ");
-
-                    let section_start = i + 1; // 1-indexed heading line
-
-                    // Collect content until next heading
-                    let mut j = i + 1;
-                    while j < lines.len() {
-                        let next = lines[j].trim_start();
-                        let next_level = next.chars().take_while(|&c| c == '#').count();
-                        if next_level > 0 && next_level <= 6 && next.len() > next_level {
-                            let next_after = &next[next_level..];
-                            if next_after.starts_with(' ') || next_after.starts_with('\t') {
-                                break;
-                            }
-                        }
-                        j += 1;
-                    }
-
-                    let section_content = lines[i + 1..j].join("\n");
-                    let section_content =
-                        truncate_at_whitespace(section_content.trim(), MAX_CHUNK_CHARS).to_string();
-                    let section_end = if j > i + 1 { j } else { i + 1 };
-
-                    if !section_content.is_empty() {
-                        chunks.push(Chunk {
-                            heading: Some(breadcrumb),
-                            content: section_content,
-                            line_start: section_start,
-                            line_end: section_end,
-                        });
-                    }
-
-                    i = j;
-                    continue;
-                }
-            }
-        }
-        i += 1;
-    }
-
-    // Headingless fallback
-    if chunks.is_empty() {
-        let full = truncate_at_whitespace(content.trim(), MAX_CHUNK_CHARS).to_string();
-        if !full.is_empty() {
-            chunks.push(Chunk {
-                heading: None,
-                content: full,
-                line_start: 1,
-                line_end: lines.len(),
-            });
-        }
-    }
-
-    chunks
-}
-
 #[derive(Debug, Clone)]
 pub struct ChunkDoc {
     pub path: String,
@@ -124,6 +20,7 @@ pub struct ChunkDoc {
     pub content: String,
     pub line_start: usize,
     pub line_end: usize,
+    pub chunk_ordinal: u64,
 }
 
 fn get_text(doc: &TantivyDocument, schema: &tantivy::schema::Schema, field_name: &str) -> String {
@@ -158,6 +55,7 @@ pub struct BM25Index {
     pub schema: tantivy::schema::Schema,
     pub kb_root: PathBuf,
     pub index_path: PathBuf,
+    pub is_ingesting: Arc<Mutex<bool>>,
 }
 
 impl BM25Index {
@@ -175,6 +73,7 @@ impl BM25Index {
         let _path = schema_builder.add_text_field("path", STRING | STORED);
         let _line_start = schema_builder.add_u64_field("line_start", STORED);
         let _line_end = schema_builder.add_u64_field("line_end", STORED);
+        let _chunk_ordinal = schema_builder.add_u64_field("chunk_ordinal", STORED);
         let schema = schema_builder.build();
 
         // Open or create index; recreate if the stored schema doesn't match
@@ -241,7 +140,18 @@ impl BM25Index {
             schema,
             kb_root: kb_root_path,
             index_path,
+            is_ingesting: Arc::new(Mutex::new(false)),
         }
+    }
+
+    pub async fn set_ingesting(&self, ingesting: bool) {
+        let mut is_ingesting = self.is_ingesting.lock().await;
+        *is_ingesting = ingesting;
+    }
+
+    pub async fn is_ingesting(&self) -> bool {
+        let is_ingesting = self.is_ingesting.lock().await;
+        *is_ingesting
     }
 
     pub async fn index_file(
@@ -257,7 +167,7 @@ impl BM25Index {
         let path_field = self.schema.get_field("path").unwrap();
         let path_term = Term::from_field_text(path_field, &path_str);
 
-        let chunks = parse_chunks(content);
+        let chunks = chunks::parse_chunks(content);
         let mut writer_lock = self.writer.lock().await;
         writer_lock.delete_term(path_term);
         for chunk in chunks {
@@ -275,6 +185,10 @@ impl BM25Index {
             doc.add_u64(
                 self.schema.get_field("line_end").unwrap(),
                 chunk.line_end as u64,
+            );
+            doc.add_u64(
+                self.schema.get_field("chunk_ordinal").unwrap(),
+                chunk.ordinal,
             );
             writer_lock.add_document(doc)?;
         }
@@ -346,10 +260,74 @@ impl BM25Index {
                 line_start: get_u64(&doc, &self.schema, "line_start") as usize,
                 #[allow(clippy::cast_possible_truncation)]
                 line_end: get_u64(&doc, &self.schema, "line_end") as usize,
+                chunk_ordinal: get_u64(&doc, &self.schema, "chunk_ordinal"),
             });
         }
         chunks.sort_by_key(|c| c.line_start);
         Ok(chunks)
+    }
+
+    #[allow(dead_code)]
+    /// Retrieves a chunk by its ordinal position within a file.
+    ///
+    /// This method allows precise chunk retrieval using 1-based ordinal numbers.
+    /// Returns an error if ingestion is in progress, ordinal is out of bounds,
+    /// or the chunk is not found.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The file path (relative to kb_root)
+    /// * `ordinal` - The 1-based ordinal number of the chunk to retrieve
+    ///
+    /// # Returns
+    ///
+    /// A `ChunkDoc` containing the chunk metadata and content
+    ///
+    /// # Errors
+    ///
+    /// Returns `TantivyError::InvalidArgument` if:
+    /// - Ingestion is in progress
+    /// - Ordinal is < 1
+    /// - Ordinal exceeds chunk count
+    /// - Chunk with ordinal not found
+    pub async fn get_chunk_by_ordinal(
+        &self,
+        path: &str,
+        ordinal: u64,
+    ) -> Result<ChunkDoc, TantivyError> {
+        // Check if ingestion is in progress
+        if self.is_ingesting().await {
+            return Err(TantivyError::InvalidArgument(
+                "indexing: try again in 2 seconds".to_string(),
+            ));
+        }
+
+        // Validate ordinal >= 1
+        if ordinal < 1 {
+            return Err(TantivyError::InvalidArgument(
+                "Ordinal must be >= 1".to_string(),
+            ));
+        }
+
+        // Get all chunks for the path
+        let chunks = self.get_chunks_for_path(path).await?;
+
+        // Validate ordinal <= chunk count
+        if ordinal as usize > chunks.len() {
+            return Err(TantivyError::InvalidArgument(format!(
+                "Ordinal {} exceeds chunk count {}",
+                ordinal,
+                chunks.len()
+            )));
+        }
+
+        // Find chunk with matching ordinal
+        chunks
+            .into_iter()
+            .find(|c| c.chunk_ordinal == ordinal)
+            .ok_or_else(|| {
+                TantivyError::InvalidArgument(format!("Chunk with ordinal {} not found", ordinal))
+            })
     }
 
     #[allow(dead_code)]
@@ -433,6 +411,7 @@ impl BM25Index {
                     line_start: get_u64(&doc, &self.schema, "line_start") as usize,
                     #[allow(clippy::cast_possible_truncation)]
                     line_end: get_u64(&doc, &self.schema, "line_end") as usize,
+                    chunk_ordinal: get_u64(&doc, &self.schema, "chunk_ordinal"),
                 },
             ));
         }
@@ -507,6 +486,7 @@ impl BM25Index {
                         content,
                         line_start: get_u64(&doc, &self.schema, "line_start") as usize,
                         line_end: get_u64(&doc, &self.schema, "line_end") as usize,
+                        chunk_ordinal: get_u64(&doc, &self.schema, "chunk_ordinal"),
                     },
                 ));
             }

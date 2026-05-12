@@ -755,4 +755,44 @@ mod tests {
             scores["B"]
         );
     }
+
+    #[tokio::test]
+    async fn test_search_includes_ordinal() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        // Create test file
+        fs::write(
+            kb_root.join("test.md"),
+            "# Section A\n\nContent A.\n\n# Section B\n\nContent B.",
+        )
+        .unwrap();
+
+        // Create search engine and index
+        let engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
+
+        // Index the file using BM25
+        let mut bm25 = engine.bm25.lock().await;
+        bm25.index_file(
+            &kb_root.join("test.md"),
+            "# Section A\n\nContent A.\n\n# Section B\n\nContent B.",
+        )
+        .await
+        .unwrap();
+        {
+            let mut writer = bm25.writer.lock().await;
+            writer.commit().unwrap();
+        }
+
+        // Search and verify ordinals are included
+        let results = engine.search("Content", 10).await;
+        assert!(!results.is_empty());
+
+        // Verify each result's sections have ordinal metadata
+        for result in &results {
+            for section in &result.sections {
+                assert!(section.chunk_ordinal > 0, "Ordinal should be > 0");
+            }
+        }
+    }
 }

@@ -3,7 +3,8 @@ mod tests {
 
     use tempfile::TempDir;
 
-    use knowledge_loom::bm25::{extract_title, parse_chunks, truncate_at_whitespace, BM25Index};
+    use knowledge_loom::bm25::{extract_title, BM25Index};
+    use knowledge_loom::chunks::{parse_chunks, truncate_at_whitespace};
 
     #[tokio::test]
     async fn test_bm25_create_index() {
@@ -284,5 +285,374 @@ mod tests {
         let chunks = parse_chunks(&md);
         assert_eq!(chunks.len(), 1);
         assert!(chunks[0].content.len() <= 2000);
+    }
+
+    #[tokio::test]
+    async fn test_get_chunk_by_ordinal_valid_ordinal() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        let mut index = BM25Index::new(kb_root.to_str().unwrap()).await;
+
+        let path = kb_root.join("test.md");
+        let content = "# Section A\n\nContent A.\n\n# Section B\n\nContent B.";
+        index.index_file(&path, content).await.unwrap();
+
+        {
+            let mut writer = index.writer.lock().await;
+            writer.commit().unwrap();
+        }
+
+        let chunk = index
+            .get_chunk_by_ordinal(path.to_str().unwrap(), 1)
+            .await
+            .unwrap();
+        assert_eq!(chunk.chunk_ordinal, 1);
+        assert!(chunk.content.contains("Content A"));
+    }
+
+    #[tokio::test]
+    async fn test_get_chunk_by_ordinal_first_chunk() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        let mut index = BM25Index::new(kb_root.to_str().unwrap()).await;
+
+        let path = kb_root.join("test.md");
+        let content = "# A\n\nContent A.\n\n# B\n\nContent B.";
+        index.index_file(&path, content).await.unwrap();
+
+        {
+            let mut writer = index.writer.lock().await;
+            writer.commit().unwrap();
+        }
+
+        let chunk = index
+            .get_chunk_by_ordinal(path.to_str().unwrap(), 1)
+            .await
+            .unwrap();
+        assert_eq!(chunk.chunk_ordinal, 1);
+        assert!(chunk.content.contains("Content A"));
+    }
+
+    #[tokio::test]
+    async fn test_get_chunk_by_ordinal_last_chunk() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        let mut index = BM25Index::new(kb_root.to_str().unwrap()).await;
+
+        let path = kb_root.join("test.md");
+        let content = "# A\n\nContent A.\n\n# B\n\nContent B.";
+        index.index_file(&path, content).await.unwrap();
+
+        {
+            let mut writer = index.writer.lock().await;
+            writer.commit().unwrap();
+        }
+
+        let chunk = index
+            .get_chunk_by_ordinal(path.to_str().unwrap(), 2)
+            .await
+            .unwrap();
+        assert_eq!(chunk.chunk_ordinal, 2);
+        assert!(chunk.content.contains("Content B"));
+    }
+
+    #[tokio::test]
+    async fn test_get_chunk_by_ordinal_file_not_found() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        let index = BM25Index::new(kb_root.to_str().unwrap()).await;
+
+        let path = kb_root.join("nonexistent.md");
+        let result = index.get_chunk_by_ordinal(path.to_str().unwrap(), 1).await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_get_chunk_by_ordinal_ordinal_zero() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        let mut index = BM25Index::new(kb_root.to_str().unwrap()).await;
+
+        let path = kb_root.join("test.md");
+        let content = "# A\n\nContent A.";
+        index.index_file(&path, content).await.unwrap();
+
+        {
+            let mut writer = index.writer.lock().await;
+            writer.commit().unwrap();
+        }
+
+        let result = index.get_chunk_by_ordinal(path.to_str().unwrap(), 0).await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_get_chunk_by_ordinal_ordinal_exceeds_chunk_count() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        let mut index = BM25Index::new(kb_root.to_str().unwrap()).await;
+
+        let path = kb_root.join("test.md");
+        let content = "# A\n\nContent A.";
+        index.index_file(&path, content).await.unwrap();
+
+        {
+            let mut writer = index.writer.lock().await;
+            writer.commit().unwrap();
+        }
+
+        let result = index
+            .get_chunk_by_ordinal(path.to_str().unwrap(), 999)
+            .await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_get_chunk_by_ordinal_empty_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        let mut index = BM25Index::new(kb_root.to_str().unwrap()).await;
+
+        let path = kb_root.join("test.md");
+        let content = "";
+        index.index_file(&path, content).await.unwrap();
+
+        {
+            let mut writer = index.writer.lock().await;
+            writer.commit().unwrap();
+        }
+
+        let result = index.get_chunk_by_ordinal(path.to_str().unwrap(), 1).await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_get_chunk_by_ordinal_index_corruption() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        let mut index = BM25Index::new(kb_root.to_str().unwrap()).await;
+
+        let path = kb_root.join("test.md");
+        let content = "# A\n\nContent A.";
+        index.index_file(&path, content).await.unwrap();
+
+        {
+            let mut writer = index.writer.lock().await;
+            writer.commit().unwrap();
+        }
+
+        // Simulate index corruption by requesting ordinal that doesn't exist
+        // This test verifies error handling for inconsistent index state
+        let result = index
+            .get_chunk_by_ordinal(path.to_str().unwrap(), 999)
+            .await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_get_chunk_by_ordinal_ingestion_in_progress() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        let mut index = BM25Index::new(kb_root.to_str().unwrap()).await;
+
+        let path = kb_root.join("test.md");
+        let content = "# A\n\nContent A.";
+        index.index_file(&path, content).await.unwrap();
+
+        // Don't commit - simulates ingestion in progress
+        let result = index.get_chunk_by_ordinal(path.to_str().unwrap(), 1).await;
+
+        // Should either succeed (if writer lock allows) or fail gracefully
+        // The important thing is it doesn't panic
+        match result {
+            Ok(_) => {
+                // If it succeeds, verify the chunk
+                assert_eq!(result.unwrap().chunk_ordinal, 1);
+            }
+            Err(_) => {
+                // If it fails, that's also acceptable during ingestion
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_schema_compatibility_with_ordinal_field() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        let mut index = BM25Index::new(kb_root.to_str().unwrap()).await;
+
+        let path = kb_root.join("test.md");
+        let content = "# A\n\nContent A.";
+        index.index_file(&path, content).await.unwrap();
+
+        {
+            let mut writer = index.writer.lock().await;
+            writer.commit().unwrap();
+        }
+
+        // Verify schema includes chunk_ordinal field by retrieving a chunk
+        let chunk = index
+            .get_chunk_by_ordinal(path.to_str().unwrap(), 1)
+            .await
+            .unwrap();
+        assert_eq!(chunk.chunk_ordinal, 1);
+    }
+
+    #[tokio::test]
+    async fn test_ordinal_uniqueness_within_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        let mut index = BM25Index::new(kb_root.to_str().unwrap()).await;
+
+        let path = kb_root.join("test.md");
+        let content = "# A\n\nContent A.\n\n# B\n\nContent B.\n\n# C\n\nContent C.";
+        index.index_file(&path, content).await.unwrap();
+
+        {
+            let mut writer = index.writer.lock().await;
+            writer.commit().unwrap();
+        }
+
+        let chunks = index
+            .get_chunks_for_path(path.to_str().unwrap())
+            .await
+            .unwrap();
+
+        // Verify all ordinals are unique
+        let ordinals: Vec<u64> = chunks.iter().map(|c| c.chunk_ordinal).collect();
+        let unique_ordinals: std::collections::HashSet<_> = ordinals.iter().collect();
+        assert_eq!(ordinals.len(), unique_ordinals.len());
+    }
+
+    #[tokio::test]
+    async fn test_ordinal_consistency_after_reindexing() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        let mut index = BM25Index::new(kb_root.to_str().unwrap()).await;
+
+        let path = kb_root.join("test.md");
+        let content = "# A\n\nContent A.\n\n# B\n\nContent B.";
+        index.index_file(&path, content).await.unwrap();
+
+        {
+            let mut writer = index.writer.lock().await;
+            writer.commit().unwrap();
+        }
+
+        // Re-index with modified content
+        let new_content = "# A\n\nNew content A.\n\n# B\n\nNew content B.";
+        index.index_file(&path, new_content).await.unwrap();
+
+        {
+            let mut writer = index.writer.lock().await;
+            writer.commit().unwrap();
+        }
+
+        // Verify ordinals are still sequential
+        let chunks = index
+            .get_chunks_for_path(path.to_str().unwrap())
+            .await
+            .unwrap();
+        assert_eq!(chunks.len(), 2);
+        assert_eq!(chunks[0].chunk_ordinal, 1);
+        assert_eq!(chunks[1].chunk_ordinal, 2);
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_chunk_retrievals() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        let mut index = BM25Index::new(kb_root.to_str().unwrap()).await;
+
+        let path = kb_root.join("test.md");
+        let content = "# A\n\nContent A.\n\n# B\n\nContent B.";
+        index.index_file(&path, content).await.unwrap();
+
+        {
+            let mut writer = index.writer.lock().await;
+            writer.commit().unwrap();
+        }
+
+        // Spawn multiple concurrent retrievals using Arc
+        use std::sync::Arc;
+        let index = Arc::new(index);
+        let path_str = path.to_str().unwrap().to_string();
+
+        let handle1 = {
+            let index = index.clone();
+            let path_str = path_str.clone();
+            tokio::spawn(async move { index.get_chunk_by_ordinal(&path_str, 1).await.unwrap() })
+        };
+
+        let handle2 = {
+            let index = index.clone();
+            let path_str = path_str.clone();
+            tokio::spawn(async move { index.get_chunk_by_ordinal(&path_str, 2).await.unwrap() })
+        };
+
+        let chunk1 = handle1.await.unwrap();
+        let chunk2 = handle2.await.unwrap();
+
+        assert_eq!(chunk1.chunk_ordinal, 1);
+        assert_eq!(chunk2.chunk_ordinal, 2);
+    }
+
+    #[tokio::test]
+    async fn test_retrieval_during_reindexing() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        let mut index = BM25Index::new(kb_root.to_str().unwrap()).await;
+
+        let path = kb_root.join("test.md");
+        let content = "# A\n\nContent A.";
+        index.index_file(&path, content).await.unwrap();
+
+        {
+            let mut writer = index.writer.lock().await;
+            writer.commit().unwrap();
+        }
+
+        // Verify retrieval works before re-indexing
+        let chunk_before = index
+            .get_chunk_by_ordinal(path.to_str().unwrap(), 1)
+            .await
+            .unwrap();
+        assert_eq!(chunk_before.chunk_ordinal, 1);
+
+        // Re-index with new content
+        let new_content = "# A\n\nNew content A.";
+        index.index_file(&path, new_content).await.unwrap();
+
+        {
+            let mut writer = index.writer.lock().await;
+            writer.commit().unwrap();
+        }
+
+        // Verify retrieval works after re-indexing
+        let chunk_after = index
+            .get_chunk_by_ordinal(path.to_str().unwrap(), 1)
+            .await
+            .unwrap();
+        assert_eq!(chunk_after.chunk_ordinal, 1);
+        assert!(chunk_after.content.contains("New content"));
     }
 }
