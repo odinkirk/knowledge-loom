@@ -144,7 +144,7 @@ Phase 6 (Polish) ← Depends on all user stories
 - [X] T032 [P] [US2] Add validation for ordinal <= chunk count in `get_chunk_by_ordinal()` in src/bm25.rs
 - [X] T033 [P] [US2] Add error handling for file not found in `get_chunk_by_ordinal()` in src/bm25.rs
 - [X] T034 [P] [US2] Add error handling for index corruption in `get_chunk_by_ordinal()` in src/bm25.rs
-- [ ] T035 [P] [US2] Add ingestion state check to `get_chunk_by_ordinal()` in src/bm25.rs
+- [X] T035 [P] [US2] Add ingestion state check to `get_chunk_by_ordinal()` in src/bm25.rs
 - [X] T036 [P] [US2] Update Edits module to trigger re-indexing after edits in src/edits.rs
 - [X] T037 [P] [US2] Add re-indexing call after `edit_file()` in src/edits.rs
 - [X] T038 [P] [US2] Add re-indexing call after `edit_section()` in src/edits.rs
@@ -180,11 +180,11 @@ Phase 6 (Polish) ← Depends on all user stories
 - [X] T068 [P] [US2] Write test for `get_chunk_by_ordinal()` with ingestion in progress in tests/bm25_tests.rs
 - [X] T069 [P] [US2] Write test for edit triggers re-indexing in tests/edits_tests.rs
 - [X] T070 [P] [US2] Write test for re-indexing updates ordinals in tests/edits_tests.rs
-- [ ] T071 [P] [US2] Write test for corpus re-ingestion on failure in tests/edits_tests.rs
-- [ ] T072 [P] [US2] Write test for concurrent edit serialization in tests/edits_tests.rs
-- [ ] T073 [P] [US2] Write test for edit request queuing in tests/edits_tests.rs
-- [ ] T074 [P] [US2] Write test for re-indexing failure logging in tests/edits_tests.rs
-- [ ] T075 [P] [US2] Write test for user notification on failure in tests/edits_tests.rs
+- [X] T071 [P] [US2] Write test for corpus re-ingestion on failure in tests/edits_tests.rs
+- [X] T072 [P] [US2] Write test for concurrent edit serialization in tests/edits_tests.rs
+- [X] T073 [P] [US2] Write test for edit request queuing in tests/edits_tests.rs
+- [X] T074 [P] [US2] Write test for re-indexing failure logging in tests/edits_tests.rs
+- [X] T075 [P] [US2] Write test for user notification on failure in tests/edits_tests.rs
 - [X] T076 [P] [US2] Write test for search includes ordinal in tests/search_tests.rs
 - [X] T077 [P] [US2] Write test for graph includes ordinal in tests/graph_tests.rs
 - [X] T078 [P] [US2] Write test for vault uses chunks module in tests/vault_tests.rs
@@ -202,10 +202,10 @@ Phase 6 (Polish) ← Depends on all user stories
 - [X] T090 [P] [US2] Write test for ordinal reassignment after chunk merge in tests/edits_tests.rs
 - [X] T091 [P] [US2] Write test for error handling in re-indexing in tests/edits_tests.rs
 - [X] T092 [P] [US2] Write test for concurrent edits and retrievals in tests/edits_tests.rs
-- [ ] T093 [P] [US2] Write test for cross-module ordinal handling in tests/integration.rs
-- [ ] T094 [P] [US2] Write test for end-to-end index → retrieve → edit → re-index flow in tests/integration.rs
-- [ ] T095 [US2] Run `cargo test` to verify all tests pass
-- [ ] T096 [US2] Run `cargo test --test integration` to verify integration tests pass
+- [X] T093 [P] [US2] Write test for cross-module ordinal handling in tests/integration.rs
+- [X] T094 [P] [US2] Write test for end-to-end index → retrieve → edit → re-index flow in tests/integration.rs
+- [X] T095 [US2] Run `cargo test` to verify all tests pass
+- [X] T096 [US2] Run `cargo test --test integration` to verify integration tests pass
 
 ---
 

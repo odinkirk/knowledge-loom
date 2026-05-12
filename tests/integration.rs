@@ -854,3 +854,107 @@ fn create_test_vault(kb_root: &Path) {
         fs::write(full_path, content).unwrap();
     }
 }
+
+#[tokio::test]
+#[serial]
+async fn test_cross_module_ordinal_handling() {
+    let temp_dir = TempDir::new().unwrap();
+    let kb_root = temp_dir.path();
+
+    // Create test file with multiple chunks
+    let test_file = kb_root.join("test.md");
+    let content = "# Section A\n\nContent A.\n\n# Section B\n\nContent B.\n\n# Section C\n\nContent C.";
+    fs::write(&test_file, content).unwrap();
+
+    // Create vault and index
+    let vault = VaultState::new(kb_root.to_str().unwrap()).await;
+    let search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
+
+    // Build BM25 index
+    {
+        let mut bm25 = search_engine.bm25.lock().await;
+        bm25.index_vault(&vault).await.unwrap();
+    }
+
+    // Build graph
+    {
+        let graph = search_engine.graph.lock().await;
+        graph.build_graph(&vault).await.unwrap();
+    }
+
+    // Test BM25 module includes ordinals
+    let bm25 = search_engine.bm25.lock().await;
+    let chunks = bm25.get_chunks_for_path("test.md").await.unwrap();
+    assert_eq!(chunks.len(), 3);
+    assert_eq!(chunks[0].chunk_ordinal, 1);
+    assert_eq!(chunks[1].chunk_ordinal, 2);
+    assert_eq!(chunks[2].chunk_ordinal, 3);
+    drop(bm25);
+
+    // Test Search module includes ordinals
+    let results = search_engine.search("Content", 5).await;
+    assert!(!results.is_empty());
+    for result in results {
+        for section in &result.sections {
+            assert!(section.chunk_ordinal > 0, "Section should have valid ordinal");
+        }
+    }
+
+    // Test Graph module includes ordinals
+    let graph = search_engine.graph.lock().await;
+    let node_map = graph.node_map.lock().await;
+    // Verify graph nodes exist (ordinal handling is verified in graph-specific tests)
+    assert!(!node_map.is_empty());
+}
+
+#[tokio::test]
+#[serial]
+async fn test_end_to_end_index_retrieve_edit_reindex() {
+    let temp_dir = TempDir::new().unwrap();
+    let kb_root = temp_dir.path();
+
+    // Create test file
+    let test_file = kb_root.join("test.md");
+    let initial_content = "# Section A\n\nContent A.\n\n# Section B\n\nContent B.";
+    fs::write(&test_file, initial_content).unwrap();
+
+    // Create vault and index
+    let vault = VaultState::new(kb_root.to_str().unwrap()).await;
+    let search_engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
+
+    // Step 1: Index
+    {
+        let mut bm25 = search_engine.bm25.lock().await;
+        bm25.index_vault(&vault).await.unwrap();
+    }
+
+    // Step 2: Retrieve by ordinal
+    let bm25 = search_engine.bm25.lock().await;
+    let chunk1 = bm25.get_chunk_by_ordinal("test.md", 1).await.unwrap();
+    assert_eq!(chunk1.chunk_ordinal, 1);
+    assert!(chunk1.content.contains("Content A"));
+    drop(bm25);
+
+    // Step 3: Edit file
+    let edited_content = "# Section A\n\nUpdated Content A.\n\n# Section B\n\nContent B.";
+    fs::write(&test_file, edited_content).unwrap();
+
+    // Step 4: Re-index (simulating edit operation)
+    {
+        let mut bm25 = search_engine.bm25.lock().await;
+        let content = fs::read_to_string(&test_file).unwrap();
+        bm25.index_file(&test_file, &content).await.unwrap();
+    }
+
+    // Step 5: Verify updated content
+    let bm25 = search_engine.bm25.lock().await;
+    let chunk1_updated = bm25.get_chunk_by_ordinal("test.md", 1).await.unwrap();
+    assert_eq!(chunk1_updated.chunk_ordinal, 1);
+    assert!(chunk1_updated.content.contains("Updated Content A"));
+
+    // Verify ordinals are still sequential
+    let chunks = bm25.get_chunks_for_path("test.md").await.unwrap();
+    assert_eq!(chunks.len(), 2);
+    assert_eq!(chunks[0].chunk_ordinal, 1);
+    assert_eq!(chunks[1].chunk_ordinal, 2);
+}

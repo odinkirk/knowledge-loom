@@ -38,34 +38,69 @@ impl MaintenanceManager {
     pub async fn reindex_all(&self) -> Result<String, String> {
         let mut status_lines = Vec::new();
 
+        // Set ingestion state
+        {
+            let bm25_lock = self.bm25_index.lock().await;
+            bm25_lock.set_ingesting(true).await;
+        }
+
         // Rebuild BM25 index
         status_lines.push("Rebuilding BM25 index...".to_string());
         let mut bm25_lock = self.bm25_index.lock().await;
-        bm25_lock
+        let bm25_result = bm25_lock
             .index_vault(&*self.vault_state.lock().await)
-            .await
-            .map_err(|e| e.to_string())?;
-        status_lines.push("  BM25 index rebuilt".to_string());
+            .await;
+        match bm25_result {
+            Ok(_) => {
+                status_lines.push("  BM25 index rebuilt".to_string());
+            }
+            Err(e) => {
+                // Clear ingestion state on error
+                bm25_lock.set_ingesting(false).await;
+                return Err(format!("BM25 index rebuild failed: {}", e));
+            }
+        }
 
         // Rebuild vector index
         status_lines.push("Rebuilding vector index...".to_string());
-        self.vector_index
+        let vector_result = self
+            .vector_index
             .lock()
             .await
             .index_vault(&*self.vault_state.lock().await, &self.embed_provider)
-            .await
-            .map_err(|e| e.to_string())?;
-        status_lines.push("  Vector index rebuilt".to_string());
+            .await;
+        match vector_result {
+            Ok(_) => {
+                status_lines.push("  Vector index rebuilt".to_string());
+            }
+            Err(e) => {
+                // Clear ingestion state on error
+                bm25_lock.set_ingesting(false).await;
+                return Err(format!("Vector index rebuild failed: {}", e));
+            }
+        }
 
         // Rebuild graph
         status_lines.push("Rebuilding graph...".to_string());
-        self.graph_state
+        let graph_result = self
+            .graph_state
             .lock()
             .await
             .build_graph(&*self.vault_state.lock().await)
-            .await
-            .map_err(|e| e.to_string())?;
-        status_lines.push("  Graph rebuilt".to_string());
+            .await;
+        match graph_result {
+            Ok(_) => {
+                status_lines.push("  Graph rebuilt".to_string());
+            }
+            Err(e) => {
+                // Clear ingestion state on error
+                bm25_lock.set_ingesting(false).await;
+                return Err(format!("Graph rebuild failed: {}", e));
+            }
+        }
+
+        // Clear ingestion state on success
+        bm25_lock.set_ingesting(false).await;
 
         status_lines.push("Reindex complete.".to_string());
         Ok(status_lines.join("\n"))

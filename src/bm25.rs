@@ -55,6 +55,7 @@ pub struct BM25Index {
     pub schema: tantivy::schema::Schema,
     pub kb_root: PathBuf,
     pub index_path: PathBuf,
+    pub is_ingesting: Arc<Mutex<bool>>,
 }
 
 impl BM25Index {
@@ -139,7 +140,18 @@ impl BM25Index {
             schema,
             kb_root: kb_root_path,
             index_path,
+            is_ingesting: Arc::new(Mutex::new(false)),
         }
+    }
+
+    pub async fn set_ingesting(&self, ingesting: bool) {
+        let mut is_ingesting = self.is_ingesting.lock().await;
+        *is_ingesting = ingesting;
+    }
+
+    pub async fn is_ingesting(&self) -> bool {
+        let is_ingesting = self.is_ingesting.lock().await;
+        *is_ingesting
     }
 
     pub async fn index_file(
@@ -261,6 +273,13 @@ impl BM25Index {
         path: &str,
         ordinal: u64,
     ) -> Result<ChunkDoc, TantivyError> {
+        // Check if ingestion is in progress
+        if self.is_ingesting().await {
+            return Err(TantivyError::InvalidArgument(
+                "indexing: try again in 2 seconds".to_string(),
+            ));
+        }
+
         // Validate ordinal >= 1
         if ordinal < 1 {
             return Err(TantivyError::InvalidArgument(
