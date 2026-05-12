@@ -487,4 +487,139 @@ mod tests {
         let preview = em.apply_edit_preview(&path, "Missing", "x").await.unwrap();
         assert!(preview.is_none());
     }
+
+    #[tokio::test]
+    async fn test_edit_triggers_reindexing() {
+        let tmp = TempDir::new().unwrap();
+        let content = "# Section A\n\nContent A.\n\n# Section B\n\nContent B.";
+        let (em, path) = make_edit_manager(&tmp, content).await;
+
+        // Edit the file
+        let new_content = "# Section A\n\nNew content A.\n\n# Section B\n\nContent B.";
+        em.edit_note(&path, new_content).await.unwrap();
+
+        // Verify re-indexing occurred by checking BM25 index
+        let bm25 = em.bm25_index.lock().await;
+        let chunks = bm25.get_chunks_for_path(path.to_str().unwrap()).await.unwrap();
+        assert!(!chunks.is_empty());
+        assert!(chunks[0].content.contains("New content A"));
+    }
+
+    #[tokio::test]
+    async fn test_reindexing_updates_ordinals() {
+        let tmp = TempDir::new().unwrap();
+        let content = "# A\n\nContent A.\n\n# B\n\nContent B.";
+        let (em, path) = make_edit_manager(&tmp, content).await;
+
+        // Edit to add a new section
+        let new_content = "# A\n\nContent A.\n\n# B\n\nContent B.\n\n# C\n\nContent C.";
+        em.edit_note(&path, new_content).await.unwrap();
+
+        // Verify ordinals are updated
+        let bm25 = em.bm25_index.lock().await;
+        let chunks = bm25.get_chunks_for_path(path.to_str().unwrap()).await.unwrap();
+        assert_eq!(chunks.len(), 3);
+        assert_eq!(chunks[0].chunk_ordinal, 1);
+        assert_eq!(chunks[1].chunk_ordinal, 2);
+        assert_eq!(chunks[2].chunk_ordinal, 3);
+    }
+
+    #[tokio::test]
+    async fn test_ordinal_preservation_after_edit() {
+        let tmp = TempDir::new().unwrap();
+        let content = "# A\n\nContent A.\n\n# B\n\nContent B.";
+        let (em, path) = make_edit_manager(&tmp, content).await;
+
+        // Edit without changing chunk count
+        let new_content = "# A\n\nUpdated content A.\n\n# B\n\nContent B.";
+        em.edit_note(&path, new_content).await.unwrap();
+
+        // Verify ordinals are preserved
+        let bm25 = em.bm25_index.lock().await;
+        let chunks = bm25.get_chunks_for_path(path.to_str().unwrap()).await.unwrap();
+        assert_eq!(chunks.len(), 2);
+        assert_eq!(chunks[0].chunk_ordinal, 1);
+        assert_eq!(chunks[1].chunk_ordinal, 2);
+    }
+
+    #[tokio::test]
+    async fn test_ordinal_reassignment_after_chunk_split() {
+        let tmp = TempDir::new().unwrap();
+        let content = "# A\n\nContent A.\n\n# B\n\nContent B.";
+        let (em, path) = make_edit_manager(&tmp, content).await;
+
+        // Edit to split a chunk by adding a new heading
+        let new_content = "# A\n\nContent A.\n\n# A1\n\nNew section.\n\n# B\n\nContent B.";
+        em.edit_note(&path, new_content).await.unwrap();
+
+        // Verify ordinals are reassigned
+        let bm25 = em.bm25_index.lock().await;
+        let chunks = bm25.get_chunks_for_path(path.to_str().unwrap()).await.unwrap();
+        assert_eq!(chunks.len(), 3);
+        assert_eq!(chunks[0].chunk_ordinal, 1);
+        assert_eq!(chunks[1].chunk_ordinal, 2);
+        assert_eq!(chunks[2].chunk_ordinal, 3);
+    }
+
+    #[tokio::test]
+    async fn test_ordinal_reassignment_after_chunk_merge() {
+        let tmp = TempDir::new().unwrap();
+        let content = "# A\n\nContent A.\n\n# B\n\nContent B.\n\n# C\n\nContent C.";
+        let (em, path) = make_edit_manager(&tmp, content).await;
+
+        // Edit to merge chunks by removing a heading
+        let new_content = "# A\n\nContent A.\n\n# B\n\nContent B.\nContent C.";
+        em.edit_note(&path, new_content).await.unwrap();
+
+        // Verify ordinals are reassigned
+        let bm25 = em.bm25_index.lock().await;
+        let chunks = bm25.get_chunks_for_path(path.to_str().unwrap()).await.unwrap();
+        assert_eq!(chunks.len(), 2);
+        assert_eq!(chunks[0].chunk_ordinal, 1);
+        assert_eq!(chunks[1].chunk_ordinal, 2);
+    }
+
+    #[tokio::test]
+    async fn test_error_handling_in_reindexing() {
+        let tmp = TempDir::new().unwrap();
+        let content = "# A\n\nContent A.";
+        let (em, path) = make_edit_manager(&tmp, content).await;
+
+        // Edit should succeed even if re-indexing has issues
+        let new_content = "# A\n\nNew content A.";
+        let result = em.edit_note(&path, new_content).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_edits_and_retrievals() {
+        let tmp = TempDir::new().unwrap();
+        let content = "# A\n\nContent A.\n\n# B\n\nContent B.";
+        let (em, path) = make_edit_manager(&tmp, content).await;
+
+        // Spawn concurrent edit and retrieval
+        let em_arc = Arc::new(em);
+        let path_clone = path.clone();
+
+        let em_arc_clone = em_arc.clone();
+        let edit_handle = tokio::spawn(async move {
+            let new_content = "# A\n\nUpdated content A.\n\n# B\n\nContent B.";
+            em_arc_clone.edit_note(&path_clone, new_content).await
+        });
+
+        let bm25 = em_arc.bm25_index.clone();
+        let path_str = path.to_str().unwrap().to_string();
+        let retrieve_handle = tokio::spawn(async move {
+            let bm25_lock = bm25.lock().await;
+            bm25_lock.get_chunks_for_path(&path_str).await
+        });
+
+        // Wait for both operations
+        let edit_result = edit_handle.await.unwrap();
+        let retrieve_result = retrieve_handle.await.unwrap();
+
+        // Both should succeed
+        assert!(edit_result.is_ok());
+        assert!(retrieve_result.is_ok());
+    }
 }

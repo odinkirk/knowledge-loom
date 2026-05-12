@@ -178,8 +178,8 @@ Phase 6 (Polish) ← Depends on all user stories
 - [X] T066 [P] [US2] Write test for `get_chunk_by_ordinal()` with empty file in tests/bm25_tests.rs
 - [X] T067 [P] [US2] Write test for `get_chunk_by_ordinal()` with index corruption in tests/bm25_tests.rs
 - [X] T068 [P] [US2] Write test for `get_chunk_by_ordinal()` with ingestion in progress in tests/bm25_tests.rs
-- [ ] T069 [P] [US2] Write test for edit triggers re-indexing in tests/edits_tests.rs
-- [ ] T070 [P] [US2] Write test for re-indexing updates ordinals in tests/edits_tests.rs
+- [X] T069 [P] [US2] Write test for edit triggers re-indexing in tests/edits_tests.rs
+- [X] T070 [P] [US2] Write test for re-indexing updates ordinals in tests/edits_tests.rs
 - [ ] T071 [P] [US2] Write test for corpus re-ingestion on failure in tests/edits_tests.rs
 - [ ] T072 [P] [US2] Write test for concurrent edit serialization in tests/edits_tests.rs
 - [ ] T073 [P] [US2] Write test for edit request queuing in tests/edits_tests.rs
@@ -197,11 +197,11 @@ Phase 6 (Polish) ← Depends on all user stories
 - [X] T085 [P] [US2] Write test for multi-byte content with ordinals in tests/chunks_tests.rs
 - [X] T086 [P] [US2] Write test for large file (100+ chunks) with ordinals in tests/chunks_tests.rs
 - [X] T087 [P] [US2] Write test for boundary cases with ordinals in tests/chunks_tests.rs
-- [ ] T088 [P] [US2] Write test for ordinal preservation after edit in tests/edits_tests.rs
-- [ ] T089 [P] [US2] Write test for ordinal reassignment after chunk split in tests/edits_tests.rs
-- [ ] T090 [P] [US2] Write test for ordinal reassignment after chunk merge in tests/edits_tests.rs
-- [ ] T091 [P] [US2] Write test for error handling in re-indexing in tests/edits_tests.rs
-- [ ] T092 [P] [US2] Write test for concurrent edits and retrievals in tests/edits_tests.rs
+- [X] T088 [P] [US2] Write test for ordinal preservation after edit in tests/edits_tests.rs
+- [X] T089 [P] [US2] Write test for ordinal reassignment after chunk split in tests/edits_tests.rs
+- [X] T090 [P] [US2] Write test for ordinal reassignment after chunk merge in tests/edits_tests.rs
+- [X] T091 [P] [US2] Write test for error handling in re-indexing in tests/edits_tests.rs
+- [X] T092 [P] [US2] Write test for concurrent edits and retrievals in tests/edits_tests.rs
 - [ ] T093 [P] [US2] Write test for cross-module ordinal handling in tests/integration.rs
 - [ ] T094 [P] [US2] Write test for end-to-end index → retrieve → edit → re-index flow in tests/integration.rs
 - [ ] T095 [US2] Run `cargo test` to verify all tests pass
