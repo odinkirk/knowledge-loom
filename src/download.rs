@@ -85,6 +85,18 @@ pub fn format_download_error(error: &DownloadError) -> String {
 }
 
 /// Acquire file lock to prevent concurrent downloads
+///
+/// This function creates a lock file and acquires an exclusive lock on it.
+/// If the lock file already exists and is locked, it returns an error.
+///
+/// # Arguments
+///
+/// * `lock_path` - The path to the lock file
+///
+/// # Returns
+///
+/// * `Ok(std::fs::File)` - If the lock was successfully acquired
+/// * `Err(DownloadError)` - If the lock cannot be acquired
 pub fn acquire_lock(lock_path: &PathBuf) -> Result<std::fs::File, DownloadError> {
     let file = std::fs::OpenOptions::new()
         .write(true)
@@ -99,6 +111,17 @@ pub fn acquire_lock(lock_path: &PathBuf) -> Result<std::fs::File, DownloadError>
 }
 
 /// Release file lock
+///
+/// This function releases the lock on the lock file.
+///
+/// # Arguments
+///
+/// * `file` - The file handle to release the lock from
+///
+/// # Returns
+///
+/// * `Ok(())` - If the lock was successfully released
+/// * `Err(DownloadError)` - If the lock cannot be released
 pub fn release_lock(file: std::fs::File) -> Result<(), DownloadError> {
     file.unlock()
         .map_err(|e| DownloadError::Network(format!("Failed to release lock: {}", e)))?;
@@ -106,6 +129,14 @@ pub fn release_lock(file: std::fs::File) -> Result<(), DownloadError> {
 }
 
 /// Setup signal handler for Ctrl+C
+///
+/// This function sets up a signal handler for SIGINT (Ctrl+C) on Unix systems.
+/// When the signal is received, it sets the INTERRUPTED flag.
+///
+/// # Returns
+///
+/// * `Ok(())` - If the signal handler was successfully set up
+/// * `Err(DownloadError)` - If the signal handler cannot be set up
 pub fn setup_signal_handler() -> Result<(), DownloadError> {
     #[cfg(unix)]
     {
@@ -119,11 +150,22 @@ pub fn setup_signal_handler() -> Result<(), DownloadError> {
 }
 
 /// Check if download was interrupted
+///
+/// This function checks if the INTERRUPTED flag is set, indicating that
+/// the download was interrupted by the user (Ctrl+C).
+///
+/// # Returns
+///
+/// * `true` - If the download was interrupted
+/// * `false` - If the download was not interrupted
 pub fn is_interrupted() -> bool {
     INTERRUPTED.load(Ordering::SeqCst)
 }
 
 /// Reset interrupt flag
+///
+/// This function resets the INTERRUPTED flag to false.
+/// This should be called before starting a new download.
 pub fn reset_interrupt_flag() {
     INTERRUPTED.store(false, Ordering::SeqCst);
 }
@@ -177,6 +219,31 @@ impl DownloadManager {
     }
 
     /// Download file with progress callback
+    ///
+    /// This function downloads a file from the configured URL with progress tracking.
+    /// It supports HTTP Range requests for resuming interrupted downloads.
+    /// If a partial file exists at the output path, it will resume the download
+    /// from the last byte downloaded.
+    ///
+    /// # Arguments
+    ///
+    /// * `progress_callback` - A callback function that receives download progress updates
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the download completed successfully
+    /// * `Err(DownloadError)` - If the download failed
+    ///
+    /// # HTTP Range Support
+    ///
+    /// This function supports HTTP Range requests for resuming interrupted downloads.
+    /// If a partial file exists at the output path, it will:
+    /// 1. Check the file size to determine the number of bytes already downloaded
+    /// 2. Add a Range header to the HTTP request: `Range: bytes={start_byte}-`
+    /// 3. Append the downloaded data to the existing file
+    ///
+    /// If the server doesn't support Range requests, it will return a 200 status
+    /// instead of 206 (Partial Content), and the download will start from the beginning.
     pub async fn download<F>(&self, progress_callback: F) -> Result<(), DownloadError>
     where
         F: Fn(DownloadProgress) + Send + Sync,
@@ -187,6 +254,7 @@ impl DownloadManager {
         }
 
         // Check if partial file exists for resume
+        // HTTP Range request support: resume from last byte downloaded
         let start_byte = if self.output_path.exists() {
             let metadata = std::fs::metadata(&self.output_path).map_err(DownloadError::Io)?;
             metadata.len()
@@ -197,6 +265,7 @@ impl DownloadManager {
         // Build request with Range header if resuming
         let mut request = self.client.get(&self.url);
         if start_byte > 0 {
+            // Add Range header for HTTP Range request support
             request = request.header("Range", format!("bytes={}-", start_byte));
         }
 

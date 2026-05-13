@@ -202,16 +202,51 @@ impl ModelMetadata {
     }
 
     /// Check if model version matches expected version
+    ///
+    /// This function compares the model version with the expected version.
+    ///
+    /// # Arguments
+    ///
+    /// * `expected_version` - The expected model version
+    ///
+    /// # Returns
+    ///
+    /// * `true` - If the model version matches the expected version
+    /// * `false` - If the model version doesn't match
     pub fn is_version_match(&self, expected_version: &str) -> bool {
         self.model_version == expected_version
     }
 
     /// Check if model name matches expected name
+    ///
+    /// This function compares the model name with the expected name.
+    ///
+    /// # Arguments
+    ///
+    /// * `expected_name` - The expected model name
+    ///
+    /// # Returns
+    ///
+    /// * `true` - If the model name matches the expected name
+    /// * `false` - If the model name doesn't match
     pub fn is_name_match(&self, expected_name: &str) -> bool {
         self.model_name == expected_name
     }
 
     /// Validate model metadata against expected values
+    ///
+    /// This function validates the model metadata against the expected name and version.
+    /// It returns an error if the name or version doesn't match.
+    ///
+    /// # Arguments
+    ///
+    /// * `expected_name` - The expected model name
+    /// * `expected_version` - The expected model version
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the metadata matches the expected values
+    /// * `Err(ModelError)` - If the name or version doesn't match
     pub fn validate_metadata(
         &self,
         expected_name: &str,
@@ -316,6 +351,15 @@ impl ModelManager {
     }
 
     /// Get the download state
+    ///
+    /// This function retrieves the current download state from the state file.
+    /// If the state file doesn't exist, it returns None.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Some(DownloadState))` - If the state file exists and contains valid state
+    /// * `Ok(None)` - If the state file doesn't exist
+    /// * `Err(anyhow::Error)` - If the state file cannot be read or parsed
     pub fn get_download_state(&self) -> anyhow::Result<Option<DownloadState>> {
         let state_path = self.state_path();
         if !state_path.exists() {
@@ -332,6 +376,18 @@ impl ModelManager {
     }
 
     /// Set the download state
+    ///
+    /// This function persists the download state to the state file.
+    /// It creates the parent directory if it doesn't exist.
+    ///
+    /// # Arguments
+    ///
+    /// * `state` - The download state to persist
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the state was successfully persisted
+    /// * `Err(anyhow::Error)` - If the state cannot be serialized or written
     pub fn set_download_state(&self, state: &DownloadState) -> anyhow::Result<()> {
         let state_path = self.state_path();
 
@@ -349,6 +405,15 @@ impl ModelManager {
     }
 
     /// Get the model metadata
+    ///
+    /// This function retrieves the model metadata from the metadata file.
+    /// If the metadata file doesn't exist, it returns None.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Some(ModelMetadata))` - If the metadata file exists and contains valid metadata
+    /// * `Ok(None)` - If the metadata file doesn't exist
+    /// * `Err(anyhow::Error)` - If the metadata file cannot be read or parsed
     pub fn get_model_metadata(&self) -> anyhow::Result<Option<ModelMetadata>> {
         let metadata_path = self.metadata_path();
         if !metadata_path.exists() {
@@ -364,6 +429,18 @@ impl ModelManager {
     }
 
     /// Set the model metadata
+    ///
+    /// This function persists the model metadata to the metadata file.
+    /// It creates the parent directory if it doesn't exist.
+    ///
+    /// # Arguments
+    ///
+    /// * `metadata` - The model metadata to persist
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the metadata was successfully persisted
+    /// * `Err(anyhow::Error)` - If the metadata cannot be serialized or written
     pub fn set_model_metadata(&self, metadata: &ModelMetadata) -> anyhow::Result<()> {
         let metadata_path = self.metadata_path();
 
@@ -381,6 +458,13 @@ impl ModelManager {
     }
 
     /// Delete the model file
+    ///
+    /// This function deletes the model file and its metadata file if they exist.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the model and metadata were successfully deleted
+    /// * `Err(anyhow::Error)` - If the files cannot be deleted
     pub fn delete_model(&self) -> anyhow::Result<()> {
         let model_path = self.model_path();
         if model_path.exists() {

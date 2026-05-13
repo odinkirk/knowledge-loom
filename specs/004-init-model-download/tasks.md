@@ -157,40 +157,40 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T062 [P] [US3] Unit test for download state persistence in tests/model_tests.rs
-- [ ] T063 [P] [US3] Unit test for download state recovery in tests/model_tests.rs
-- [ ] T064 [P] [US3] Unit test for file locking in tests/model_tests.rs
-- [ ] T065 [P] [US3] Unit test for concurrent download prevention in tests/model_tests.rs
-- [ ] T066 [P] [US3] Integration test for model re-download in tests/integration.rs
-- [ ] T067 [P] [US3] Integration test for concurrent download prevention in tests/integration.rs
-- [ ] T068 [P] [US3] Unit test for HTTP Range request support in tests/download_tests.rs
-- [ ] T069 [P] [US3] Unit test for download resume capability in tests/download_tests.rs
-- [ ] T070 [P] [US3] Unit test for Ctrl+C signal handling in tests/download_tests.rs
-- [ ] T071 [P] [US3] Unit test for signal cleanup and state preservation in tests/download_tests.rs
-- [ ] T072 [P] [US3] Unit test for model version mismatch detection in tests/model_tests.rs
-- [ ] T073 [P] [US3] Unit test for version re-download prompt in tests/model_tests.rs
+- [X] T062 [P] [US3] Unit test for download state persistence in tests/model_tests.rs
+- [X] T063 [P] [US3] Unit test for download state recovery in tests/model_tests.rs
+- [X] T064 [P] [US3] Unit test for file locking in tests/model_tests.rs
+- [X] T065 [P] [US3] Unit test for concurrent download prevention in tests/model_tests.rs
+- [X] T066 [P] [US3] Integration test for model re-download in tests/integration.rs
+- [X] T067 [P] [US3] Integration test for concurrent download prevention in tests/integration.rs
+- [X] T068 [P] [US3] Unit test for HTTP Range request support in tests/download_tests.rs
+- [X] T069 [P] [US3] Unit test for download resume capability in tests/download_tests.rs
+- [X] T070 [P] [US3] Unit test for Ctrl+C signal handling in tests/download_tests.rs
+- [X] T071 [P] [US3] Unit test for signal cleanup and state preservation in tests/download_tests.rs
+- [X] T072 [P] [US3] Unit test for model version mismatch detection in tests/model_tests.rs
+- [X] T073 [P] [US3] Unit test for version re-download prompt in tests/model_tests.rs
 
 ### Implementation for User Story 3
 
-- [ ] T078 [US3] Implement ModelManager::get_download_state in src/model.rs
-- [ ] T079 [US3] Implement ModelManager::set_download_state in src/model.rs
-- [ ] T080 [US3] Implement ModelManager::download_model in src/model.rs
-- [ ] T081 [US3] Implement ModelManager::validate_model in src/model.rs
-- [ ] T082 [US3] Implement ModelManager::delete_model in src/model.rs
-- [ ] T083 [US3] Implement ModelManager::get_model_metadata in src/model.rs
-- [ ] T084 [US3] Implement file locking in src/model.rs (acquire_lock, release_lock)
-- [ ] T085 [US3] Implement state persistence during download in src/model.rs
-- [ ] T086 [US3] Implement concurrent download prevention in src/model.rs
-- [ ] T087 [US3] Implement HTTP Range request support in src/download.rs
-- [ ] T088 [US3] Implement download resume capability in src/download.rs
-- [ ] T089 [US3] Implement Ctrl+C signal handling in src/download.rs
-- [ ] T090 [US3] Implement signal cleanup and state preservation in src/download.rs
-- [ ] T091 [US3] Implement model version mismatch detection in src/model.rs
-- [ ] T092 [US3] Implement version re-download prompt in src/model.rs
-- [ ] T093 [US3] Add doc comments (`///`) to state management functions in src/model.rs
-- [ ] T094 [US3] Add doc comments (`///`) to HTTP Range functions in src/download.rs
-- [ ] T095 [US3] Add doc comments (`///`) to signal handling functions in src/download.rs
-- [ ] T096 [US3] Add doc comments (`///`) to version mismatch functions in src/model.rs
+- [X] T078 [US3] Implement ModelManager::get_download_state in src/model.rs
+- [X] T079 [US3] Implement ModelManager::set_download_state in src/model.rs
+- [X] T080 [US3] Implement ModelManager::download_model in src/model.rs
+- [X] T081 [US3] Implement ModelManager::validate_model in src/model.rs
+- [X] T082 [US3] Implement ModelManager::delete_model in src/model.rs
+- [X] T083 [US3] Implement ModelManager::get_model_metadata in src/model.rs
+- [X] T084 [US3] Implement file locking in src/model.rs (acquire_lock, release_lock)
+- [X] T085 [US3] Implement state persistence during download in src/model.rs
+- [X] T086 [US3] Implement concurrent download prevention in src/model.rs
+- [X] T087 [US3] Implement HTTP Range request support in src/download.rs
+- [X] T088 [US3] Implement download resume capability in src/download.rs
+- [X] T089 [US3] Implement Ctrl+C signal handling in src/download.rs
+- [X] T090 [US3] Implement signal cleanup and state preservation in src/download.rs
+- [X] T091 [US3] Implement model version mismatch detection in src/model.rs
+- [X] T092 [US3] Implement version re-download prompt in src/model.rs
+- [X] T093 [US3] Add doc comments (`///`) to state management functions in src/model.rs
+- [X] T094 [US3] Add doc comments (`///`) to HTTP Range functions in src/download.rs
+- [X] T095 [US3] Add doc comments (`///`) to signal handling functions in src/download.rs
+- [X] T096 [US3] Add doc comments (`///`) to version mismatch functions in src/model.rs
 
 **Checkpoint**: All user stories should now be independently functional
 

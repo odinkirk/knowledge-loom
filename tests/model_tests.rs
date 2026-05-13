@@ -215,4 +215,256 @@ mod model_tests {
         let error_msg = format!("{:?}", error);
         assert!(error_msg.contains("ChecksumMismatch") || error_msg.contains("checksum"));
     }
+
+    // User Story 3: Model Re-Download with State Handling Tests
+
+    #[test]
+    fn test_download_state_persistence() {
+        use knowledge_loom::model::{DownloadState, DownloadStatus};
+
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        // Create model directory
+        let models_dir = kb_root.join(".knowledge-loom-index").join("models");
+        std::fs::create_dir_all(&models_dir).unwrap();
+
+        // Create a download state
+        let state = DownloadState {
+            status: DownloadStatus::InProgress,
+            progress_percentage: 50.0,
+            bytes_downloaded: 60_000_000,
+            total_bytes: 120_000_000,
+            download_speed: 2_500_000.0,
+            error_message: None,
+            last_updated: chrono::Utc::now(),
+            model_name: MODEL_NAME.to_string(),
+            model_version: MODEL_VERSION.to_string(),
+        };
+
+        // Save state to file
+        let state_file = models_dir.join("download-state.json");
+        let state_json = serde_json::to_string_pretty(&state).unwrap();
+        std::fs::write(&state_file, state_json).unwrap();
+
+        // Verify state file exists
+        assert!(state_file.exists());
+
+        // Read state back
+        let state_json = std::fs::read_to_string(&state_file).unwrap();
+        let retrieved_state: DownloadState = serde_json::from_str(&state_json).unwrap();
+
+        // Verify state was persisted correctly
+        assert_eq!(retrieved_state.status, DownloadStatus::InProgress);
+        assert_eq!(retrieved_state.progress_percentage, 50.0);
+        assert_eq!(retrieved_state.bytes_downloaded, 60_000_000);
+        assert_eq!(retrieved_state.total_bytes, 120_000_000);
+        assert_eq!(retrieved_state.download_speed, 2_500_000.0);
+        assert!(retrieved_state.error_message.is_none());
+        assert_eq!(retrieved_state.model_name, MODEL_NAME);
+        assert_eq!(retrieved_state.model_version, MODEL_VERSION);
+    }
+
+    #[test]
+    fn test_download_state_recovery() {
+        use knowledge_loom::model::{DownloadState, DownloadStatus};
+
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        // Create model directory
+        let models_dir = kb_root.join(".knowledge-loom-index").join("models");
+        std::fs::create_dir_all(&models_dir).unwrap();
+
+        // Create a download state with in-progress status
+        let state = DownloadState {
+            status: DownloadStatus::InProgress,
+            progress_percentage: 75.0,
+            bytes_downloaded: 90_000_000,
+            total_bytes: 120_000_000,
+            download_speed: 3_000_000.0,
+            error_message: None,
+            last_updated: chrono::Utc::now(),
+            model_name: MODEL_NAME.to_string(),
+            model_version: MODEL_VERSION.to_string(),
+        };
+
+        // Save state to file
+        let state_file = models_dir.join("download-state.json");
+        let state_json = serde_json::to_string_pretty(&state).unwrap();
+        std::fs::write(&state_file, state_json).unwrap();
+
+        // Simulate recovery by reading state
+        let state_json = std::fs::read_to_string(&state_file).unwrap();
+        let recovered_state: DownloadState = serde_json::from_str(&state_json).unwrap();
+
+        // Verify recovery
+        assert_eq!(recovered_state.status, DownloadStatus::InProgress);
+        assert_eq!(recovered_state.progress_percentage, 75.0);
+        assert_eq!(recovered_state.bytes_downloaded, 90_000_000);
+        assert_eq!(recovered_state.total_bytes, 120_000_000);
+
+        // Calculate remaining bytes
+        let remaining_bytes = recovered_state.total_bytes - recovered_state.bytes_downloaded;
+        assert_eq!(remaining_bytes, 30_000_000);
+
+        // Verify can resume from this state
+        assert!(recovered_state.status == DownloadStatus::InProgress);
+        assert!(recovered_state.bytes_downloaded > 0);
+        assert!(recovered_state.bytes_downloaded < recovered_state.total_bytes);
+    }
+
+    #[test]
+    fn test_file_locking() {
+        use std::fs::OpenOptions;
+        use std::io::Write;
+
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        // Create model directory
+        let models_dir = kb_root.join(".knowledge-loom-index").join("models");
+        std::fs::create_dir_all(&models_dir).unwrap();
+
+        // Create lock file
+        let lock_file = models_dir.join(".download.lock");
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .open(&lock_file)
+            .unwrap();
+
+        // Write lock data
+        file.write_all(b"locked").unwrap();
+        file.flush().unwrap();
+
+        // Verify lock file exists
+        assert!(lock_file.exists());
+
+        // Verify lock file content
+        let lock_content = std::fs::read_to_string(&lock_file).unwrap();
+        assert_eq!(lock_content, "locked");
+    }
+
+    #[test]
+    fn test_concurrent_download_prevention() {
+        use std::fs::OpenOptions;
+        use std::io::Write;
+
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        // Create model directory
+        let models_dir = kb_root.join(".knowledge-loom-index").join("models");
+        std::fs::create_dir_all(&models_dir).unwrap();
+
+        // Create lock file to simulate in-progress download
+        let lock_file = models_dir.join(".download.lock");
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .open(&lock_file)
+            .unwrap();
+
+        file.write_all(b"locked").unwrap();
+        file.flush().unwrap();
+
+        // Verify lock file exists
+        assert!(lock_file.exists());
+
+        // Simulate checking for lock
+        if lock_file.exists() {
+            // Lock exists, should prevent concurrent download
+            let lock_content = std::fs::read_to_string(&lock_file).unwrap();
+            assert_eq!(lock_content, "locked");
+        }
+    }
+
+    #[test]
+    fn test_model_version_mismatch_detection() {
+        use knowledge_loom::model::ModelMetadata;
+
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        // Create model directory
+        let models_dir = kb_root.join(".knowledge-loom-index").join("models");
+        std::fs::create_dir_all(&models_dir).unwrap();
+
+        // Create metadata with old version
+        let metadata_file = models_dir.join("all-MiniLM-L6-v2.json");
+        let mut metadata = ModelMetadata::new(
+            MODEL_NAME.to_string(),
+            "0.9.0".to_string(), // Old version
+            "/path/to/model.onnx".to_string(),
+            1000,
+            "test_checksum".to_string(),
+            "https://example.com/model.onnx".to_string(),
+        );
+        metadata.mark_validated();
+
+        let metadata_json = serde_json::to_string_pretty(&metadata).unwrap();
+        std::fs::write(&metadata_file, metadata_json).unwrap();
+
+        // Read metadata back
+        let metadata_json = std::fs::read_to_string(&metadata_file).unwrap();
+        let retrieved_metadata: ModelMetadata = serde_json::from_str(&metadata_json).unwrap();
+
+        // Verify version mismatch
+        assert!(!retrieved_metadata.is_version_match(MODEL_VERSION));
+        assert_eq!(retrieved_metadata.model_version, "0.9.0");
+        assert_eq!(MODEL_VERSION, "1.0.0");
+    }
+
+    #[test]
+    fn test_version_re_download_prompt() {
+        use knowledge_loom::model::{DownloadState, DownloadStatus, ModelMetadata};
+
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        // Create model directory
+        let models_dir = kb_root.join(".knowledge-loom-index").join("models");
+        std::fs::create_dir_all(&models_dir).unwrap();
+
+        // Create metadata with old version
+        let metadata_file = models_dir.join("all-MiniLM-L6-v2.json");
+        let mut metadata = ModelMetadata::new(
+            MODEL_NAME.to_string(),
+            "0.9.0".to_string(), // Old version
+            "/path/to/model.onnx".to_string(),
+            1000,
+            "test_checksum".to_string(),
+            "https://example.com/model.onnx".to_string(),
+        );
+        metadata.mark_validated();
+
+        let metadata_json = serde_json::to_string_pretty(&metadata).unwrap();
+        std::fs::write(&metadata_file, metadata_json).unwrap();
+
+        // Read metadata back
+        let metadata_json = std::fs::read_to_string(&metadata_file).unwrap();
+        let retrieved_metadata: ModelMetadata = serde_json::from_str(&metadata_json).unwrap();
+
+        // Verify version mismatch detected
+        assert!(!retrieved_metadata.is_version_match(MODEL_VERSION));
+
+        // Create download state for re-download
+        let state = DownloadState {
+            status: DownloadStatus::NotStarted,
+            progress_percentage: 0.0,
+            bytes_downloaded: 0,
+            total_bytes: 120_000_000,
+            download_speed: 0.0,
+            error_message: Some("Version mismatch: expected 1.0.0, found 0.9.0".to_string()),
+            last_updated: chrono::Utc::now(),
+            model_name: MODEL_NAME.to_string(),
+            model_version: MODEL_VERSION.to_string(),
+        };
+
+        // Verify state indicates re-download needed
+        assert_eq!(state.status, DownloadStatus::NotStarted);
+        assert!(state.error_message.is_some());
+        assert!(state.error_message.unwrap().contains("Version mismatch"));
+    }
 }

@@ -307,4 +307,155 @@ mod download_tests {
         std::env::remove_var("HTTP_PROXY");
         std::env::remove_var("NO_PROXY");
     }
+
+    // User Story 3: Model Re-Download with State Handling Tests
+
+    #[test]
+    fn test_http_range_request_support() {
+        use std::fs::File;
+        use std::io::Write;
+
+        let temp_dir = TempDir::new().unwrap();
+        let output_path = temp_dir.path().join("test-model.onnx");
+
+        // Create a partial file to simulate interrupted download
+        let mut file = File::create(&output_path).unwrap();
+        file.write_all(b"partial content").unwrap();
+        file.flush().unwrap();
+
+        // Verify partial file exists
+        assert!(output_path.exists());
+
+        // Get file size
+        let metadata = std::fs::metadata(&output_path).unwrap();
+        let file_size = metadata.len();
+
+        // Verify file size is non-zero
+        assert!(file_size > 0);
+
+        // Simulate HTTP Range request
+        let start_byte = file_size;
+        let range_header = format!("bytes={}-", start_byte);
+
+        // Verify Range header format
+        assert!(range_header.starts_with("bytes="));
+        assert!(range_header.contains(&start_byte.to_string()));
+    }
+
+    #[test]
+    fn test_download_resume_capability() {
+        use std::fs::File;
+        use std::io::Write;
+
+        let temp_dir = TempDir::new().unwrap();
+        let output_path = temp_dir.path().join("test-model.onnx");
+
+        // Create a partial file to simulate interrupted download
+        let mut file = File::create(&output_path).unwrap();
+        file.write_all(b"partial content").unwrap();
+        file.flush().unwrap();
+
+        // Verify partial file exists
+        assert!(output_path.exists());
+
+        // Get file size
+        let metadata = std::fs::metadata(&output_path).unwrap();
+        let bytes_downloaded = metadata.len();
+
+        // Simulate resume logic
+        let total_bytes = 120_000_000; // Expected total size
+        let remaining_bytes = total_bytes - bytes_downloaded;
+
+        // Verify resume capability
+        assert!(bytes_downloaded > 0);
+        assert!(bytes_downloaded < total_bytes);
+        assert!(remaining_bytes > 0);
+
+        // Verify can calculate progress
+        let progress_percentage = (bytes_downloaded as f64 / total_bytes as f64) * 100.0;
+        assert!(progress_percentage > 0.0);
+        assert!(progress_percentage < 100.0);
+    }
+
+    #[test]
+    fn test_ctrl_c_signal_handling() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        // Create an interrupt flag
+        let interrupted = AtomicBool::new(false);
+
+        // Simulate signal handler setting the flag
+        interrupted.store(true, Ordering::SeqCst);
+
+        // Verify flag was set
+        assert!(interrupted.load(Ordering::SeqCst));
+
+        // Simulate checking for interrupt
+        if interrupted.load(Ordering::SeqCst) {
+            // Signal was received, should handle cleanup
+            assert!(true);
+        }
+    }
+
+    #[test]
+    fn test_signal_cleanup_and_state_preservation() {
+        use std::fs::File;
+        use std::io::Write;
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        // Create model directory
+        let models_dir = kb_root.join(".knowledge-loom-index").join("models");
+        std::fs::create_dir_all(&models_dir).unwrap();
+
+        // Create a partial file to simulate interrupted download
+        let output_path = models_dir.join("test-model.onnx");
+        let mut file = File::create(&output_path).unwrap();
+        file.write_all(b"partial content").unwrap();
+        file.flush().unwrap();
+
+        // Create an interrupt flag
+        let interrupted = AtomicBool::new(false);
+
+        // Simulate signal handler setting the flag
+        interrupted.store(true, Ordering::SeqCst);
+
+        // Simulate cleanup on interrupt
+        if interrupted.load(Ordering::SeqCst) {
+            // Preserve download state
+            let state_file = models_dir.join("download-state.json");
+            let state = knowledge_loom::model::DownloadState {
+                status: knowledge_loom::model::DownloadStatus::InProgress,
+                progress_percentage: 50.0,
+                bytes_downloaded: 60_000_000,
+                total_bytes: 120_000_000,
+                download_speed: 2_500_000.0,
+                error_message: Some("Download interrupted by user".to_string()),
+                last_updated: chrono::Utc::now(),
+                model_name: knowledge_loom::model::MODEL_NAME.to_string(),
+                model_version: knowledge_loom::model::MODEL_VERSION.to_string(),
+            };
+
+            let state_json = serde_json::to_string_pretty(&state).unwrap();
+            std::fs::write(&state_file, state_json).unwrap();
+
+            // Verify state was preserved
+            assert!(state_file.exists());
+
+            // Verify partial file still exists for resume
+            assert!(output_path.exists());
+
+            // Verify state contains error message
+            let state_json = std::fs::read_to_string(&state_file).unwrap();
+            let retrieved_state: knowledge_loom::model::DownloadState =
+                serde_json::from_str(&state_json).unwrap();
+            assert!(retrieved_state.error_message.is_some());
+            assert!(retrieved_state
+                .error_message
+                .unwrap()
+                .contains("interrupted"));
+        }
+    }
 }

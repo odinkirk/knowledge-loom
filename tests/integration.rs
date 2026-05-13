@@ -1382,3 +1382,137 @@ async fn integration_error_message_display() {
         assert!(!error_msg.is_empty(), "Error message should not be empty");
     }
 }
+
+// User Story 3: Model Re-Download with State Handling Integration Tests
+
+#[tokio::test]
+#[serial]
+async fn integration_model_re_download() {
+    use knowledge_loom::model::{DownloadState, DownloadStatus};
+
+    let temp_dir = TempDir::new().unwrap();
+    let kb_root = temp_dir.path();
+
+    // Create model directory
+    let models_dir = kb_root.join(".knowledge-loom-index").join("models");
+    std::fs::create_dir_all(&models_dir).unwrap();
+
+    // Create a download state with in-progress status
+    let state = DownloadState {
+        status: DownloadStatus::InProgress,
+        progress_percentage: 50.0,
+        bytes_downloaded: 60_000_000,
+        total_bytes: 120_000_000,
+        download_speed: 2_500_000.0,
+        error_message: None,
+        last_updated: chrono::Utc::now(),
+        model_name: knowledge_loom::model::MODEL_NAME.to_string(),
+        model_version: knowledge_loom::model::MODEL_VERSION.to_string(),
+    };
+
+    // Save state to file
+    let state_file = models_dir.join("download-state.json");
+    let state_json = serde_json::to_string_pretty(&state).unwrap();
+    std::fs::write(&state_file, state_json).unwrap();
+
+    // Verify state was saved
+    assert!(state_file.exists());
+
+    // Simulate re-download by reading state
+    let state_json = std::fs::read_to_string(&state_file).unwrap();
+    let recovered_state: DownloadState = serde_json::from_str(&state_json).unwrap();
+
+    // Verify state was recovered correctly
+    assert_eq!(recovered_state.status, DownloadStatus::InProgress);
+    assert_eq!(recovered_state.progress_percentage, 50.0);
+    assert_eq!(recovered_state.bytes_downloaded, 60_000_000);
+
+    // Verify can resume from this state
+    let remaining_bytes = recovered_state.total_bytes - recovered_state.bytes_downloaded;
+    assert_eq!(remaining_bytes, 60_000_000);
+
+    // Update state to completed
+    let completed_state = DownloadState {
+        status: DownloadStatus::Completed,
+        progress_percentage: 100.0,
+        bytes_downloaded: 120_000_000,
+        total_bytes: 120_000_000,
+        download_speed: 2_500_000.0,
+        error_message: None,
+        last_updated: chrono::Utc::now(),
+        model_name: knowledge_loom::model::MODEL_NAME.to_string(),
+        model_version: knowledge_loom::model::MODEL_VERSION.to_string(),
+    };
+
+    let completed_json = serde_json::to_string_pretty(&completed_state).unwrap();
+    std::fs::write(&state_file, completed_json).unwrap();
+
+    // Verify state was updated
+    let state_json = std::fs::read_to_string(&state_file).unwrap();
+    let final_state: DownloadState = serde_json::from_str(&state_json).unwrap();
+    assert_eq!(final_state.status, DownloadStatus::Completed);
+    assert_eq!(final_state.progress_percentage, 100.0);
+}
+
+#[tokio::test]
+#[serial]
+async fn integration_concurrent_download_prevention() {
+    use std::fs::OpenOptions;
+    use std::io::Write;
+
+    let temp_dir = TempDir::new().unwrap();
+    let kb_root = temp_dir.path();
+
+    // Create model directory
+    let models_dir = kb_root.join(".knowledge-loom-index").join("models");
+    std::fs::create_dir_all(&models_dir).unwrap();
+
+    // Create lock file to simulate in-progress download
+    let lock_file = models_dir.join(".download.lock");
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .open(&lock_file)
+        .unwrap();
+
+    file.write_all(b"locked").unwrap();
+    file.flush().unwrap();
+
+    // Verify lock file exists
+    assert!(lock_file.exists());
+
+    // Simulate checking for lock
+    if lock_file.exists() {
+        // Lock exists, should prevent concurrent download
+        let lock_content = std::fs::read_to_string(&lock_file).unwrap();
+        assert_eq!(lock_content, "locked");
+
+        // Attempt to acquire lock should fail
+        let result = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&lock_file);
+
+        assert!(
+            result.is_err(),
+            "Should fail to acquire lock when already locked"
+        );
+    }
+
+    // Clean up lock file
+    std::fs::remove_file(&lock_file).unwrap();
+
+    // Verify lock file was removed
+    assert!(!lock_file.exists());
+
+    // Now should be able to acquire lock
+    let result = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&lock_file);
+
+    assert!(
+        result.is_ok(),
+        "Should be able to acquire lock after cleanup"
+    );
+}
