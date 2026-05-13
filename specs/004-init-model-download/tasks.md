@@ -241,6 +241,10 @@
 - [X] T117 Security hardening and dependency updates
 - [X] T118 Verify all error messages use eprintln! instead of println! for debug output
 - [X] T119 Verify all progress indicators use println! for user-facing output
+- [X] T120 [P] Fix exponential backoff calculation (linear to exponential)
+- [X] T121 [P] Fix lock file cleanup (delete lock file after releasing lock)
+- [X] T122 [P] Fix HTTP Range request validation (validate partial file size < total size)
+- [X] T123 [P] Fix metadata update (create metadata if it doesn't exist after validation)
 
 ---
 
