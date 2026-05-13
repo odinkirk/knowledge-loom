@@ -111,4 +111,42 @@ mod init_tests {
         let metadata = metadata.unwrap();
         assert_eq!(metadata.model_name, "all-MiniLM-L6-v2");
     }
+
+    #[test]
+    fn test_manual_download_instructions_generation() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        let init_manager = InitManager::new(kb_root.to_path_buf());
+
+        let instructions = init_manager.generate_manual_download_instructions();
+
+        assert!(instructions.is_ok());
+        let instructions = instructions.unwrap();
+
+        // Verify instructions contain key information
+        assert!(instructions.contains("all-MiniLM-L6-v2"));
+        assert!(instructions.contains(
+            "https://huggingface.co/Qdrant/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx"
+        ));
+        assert!(instructions.contains(".knowledge-loom-index/models"));
+        assert!(instructions.contains("SHA-256"));
+    }
+
+    #[test]
+    fn test_manual_download_instructions_with_kb_root() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        let init_manager = InitManager::new(kb_root.to_path_buf());
+
+        let instructions = init_manager.generate_manual_download_instructions();
+
+        assert!(instructions.is_ok());
+        let instructions = instructions.unwrap();
+
+        // Verify instructions include the KB_ROOT path
+        let kb_root_str = kb_root.to_string_lossy();
+        assert!(instructions.contains(kb_root_str.as_ref()));
+    }
 }

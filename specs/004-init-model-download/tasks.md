@@ -206,16 +206,16 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T097 [P] [US4] Unit test for manual download instructions generation in tests/init_tests.rs
-- [ ] T098 [P] [US4] Integration test for manual download instructions display in tests/integration.rs
+- [X] T097 [P] [US4] Unit test for manual download instructions generation in tests/init_tests.rs
+- [X] T098 [P] [US4] Integration test for manual download instructions display in tests/integration.rs
 
 ### Implementation for User Story 4
 
-- [ ] T099 [US4] Implement manual download instructions generation in src/init.rs
-- [ ] T100 [US4] Add manual download instructions to error messages in src/model.rs
-- [ ] T101 [US4] Add manual download instructions to error messages in src/download.rs
-- [ ] T102 [US4] Add doc comments (`///`) to manual download instructions functions in src/init.rs
-- [ ] T103 [US4] Update README.md with manual download instructions
+- [X] T099 [US4] Implement manual download instructions generation in src/init.rs
+- [X] T100 [US4] Add manual download instructions to error messages in src/model.rs
+- [X] T101 [US4] Add manual download instructions to error messages in src/download.rs
+- [X] T102 [US4] Add doc comments (`///`) to manual download instructions functions in src/init.rs
+- [X] T103 [US4] Update README.md with manual download instructions
 
 **Checkpoint**: All user stories should now be independently functional
 
@@ -225,16 +225,16 @@
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] T104 [P] Add inline comments to complex algorithms in src/download.rs
-- [ ] T105 [P] Add inline comments to complex algorithms in src/model.rs
-- [ ] T106 [P] Add inline comments to complex algorithms in src/init.rs
-- [ ] T107 [P] Update ARCHITECTURE.md with Model Download Flow section
-- [ ] T108 [P] Update CHANGELOG.md with new features and changes
-- [ ] T109 [P] Update README.md with manual download instructions
-- [ ] T110 Code cleanup and refactoring across all new modules
-- [ ] T111 Performance optimization (target: <5s SHA-256 validation, <10ms state checks)
-- [ ] T112 [P] Run `cargo fmt --all -- --check` to verify formatting
-- [ ] T113 [P] Run `cargo clippy -- -D warnings` to verify linting
+- [X] T104 [P] Add inline comments to complex algorithms in src/download.rs
+- [X] T105 [P] Add inline comments to complex algorithms in src/model.rs
+- [X] T106 [P] Add inline comments to complex algorithms in src/init.rs
+- [X] T107 [P] Update ARCHITECTURE.md with Model Download Flow section
+- [X] T108 [P] Update CHANGELOG.md with new features and changes
+- [X] T109 [P] Update README.md with manual download instructions
+- [X] T110 Code cleanup and refactoring across all new modules
+- [X] T111 Performance optimization (target: <5s SHA-256 validation, <10ms state checks)
+- [X] T112 [P] Run `cargo fmt --all -- --check` to verify formatting
+- [X] T113 [P] Run `cargo clippy -- -D warnings` to verify linting
 - [ ] T114 [P] Run `cargo test --all-features` to verify all tests pass
 - [ ] T115 [P] Run code coverage check (minimum 80% required)
 - [ ] T116 [P] Run `cargo deny check licenses bans sources` for security

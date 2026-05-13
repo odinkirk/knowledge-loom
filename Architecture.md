@@ -188,9 +188,126 @@ graph LR
  - During ingestion: Return "indexing: try again in 2 seconds" error
 
  **Concurrent Edit Handling:**
- - Edits to the same file are serialized
- - Edit requests are queued during active re-indexing
- - Queued requests are processed sequentially after re-indexing completes
+  - Edits to the same file are serialized
+  - Edit requests are queued during active re-indexing
+  - Queued requests are processed sequentially after re-indexing completes
+
+ ## Model Download Flow
+
+ The model download flow handles automatic download of the embedding model during initialization,
+ with support for resume, retry, and manual fallback.
+
+ ```mermaid
+ graph TB
+     subgraph "Initialization"
+         A[User runs loom init] --> B[InitManager::initialize]
+         B --> C{Model valid?}
+         C -->|Yes| D[Skip download]
+         C -->|No| E[ModelManager::download_model]
+     end
+
+     subgraph "Download Process"
+         E --> F[DownloadManager::download_with_retry]
+         F --> G{Download success?}
+         G -->|Yes| H[ModelManager::validate_model]
+         G -->|No| I{Retries exhausted?}
+         I -->|No| J[Retry with exponential backoff]
+         J --> F
+         I -->|Yes| K[Display error with manual instructions]
+     end
+
+     subgraph "Validation"
+         H --> L{Checksum valid?}
+         L -->|Yes| M[Mark model as validated]
+         L -->|No| N[Delete corrupted file]
+         N --> E
+     end
+
+     subgraph "State Management"
+         E --> O[DownloadState persistence]
+         F --> P[Progress updates]
+         P --> O
+         O --> Q[File locking]
+         Q --> R[Concurrent download prevention]
+     end
+
+     subgraph "Error Handling"
+         K --> S[Network errors]
+         K --> T[Disk full]
+         K --> U[Permission denied]
+         K --> V[Timeout]
+         S --> W[Manual download instructions]
+         T --> W
+         U --> W
+         V --> W
+     end
+ ```
+
+ **Download Flow:**
+
+ 1. **Initialization Check**:
+     - User runs `loom init`
+     - InitManager checks if model is already downloaded and valid
+     - If valid, skip download and continue with initialization
+
+ 2. **Download Process**:
+     - DownloadManager acquires file lock to prevent concurrent downloads
+     - DownloadManager checks for partial file (resume support)
+     - DownloadManager sends HTTP Range request if resuming
+     - DownloadManager downloads with retry logic (exponential backoff)
+     - DownloadManager reports progress via callback
+
+ 3. **Validation**:
+     - ModelManager validates file size
+     - ModelManager calculates SHA-256 checksum
+     - ModelManager compares checksum with expected value
+     - If valid, mark model as validated
+     - If invalid, delete file and trigger re-download
+
+ 4. **State Management**:
+     - DownloadState is persisted to `{KB_ROOT}/.knowledge-loom-index/models/download-state.json`
+     - State includes: status, progress, error message, timestamp
+     - File locking prevents concurrent downloads
+     - State is preserved on Ctrl+C for resume capability
+
+ 5. **Error Handling**:
+     - Network errors: Retry with exponential backoff (1s, 2s, 4s)
+     - Disk full: Clear error message with space requirements
+     - Permission denied: Clear error message with path
+     - Timeout: Clear error message with retry suggestion
+     - Checksum mismatch: Delete corrupted file, trigger re-download
+     - All errors include manual download instructions
+
+ **HTTP Range Request Support:**
+
+ - Check if partial file exists
+ - Get file size to determine resume point
+ - Add `Range: bytes={start}-` header to HTTP request
+ - Server responds with 206 (Partial Content) if Range supported
+ - Download resumes from last byte downloaded
+ - Fallback to full download if Range not supported
+
+ **Signal Handling:**
+
+ - Catch SIGINT signal (Ctrl+C)
+ - Clean up partial files
+ - Preserve download state for resume
+ - Exit gracefully within 500ms
+
+ **Proxy Configuration:**
+
+ - Respect HTTP_PROXY environment variable
+ - Respect HTTPS_PROXY environment variable
+ - Respect NO_PROXY environment variable
+ - Apply proxy to all HTTP/HTTPS requests
+ - Bypass local addresses per NO_PROXY rules
+
+ **Performance Targets:**
+
+ - SHA-256 validation: <5s for 500MB model
+ - Download state checks: <10ms
+ - HTTP Range resume: <1s
+ - Ctrl+C cleanup: <500ms
 
  ## Component Interaction
 

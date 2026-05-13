@@ -70,8 +70,19 @@ pub fn format_download_complete(file_size: u64, duration_secs: u64) -> String {
 }
 
 /// Format download error message
+///
+/// This function formats a download error message with optional manual download
+/// instructions for critical errors that prevent automatic download.
+///
+/// # Arguments
+///
+/// * `error` - The download error that occurred
+///
+/// # Returns
+///
+/// Returns a formatted error message with manual download instructions for critical errors.
 pub fn format_download_error(error: &DownloadError) -> String {
-    match error {
+    let base_message = match error {
         DownloadError::Network(msg) => format!("Network error: {}", msg),
         DownloadError::Http(msg) => format!("HTTP error: {}", msg),
         DownloadError::Interrupted => "Download interrupted by user".to_string(),
@@ -81,7 +92,40 @@ pub fn format_download_error(error: &DownloadError) -> String {
         DownloadError::Timeout(msg) => format!("Timeout: {}", msg),
         DownloadError::Io(e) => format!("IO error: {}", e),
         DownloadError::Reqwest(e) => format!("HTTP client error: {}", e),
+    };
+
+    // Add manual download instructions for critical errors
+    let instructions = match error {
+        DownloadError::Network(_) | DownloadError::Http(_) | DownloadError::MaxRetriesExceeded { .. } => {
+            Some(format!(
+                "\n\n{}\n\nFor manual download instructions, run 'loom init --help' or visit the documentation.",
+                get_manual_download_instructions_summary()
+            ))
+        }
+        _ => None,
+    };
+
+    if let Some(instructions) = instructions {
+        format!("{}{}", base_message, instructions)
+    } else {
+        base_message
     }
+}
+
+/// Get a summary of manual download instructions
+///
+/// This function returns a brief summary of manual download instructions
+/// for inclusion in error messages.
+///
+/// # Returns
+///
+/// Returns a formatted summary of manual download instructions.
+fn get_manual_download_instructions_summary() -> String {
+    "Manual download is available as a fallback:\n\
+     \n\
+     1. Download the model from: https://huggingface.co/Qdrant/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx\n\
+     2. Place it in: .knowledge-loom-index/models/all-MiniLM-L6-v2.onnx\n\
+     3. Run 'loom init' again to complete initialization".to_string()
 }
 
 /// Acquire file lock to prevent concurrent downloads
@@ -280,18 +324,25 @@ impl DownloadManager {
         })?;
 
         // Check response status
+        // HTTP Range requests return 206 (Partial Content) for successful resume
+        // Regular downloads return 200 (OK)
         let status = response.status();
         if !status.is_success() && status != reqwest::StatusCode::PARTIAL_CONTENT {
             return Err(DownloadError::Http(format!("HTTP error: {}", status)));
         }
 
         // Get total bytes from Content-Range or Content-Length
+        // For HTTP Range requests (206), parse Content-Range header: "bytes 0-100/200" or "bytes 100-200/*"
+        // For regular downloads (200), use Content-Length header
         let total_bytes = if status == reqwest::StatusCode::PARTIAL_CONTENT {
-            // Parse Content-Range header: "bytes 0-100/200" or "bytes 100-200/*"
+            // Parse Content-Range header to extract total file size
+            // Format: "bytes {start}-{end}/{total}" or "bytes {start}-{end}/*"
             if let Some(content_range) = response.headers().get("Content-Range") {
                 let range_str = content_range.to_str().unwrap_or("");
+                // Extract total size after the slash
                 if let Some(slash_pos) = range_str.find('/') {
                     let total_str = &range_str[slash_pos + 1..];
+                    // "*" indicates unknown total size, use 0 as fallback
                     if total_str != "*" {
                         total_str.parse::<u64>().unwrap_or(0)
                     } else {
@@ -304,14 +355,17 @@ impl DownloadManager {
                 0
             }
         } else {
+            // For regular downloads, use Content-Length header
             response
                 .content_length()
                 .ok_or_else(|| DownloadError::Network("Missing content length".to_string()))?
         };
 
+        // Initialize download tracking
         let mut bytes_downloaded = start_byte;
         let start_time = std::time::Instant::now();
 
+        // Get byte stream from response
         let mut stream = response.bytes_stream();
 
         // Create parent directory if it doesn't exist
@@ -380,17 +434,22 @@ impl DownloadManager {
         };
 
         use futures_util::StreamExt;
+        // Process download chunks
         while let Some(chunk_result) = stream.next().await {
-            // Check for interrupt
+            // Check for interrupt signal (Ctrl+C)
             if is_interrupted() {
                 return Err(DownloadError::Interrupted);
             }
 
+            // Get chunk from stream, handling network errors
             let chunk = chunk_result
                 .map_err(|e| DownloadError::Network(format!("Download chunk error: {}", e)))?;
 
+            // Write chunk to file with enhanced error handling
+            // Check for disk full and permission denied errors
             file.write_all(&chunk).map_err(|e| {
                 if e.kind() == std::io::ErrorKind::StorageFull {
+                    // Disk full error - provide clear error message
                     DownloadError::Io(std::io::Error::new(
                         std::io::ErrorKind::StorageFull,
                         format!(
@@ -400,6 +459,7 @@ impl DownloadManager {
                         ),
                     ))
                 } else if e.kind() == std::io::ErrorKind::PermissionDenied {
+                    // Permission denied error - provide clear error message
                     DownloadError::Io(std::io::Error::new(
                         std::io::ErrorKind::PermissionDenied,
                         format!(
@@ -409,13 +469,16 @@ impl DownloadManager {
                         ),
                     ))
                 } else {
+                    // Other IO errors - pass through
                     DownloadError::Io(e)
                 }
             })?;
 
+            // Update download progress
             bytes_downloaded += chunk.len() as u64;
 
-            // Calculate download speed
+            // Calculate download speed (bytes per second)
+            // Avoid division by zero by checking elapsed time
             let elapsed = start_time.elapsed().as_secs_f64();
             let speed = if elapsed > 0.0 {
                 bytes_downloaded as f64 / elapsed
@@ -423,7 +486,8 @@ impl DownloadManager {
                 0.0
             };
 
-            // Report progress
+            // Report progress to callback
+            // Progress includes: bytes downloaded, total bytes, and current speed
             let progress = DownloadProgress::new(bytes_downloaded, total_bytes, speed);
             progress_callback(progress);
         }
@@ -432,18 +496,25 @@ impl DownloadManager {
     }
 
     /// Download file with retry logic
+    ///
+    /// This function implements exponential backoff retry logic for handling
+    /// transient network failures. It will retry up to max_retries times with
+    /// increasing delays between attempts.
     pub async fn download_with_retry<F>(&self, progress_callback: F) -> Result<(), DownloadError>
     where
         F: Fn(DownloadProgress) + Send + Sync,
     {
         let mut last_error = None;
 
+        // Retry loop with exponential backoff
         for attempt in 0..=self.max_retries {
-            // Check for interrupt
+            // Check for interrupt signal (Ctrl+C)
             if is_interrupted() {
                 return Err(DownloadError::Interrupted);
             }
 
+            // Add delay before retry (exponential backoff)
+            // Delay increases with each attempt: 1s, 2s, 4s, etc.
             if attempt > 0 {
                 eprintln!(
                     "Retrying model download (attempt {} of {})...",
@@ -452,10 +523,14 @@ impl DownloadManager {
                 tokio::time::sleep(self.retry_delay * attempt).await;
             }
 
+            // Attempt download
             match self.download(&progress_callback).await {
+                // Success - return immediately
                 Ok(()) => return Ok(()),
+                // Failure - store error and continue to next attempt
                 Err(e) => {
                     last_error = Some(e);
+                    // Continue retrying if we haven't exhausted retries
                     if attempt < self.max_retries {
                         continue;
                     }
@@ -463,11 +538,10 @@ impl DownloadManager {
             }
         }
 
-        Err(
-            last_error.unwrap_or_else(|| DownloadError::MaxRetriesExceeded {
-                retries: self.max_retries,
-            }),
-        )
+        // All retries exhausted - return the last error
+        Err(last_error.unwrap_or_else(|| {
+            DownloadError::Network("Download failed: unknown error".to_string())
+        }))
     }
 }
 

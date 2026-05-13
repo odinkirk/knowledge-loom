@@ -1516,3 +1516,43 @@ async fn integration_concurrent_download_prevention() {
         "Should be able to acquire lock after cleanup"
     );
 }
+
+#[test]
+fn integration_manual_download_instructions_display() {
+    use knowledge_loom::init::InitManager;
+
+    let temp_dir = TempDir::new().unwrap();
+    let kb_root = temp_dir.path();
+
+    let init_manager = InitManager::new(kb_root.to_path_buf());
+
+    // Generate manual download instructions
+    let instructions = init_manager.generate_manual_download_instructions();
+
+    assert!(instructions.is_ok());
+    let instructions = instructions.unwrap();
+
+    // Verify instructions are displayed correctly
+    println!("Manual Download Instructions:");
+    println!("{}", instructions);
+
+    // Verify instructions contain all required sections
+    assert!(instructions.contains("Manual Model Download Instructions"));
+    assert!(instructions.contains("Step 1"));
+    assert!(instructions.contains("Step 2"));
+    assert!(instructions.contains("Step 3"));
+
+    // Verify instructions contain model information
+    assert!(instructions.contains("all-MiniLM-L6-v2"));
+    assert!(instructions
+        .contains("https://huggingface.co/Qdrant/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx"));
+
+    // Verify instructions contain path information
+    let kb_root_str = kb_root.to_string_lossy();
+    assert!(instructions.contains(kb_root_str.as_ref()));
+    assert!(instructions.contains(".knowledge-loom-index/models"));
+
+    // Verify instructions are user-friendly
+    assert!(instructions.len() > 100); // Should be substantial
+    assert!(!instructions.contains("TODO")); // Should be complete
+}

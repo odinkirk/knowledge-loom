@@ -587,3 +587,84 @@ impl DownloadProgress {
         }
     }
 }
+
+/// Format error with manual download instructions
+///
+/// This function formats an error message with manual download instructions
+/// to help users recover from download failures.
+///
+/// # Arguments
+///
+/// * `error` - The error that occurred
+/// * `kb_root` - The knowledge base root directory
+///
+/// # Returns
+///
+/// Returns a formatted error message with manual download instructions.
+///
+/// # Examples
+///
+/// ```no_run
+/// use knowledge_loom::model::format_error_with_instructions;
+/// use knowledge_loom::model::DownloadError;
+/// use std::path::PathBuf;
+///
+/// let error = DownloadError::Network("Connection timeout".to_string());
+/// let kb_root = PathBuf::from("/path/to/kb");
+/// let formatted = format_error_with_instructions(&error, &kb_root);
+/// println!("{}", formatted);
+/// ```
+pub fn format_error_with_instructions<E: std::fmt::Display>(
+    error: &E,
+    kb_root: &std::path::Path,
+) -> String {
+    let error_message = format!("{}", error);
+    let instructions = format_manual_download_instructions(kb_root);
+
+    format!(
+        "{}\n\n{}\n\nFor manual download instructions, see above.",
+        error_message, instructions
+    )
+}
+
+/// Format manual download instructions
+///
+/// This function formats manual download instructions for displaying to users.
+///
+/// # Arguments
+///
+/// * `kb_root` - The knowledge base root directory
+///
+/// # Returns
+///
+/// Returns formatted manual download instructions.
+fn format_manual_download_instructions(kb_root: &std::path::Path) -> String {
+    let models_dir = kb_root.join(".knowledge-loom-index").join("models");
+    let model_file = models_dir.join("all-MiniLM-L6-v2.onnx");
+
+    format!(
+        "Manual Model Download Instructions:\n\
+         \n\
+         Step 1: Download the model file\n\
+           Download URL: https://huggingface.co/Qdrant/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx\n\
+           Model name: all-MiniLM-L6-v2\n\
+           Expected size: ~120MB\n\
+         \n\
+           You can download using:\n\
+           - curl: curl -L -o \"{}\" \"https://huggingface.co/Qdrant/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx\"\n\
+           - wget: wget -O \"{}\" \"https://huggingface.co/Qdrant/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx\"\n\
+         \n\
+         Step 2: Create the models directory\n\
+           mkdir -p \"{}\"\n\
+         \n\
+         Step 3: Move the downloaded file to the models directory\n\
+           mv all-MiniLM-L6-v2.onnx \"{}\"\n\
+         \n\
+         Step 4: Run initialization again\n\
+           Run 'loom init' again to complete the initialization process.",
+        model_file.display(),
+        model_file.display(),
+        models_dir.display(),
+        model_file.display()
+    )
+}

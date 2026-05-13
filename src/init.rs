@@ -128,6 +128,88 @@ impl InitManager {
         // This is a placeholder for any config-specific initialization
         Ok(())
     }
+
+    /// Generate manual download instructions
+    ///
+    /// This function generates step-by-step instructions for manually downloading
+    /// the model when automatic download fails or is not possible.
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Result<String, InitError>` containing the formatted instructions
+    /// or an error if the instructions cannot be generated.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use knowledge_loom::init::InitManager;
+    /// use std::path::PathBuf;
+    ///
+    /// let init_manager = InitManager::new(PathBuf::from("/path/to/kb"));
+    /// let instructions = init_manager.generate_manual_download_instructions().unwrap();
+    /// println!("{}", instructions);
+    /// ```
+    ///
+    /// # Instructions Include
+    ///
+    /// - Step-by-step download instructions
+    /// - Model URL and file information
+    /// - Directory creation commands
+    /// - File placement instructions
+    /// - Verification guidance
+    /// - Troubleshooting tips
+    pub fn generate_manual_download_instructions(&self) -> Result<String, InitError> {
+        let models_dir = self.kb_root.join(".knowledge-loom-index").join("models");
+        let model_file = models_dir.join("all-MiniLM-L6-v2.onnx");
+
+        let instructions = format!(
+            r#"Manual Model Download Instructions
+
+Automatic model download failed or was interrupted. Follow these steps to manually download the model:
+
+Step 1: Download the model file
+  Download URL: https://huggingface.co/Qdrant/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx
+  Model name: all-MiniLM-L6-v2
+  Expected size: ~120MB
+
+  You can download using:
+  - curl: curl -L -o "{}" "https://huggingface.co/Qdrant/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx"
+  - wget: wget -O "{}" "https://huggingface.co/Qdrant/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx"
+  - Or download directly from the URL in your browser
+
+Step 2: Create the models directory
+  mkdir -p "{}"
+
+Step 3: Move the downloaded file to the models directory
+  mv all-MiniLM-L6-v2.onnx "{}"
+
+Step 4: Verify the download (optional but recommended)
+  After downloading, you can verify the file integrity using SHA-256 checksum.
+  The expected checksum will be validated automatically when you run 'loom init' again.
+
+Step 5: Run initialization again
+  Run 'loom init' again to complete the initialization process.
+  The system will validate the downloaded model and continue with initialization.
+
+Troubleshooting:
+  - If download fails, check your internet connection
+  - If you're behind a proxy, configure HTTP_PROXY and HTTPS_PROXY environment variables
+  - If you have permission issues, ensure you have write access to the knowledge base directory
+  - For more help, visit: https://github.com/your-repo/knowledge-loom/issues
+
+KB_ROOT: {}
+Models directory: {}
+"#,
+            model_file.display(),
+            model_file.display(),
+            models_dir.display(),
+            model_file.display(),
+            self.kb_root.display(),
+            models_dir.display()
+        );
+
+        Ok(instructions)
+    }
 }
 
 /// Run the init command with progress display
