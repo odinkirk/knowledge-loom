@@ -235,12 +235,12 @@
 - [X] T111 Performance optimization (target: <5s SHA-256 validation, <10ms state checks)
 - [X] T112 [P] Run `cargo fmt --all -- --check` to verify formatting
 - [X] T113 [P] Run `cargo clippy -- -D warnings` to verify linting
-- [ ] T114 [P] Run `cargo test --all-features` to verify all tests pass
+- [X] T114 [P] Run `cargo test --all-features` to verify all tests pass
 - [ ] T115 [P] Run code coverage check (minimum 80% required)
-- [ ] T116 [P] Run `cargo deny check licenses bans sources` for security
-- [ ] T117 Security hardening and dependency updates
-- [ ] T118 Verify all error messages use eprintln! instead of println! for debug output
-- [ ] T119 Verify all progress indicators use println! for user-facing output
+- [X] T116 [P] Run `cargo deny check licenses bans sources` for security
+- [X] T117 Security hardening and dependency updates
+- [X] T118 Verify all error messages use eprintln! instead of println! for debug output
+- [X] T119 Verify all progress indicators use println! for user-facing output
 
 ---
 
