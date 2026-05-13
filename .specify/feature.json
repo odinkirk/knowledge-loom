@@ -1,1 +1,3 @@
-{"feature_directory":"specs/003-safe-chunk-indexing"}
+{
+  "feature_directory": "specs/004-init-model-download"
+}
