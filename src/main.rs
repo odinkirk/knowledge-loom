@@ -4,12 +4,14 @@ use std::process::exit;
 mod bm25;
 mod chunks;
 mod daemon;
+mod download;
 mod edits;
 mod embed;
 mod graph;
 mod index;
 mod init;
 mod maintenance;
+mod model;
 mod platforms;
 mod search;
 mod server;
@@ -21,7 +23,7 @@ mod web;
 async fn main() {
     match args().nth(1).as_deref() {
         Some("init") => {
-            if let Err(e) = init::run_init(args().skip(1)) {
+            if let Err(e) = init::run_init(args().skip(1).collect()) {
                 eprintln!("knowledge-loom init failed: {e}");
                 exit(1);
             }

@@ -29,15 +29,15 @@
 
 **Purpose**: Project initialization and basic structure
 
-- [ ] T001 Verify Rust toolchain: `rustc --version` (must be 1.75+)
-- [ ] T002 [P] Run `cargo fmt --all` to ensure code formatting
-- [ ] T003 [P] Run `cargo clippy -- -D warnings` to check for linting issues
-- [ ] T004 [P] Run `cargo test --all-features` to verify existing tests pass
-- [ ] T005 [P] Run `cargo deny check licenses bans sources` to verify dependency compliance
-- [ ] T006 Add new dependencies to Cargo.toml: reqwest, sha2, chrono, fs2
-- [ ] T007 [P] Create new module files: src/init.rs, src/model.rs, src/download.rs
-- [ ] T008 [P] Create new test files: tests/init_tests.rs, tests/model_tests.rs, tests/download_tests.rs
-- [ ] T009 Update src/lib.rs to include new modules (init, model, download)
+- [X] T001 Verify Rust toolchain: `rustc --version` (must be 1.75+)
+- [X] T002 [P] Run `cargo fmt --all` to ensure code formatting
+- [X] T003 [P] Run `cargo clippy -- -D warnings` to check for linting issues
+- [X] T004 [P] Run `cargo test --all-features` to verify existing tests pass
+- [X] T005 [P] Run `cargo deny check licenses bans sources` to verify dependency compliance
+- [X] T006 Add new dependencies to Cargo.toml: reqwest, sha2, chrono, fs2
+- [X] T007 [P] Create new module files: src/init.rs, src/model.rs, src/download.rs
+- [X] T008 [P] Create new test files: tests/init_tests.rs, tests/model_tests.rs, tests/download_tests.rs
+- [X] T009 Update src/lib.rs to include new modules (init, model, download)
 
 ---
 
@@ -47,20 +47,20 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T010 Implement error types in src/model.rs using thiserror (ModelError, DownloadError, InitError)
-- [ ] T011 [P] Implement data structures in src/model.rs (DownloadState, DownloadStatus, ModelMetadata, DownloadProgress)
-- [ ] T012 [P] Implement data structures in src/download.rs (DownloadProgress, DownloadManager)
-- [ ] T013 [P] Implement data structures in src/init.rs (InitManager, InitProgress)
-- [ ] T014 [P] Add constants in src/model.rs (MODEL_NAME, MODEL_VERSION, MODEL_URL, MODEL_FILE, STATE_FILE, LOCK_FILE)
-- [ ] T015 [P] Add constants in src/download.rs (MAX_RETRIES, RETRY_DELAY, TIMEOUT, BUFFER_SIZE, PROGRESS_UPDATE_INTERVAL)
-- [ ] T016 [P] Add helper functions in src/download.rs (format_download_progress, format_download_complete, format_download_error)
-- [ ] T017 [P] Add helper functions in src/download.rs (calculate_sha256_checksum, acquire_lock, release_lock)
-- [ ] T018 [P] Add signal handling infrastructure in src/download.rs (signal-hook dependency, INTERRUPTED flag)
-- [ ] T019 [P] Add HTTP Range request support in src/download.rs (Range header, resume logic)
-- [ ] T020 [P] Add proxy configuration support in src/download.rs (respect environment variables)
-- [ ] T021 [P] Add version mismatch detection in src/model.rs (version comparison, validation logic)
-- [ ] T022 [P] Add integration test scaffolding in tests/integration.rs for model download
-- [ ] T023 Configure test corpus in test-vault/ for model download testing
+- [X] T010 Implement error types in src/model.rs using thiserror (ModelError, DownloadError, InitError)
+- [X] T011 [P] Implement data structures in src/model.rs (DownloadState, DownloadStatus, ModelMetadata, DownloadProgress)
+- [X] T012 [P] Implement data structures in src/download.rs (DownloadProgress, DownloadManager)
+- [X] T013 [P] Implement data structures in src/init.rs (InitManager, InitProgress)
+- [X] T014 [P] Add constants in src/model.rs (MODEL_NAME, MODEL_VERSION, MODEL_URL, MODEL_FILE, STATE_FILE, LOCK_FILE)
+- [X] T015 [P] Add constants in src/download.rs (MAX_RETRIES, RETRY_DELAY, TIMEOUT, BUFFER_SIZE, PROGRESS_UPDATE_INTERVAL)
+- [X] T016 [P] Add helper functions in src/download.rs (format_download_progress, format_download_complete, format_download_error)
+- [X] T017 [P] Add helper functions in src/download.rs (calculate_sha256_checksum, acquire_lock, release_lock)
+- [X] T018 [P] Add signal handling infrastructure in src/download.rs (signal-hook dependency, INTERRUPTED flag)
+- [X] T019 [P] Add HTTP Range request support in src/download.rs (Range header, resume logic)
+- [X] T020 [P] Add proxy configuration support in src/download.rs (respect environment variables)
+- [X] T021 [P] Add version mismatch detection in src/model.rs (version comparison, validation logic)
+- [X] T022 [P] Add integration test scaffolding in tests/integration.rs for model download
+- [X] T023 Configure test corpus in test-vault/ for model download testing
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -76,36 +76,36 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T020 [P] [US1] Unit test for ModelManager::new in tests/model_tests.rs
-- [ ] T021 [P] [US1] Unit test for ModelManager::is_model_valid in tests/model_tests.rs
-- [ ] T022 [P] [US1] Unit test for ModelManager::model_path in tests/model_tests.rs
-- [ ] T023 [P] [US1] Unit test for DownloadManager::new in tests/download_tests.rs
-- [ ] T024 [P] [US1] Unit test for DownloadManager::calculate_checksum in tests/download_tests.rs
-- [ ] T025 [P] [US1] Unit test for InitManager::new in tests/init_tests.rs
-- [ ] T026 [P] [US1] Unit test for InitManager::is_initialized in tests/init_tests.rs
-- [ ] T027 [P] [US1] Integration test for model download during init in tests/integration.rs
-- [ ] T028 [P] [US1] Integration test for progress display formatting in tests/integration.rs
-- [ ] T029 [P] [US1] Unit test for output conventions (println! vs eprintln!) in tests/download_tests.rs
+- [X] T020 [P] [US1] Unit test for ModelManager::new in tests/model_tests.rs
+- [X] T021 [P] [US1] Unit test for ModelManager::is_model_valid in tests/model_tests.rs
+- [X] T022 [P] [US1] Unit test for ModelManager::model_path in tests/model_tests.rs
+- [X] T023 [P] [US1] Unit test for DownloadManager::new in tests/download_tests.rs
+- [X] T024 [P] [US1] Unit test for DownloadManager::calculate_checksum in tests/download_tests.rs
+- [X] T025 [P] [US1] Unit test for InitManager::new in tests/init_tests.rs
+- [X] T026 [P] [US1] Unit test for InitManager::is_initialized in tests/init_tests.rs
+- [X] T027 [P] [US1] Integration test for model download during init in tests/integration.rs
+- [X] T028 [P] [US1] Integration test for progress display formatting in tests/integration.rs
+- [X] T029 [P] [US1] Unit test for output conventions (println! vs eprintln!) in tests/download_tests.rs
 
 ### Implementation for User Story 1
 
-- [ ] T029 [US1] Implement ModelManager::new in src/model.rs
-- [ ] T030 [US1] Implement ModelManager::is_model_valid in src/model.rs
-- [ ] T031 [US1] Implement ModelManager::model_path in src/model.rs
-- [ ] T032 [US1] Implement DownloadManager::new in src/download.rs
-- [ ] T033 [US1] Implement DownloadManager::download in src/download.rs
-- [ ] T034 [US1] Implement DownloadManager::download_with_retry in src/download.rs
-- [ ] T035 [US1] Implement DownloadManager::calculate_checksum in src/download.rs
-- [ ] T036 [US1] Implement InitManager::new in src/init.rs
-- [ ] T037 [US1] Implement InitManager::is_initialized in src/init.rs
-- [ ] T038 [US1] Implement InitManager::initialize in src/init.rs
-- [ ] T039 [US1] Implement InitManager::create_directories in src/init.rs
-- [ ] T040 [US1] Implement InitManager::initialize_indexes in src/init.rs
-- [ ] T041 [US1] Implement InitManager::create_config_files in src/init.rs
-- [ ] T042 [US1] Update src/main.rs to add init command with progress display
-- [ ] T043 [US1] Add doc comments (`///`) to all public functions in src/model.rs
-- [ ] T044 [US1] Add doc comments (`///`) to all public functions in src/download.rs
-- [ ] T045 [US1] Add doc comments (`///`) to all public functions in src/init.rs
+- [X] T029 [US1] Implement ModelManager::new in src/model.rs
+- [X] T030 [US1] Implement ModelManager::is_model_valid in src/model.rs
+- [X] T031 [US1] Implement ModelManager::model_path in src/model.rs
+- [X] T032 [US1] Implement DownloadManager::new in src/download.rs
+- [X] T033 [US1] Implement DownloadManager::download in src/download.rs
+- [X] T034 [US1] Implement DownloadManager::download_with_retry in src/download.rs
+- [X] T035 [US1] Implement DownloadManager::calculate_checksum in src/download.rs
+- [X] T036 [US1] Implement InitManager::new in src/init.rs
+- [X] T037 [US1] Implement InitManager::is_initialized in src/init.rs
+- [X] T038 [US1] Implement InitManager::initialize in src/init.rs
+- [X] T039 [US1] Implement InitManager::create_directories in src/init.rs
+- [X] T040 [US1] Implement InitManager::initialize_indexes in src/init.rs
+- [X] T041 [US1] Implement InitManager::create_config_files in src/init.rs
+- [X] T042 [US1] Update src/main.rs to add init command with progress display
+- [X] T043 [US1] Add doc comments (`///`) to all public functions in src/model.rs
+- [X] T044 [US1] Add doc comments (`///`) to all public functions in src/download.rs
+- [X] T045 [US1] Add doc comments (`///`) to all public functions in src/init.rs
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
 

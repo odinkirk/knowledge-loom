@@ -1276,3 +1276,84 @@ async fn test_partial_failure_detection_in_reindex() {
         "Re-indexing should succeed when all indexes are healthy"
     );
 }
+
+// Integration tests for model download
+
+#[tokio::test]
+#[serial]
+async fn integration_model_download_during_init() {
+    let temp_dir = TempDir::new().unwrap();
+    let kb_root = temp_dir.path();
+
+    // Create test vault
+    create_test_vault(kb_root);
+
+    // Test initialization with model download
+    let init_manager = knowledge_loom::init::InitManager::new(kb_root.to_path_buf());
+
+    // Initialize knowledge base
+    let result = init_manager.initialize();
+    assert!(result.is_ok(), "Initialization should succeed");
+
+    // Verify initialization status
+    let is_initialized = init_manager.is_initialized();
+    assert!(
+        is_initialized.is_ok(),
+        "Should be able to check initialization status"
+    );
+    assert!(is_initialized.unwrap(), "Should be initialized after init");
+}
+
+#[tokio::test]
+#[serial]
+async fn integration_progress_display_formatting() {
+    use knowledge_loom::model::DownloadProgress;
+
+    // Test progress display formatting
+    let progress = DownloadProgress::new(50_000_000, 100_000_000, 2_500_000.0);
+
+    assert_eq!(progress.percentage, 50.0);
+    assert_eq!(progress.bytes_downloaded, 50_000_000);
+    assert_eq!(progress.total_bytes, 100_000_000);
+    assert_eq!(progress.speed, 2_500_000.0);
+    assert!(progress.eta_seconds.is_some());
+
+    let eta = progress.eta_seconds.unwrap();
+    assert!(eta > 0, "ETA should be positive");
+}
+
+#[tokio::test]
+#[serial]
+async fn integration_download_state_persistence() {
+    let temp_dir = TempDir::new().unwrap();
+    let kb_root = temp_dir.path();
+
+    // Create test vault
+    create_test_vault(kb_root);
+
+    // Test download state persistence
+    let models_dir = kb_root.join(".knowledge-loom-index").join("models");
+    std::fs::create_dir_all(&models_dir).unwrap();
+
+    let state_file = models_dir.join("download-state.json");
+
+    // Create download state
+    let state = knowledge_loom::model::DownloadState::new(
+        "all-MiniLM-L6-v2".to_string(),
+        "1.0.0".to_string(),
+        100_000_000,
+    );
+
+    // Save state
+    let state_json = serde_json::to_string_pretty(&state).unwrap();
+    std::fs::write(&state_file, state_json).unwrap();
+
+    // Load state
+    let loaded_json = std::fs::read_to_string(&state_file).unwrap();
+    let loaded_state: knowledge_loom::model::DownloadState =
+        serde_json::from_str(&loaded_json).unwrap();
+
+    assert_eq!(loaded_state.model_name, "all-MiniLM-L6-v2");
+    assert_eq!(loaded_state.model_version, "1.0.0");
+    assert_eq!(loaded_state.total_bytes, 100_000_000);
+}
