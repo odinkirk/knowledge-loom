@@ -147,18 +147,18 @@ fn get_manual_download_instructions_summary() -> String {
 /// * `Err(DownloadError)` - If the lock cannot be acquired
 pub fn acquire_lock(lock_path: &PathBuf) -> Result<std::fs::File, DownloadError> {
     use std::time::Duration;
-    
+
     // Try to open the file, creating it if it doesn't exist
     let file = std::fs::OpenOptions::new()
         .write(true)
         .create(true)
         .open(lock_path)
         .map_err(DownloadError::Io)?;
-    
+
     // Try to acquire exclusive lock with timeout
     // This is atomic - either we get the lock or we don't
     let lock_result = file.try_lock_exclusive();
-    
+
     match lock_result {
         Ok(_) => Ok(file),
         Err(e) => {
@@ -171,23 +171,30 @@ pub fn acquire_lock(lock_path: &PathBuf) -> Result<std::fs::File, DownloadError>
                         eprintln!("Warning: Found stale lock file ({} seconds old), attempting to remove it", age.as_secs());
                         drop(file);
                         std::fs::remove_file(lock_path).map_err(DownloadError::Io)?;
-                        
+
                         // Retry after removing stale lock
                         let file = std::fs::OpenOptions::new()
                             .write(true)
                             .create_new(true)
                             .open(lock_path)
                             .map_err(DownloadError::Io)?;
-                        
-                        file.try_lock_exclusive()
-                            .map_err(|e| DownloadError::Network(format!("Failed to acquire lock after removing stale lock: {}", e)))?;
-                        
+
+                        file.try_lock_exclusive().map_err(|e| {
+                            DownloadError::Network(format!(
+                                "Failed to acquire lock after removing stale lock: {}",
+                                e
+                            ))
+                        })?;
+
                         return Ok(file);
                     }
                 }
             }
-            
-            Err(DownloadError::Network(format!("Failed to acquire lock: {}", e)))
+
+            Err(DownloadError::Network(format!(
+                "Failed to acquire lock: {}",
+                e
+            )))
         }
     }
 }
@@ -208,11 +215,10 @@ pub fn acquire_lock(lock_path: &PathBuf) -> Result<std::fs::File, DownloadError>
 pub fn release_lock(file: std::fs::File, lock_path: &PathBuf) -> Result<(), DownloadError> {
     file.unlock()
         .map_err(|e| DownloadError::Network(format!("Failed to release lock: {}", e)))?;
-    
+
     // Delete the lock file after releasing the lock
-    std::fs::remove_file(lock_path)
-        .map_err(|e| DownloadError::Io(e))?;
-    
+    std::fs::remove_file(lock_path).map_err(|e| DownloadError::Io(e))?;
+
     Ok(())
 }
 
@@ -653,33 +659,30 @@ pub fn calculate_checksum(output_path: &PathBuf) -> Result<String, DownloadError
 #[cfg(unix)]
 fn check_disk_space(output_path: &PathBuf, required_bytes: u64) -> Result<(), DownloadError> {
     use nix::sys::statvfs::statvfs;
-    
+
     // Get the directory where the file will be downloaded
     let dir = if let Some(parent) = output_path.parent() {
         parent.to_path_buf()
     } else {
         std::env::current_dir().map_err(|e| DownloadError::Io(e))?
     };
-    
+
     // Get filesystem statistics
-    let stat = statvfs(&dir).map_err(|e| {
-        DownloadError::Network(format!("Failed to get disk space: {}", e))
-    })?;
-    
+    let stat = statvfs(&dir)
+        .map_err(|e| DownloadError::Network(format!("Failed to get disk space: {}", e)))?;
+
     let available_bytes = stat.blocks_available() as u64 * stat.block_size() as u64;
-    
+
     // Add 10% buffer for safety
     let required_with_buffer = required_bytes * 11 / 10;
-    
+
     if available_bytes < required_with_buffer {
-        return Err(DownloadError::Network(
-            format!(
-                "Insufficient disk space: {} bytes required (with 10% buffer), {} bytes available",
-                required_with_buffer, available_bytes
-            )
-        ));
+        return Err(DownloadError::Network(format!(
+            "Insufficient disk space: {} bytes required (with 10% buffer), {} bytes available",
+            required_with_buffer, available_bytes
+        )));
     }
-    
+
     Ok(())
 }
 
