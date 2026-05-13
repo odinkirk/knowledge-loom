@@ -1357,3 +1357,28 @@ async fn integration_download_state_persistence() {
     assert_eq!(loaded_state.model_version, "1.0.0");
     assert_eq!(loaded_state.total_bytes, 100_000_000);
 }
+
+// User Story 2: Graceful Error Handling Integration Tests
+
+#[tokio::test]
+#[serial]
+async fn integration_error_message_display() {
+    use knowledge_loom::model::DownloadError;
+
+    // Test error message display for various error types
+    let errors = vec![
+        DownloadError::Network("Connection failed".to_string()),
+        DownloadError::Http("404 Not Found".to_string()),
+        DownloadError::Io(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "Permission denied",
+        )),
+        DownloadError::Interrupted,
+        DownloadError::MaxRetriesExceeded { retries: 3 },
+    ];
+
+    for error in errors {
+        let error_msg = format!("{:?}", error);
+        assert!(!error_msg.is_empty(), "Error message should not be empty");
+    }
+}

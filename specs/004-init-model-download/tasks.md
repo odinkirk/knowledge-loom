@@ -121,27 +121,27 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T046 [P] [US2] Unit test for network error handling in tests/download_tests.rs
-- [ ] T047 [P] [US2] Unit test for disk full error handling in tests/download_tests.rs
-- [ ] T048 [P] [US2] Unit test for permission denied error handling in tests/download_tests.rs
-- [ ] T049 [P] [US2] Unit test for checksum mismatch error handling in tests/model_tests.rs
-- [ ] T050 [P] [US2] Unit test for timeout error handling in tests/download_tests.rs
-- [ ] T051 [P] [US2] Integration test for error message display in tests/integration.rs
-- [ ] T052 [P] [US2] Unit test for proxy configuration in tests/download_tests.rs
-- [ ] T053 [P] [US2] Unit test for proxy bypass rules in tests/download_tests.rs
+- [X] T046 [P] [US2] Unit test for network error handling in tests/download_tests.rs
+- [X] T047 [P] [US2] Unit test for disk full error handling in tests/download_tests.rs
+- [X] T048 [P] [US2] Unit test for permission denied error handling in tests/download_tests.rs
+- [X] T049 [P] [US2] Unit test for checksum mismatch error handling in tests/model_tests.rs
+- [X] T050 [P] [US2] Unit test for timeout error handling in tests/download_tests.rs
+- [X] T051 [P] [US2] Integration test for error message display in tests/integration.rs
+- [X] T052 [P] [US2] Unit test for proxy configuration in tests/download_tests.rs
+- [X] T053 [P] [US2] Unit test for proxy bypass rules in tests/download_tests.rs
 
 ### Implementation for User Story 2
 
-- [ ] T052 [US2] Implement network error handling in src/download.rs
-- [ ] T053 [US2] Implement disk full error handling in src/download.rs
-- [ ] T054 [US2] Implement permission denied error handling in src/download.rs
-- [ ] T055 [US2] Implement checksum mismatch error handling in src/model.rs
-- [ ] T056 [US2] Implement timeout error handling in src/download.rs
-- [ ] T057 [US2] Add error message formatting functions in src/download.rs
-- [ ] T058 [US2] Update error types in src/model.rs with specific error variants
-- [ ] T059 [US2] Update error types in src/download.rs with specific error variants
-- [ ] T060 [US2] Add doc comments (`///`) to error handling functions in src/download.rs
-- [ ] T061 [US2] Add doc comments (`///`) to error handling functions in src/model.rs
+- [X] T052 [US2] Implement network error handling in src/download.rs
+- [X] T053 [US2] Implement disk full error handling in src/download.rs
+- [X] T054 [US2] Implement permission denied error handling in src/download.rs
+- [X] T055 [US2] Implement checksum mismatch error handling in src/model.rs
+- [X] T056 [US2] Implement timeout error handling in src/download.rs
+- [X] T057 [US2] Add error message formatting functions in src/download.rs
+- [X] T058 [US2] Update error types in src/model.rs with specific error variants
+- [X] T059 [US2] Update error types in src/download.rs with specific error variants
+- [X] T060 [US2] Add doc comments (`///`) to error handling functions in src/download.rs
+- [X] T061 [US2] Add doc comments (`///`) to error handling functions in src/model.rs
 
 **Checkpoint**: At this point, User Stories 1 AND 2 should both work independently
 

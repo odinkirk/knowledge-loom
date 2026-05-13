@@ -133,7 +133,7 @@ pub struct DownloadManager {
     client: Client,
     url: String,
     output_path: PathBuf,
-    max_retries: u32,
+    pub max_retries: u32,
     retry_delay: Duration,
     timeout: Duration,
 }
@@ -200,11 +200,15 @@ impl DownloadManager {
             request = request.header("Range", format!("bytes={}-", start_byte));
         }
 
-        let response = request
-            .timeout(self.timeout)
-            .send()
-            .await
-            .map_err(|e| DownloadError::Network(format!("Failed to start download: {}", e)))?;
+        let response = request.timeout(self.timeout).send().await.map_err(|e| {
+            if e.is_timeout() {
+                DownloadError::Timeout(format!("Download timeout after {:?}", self.timeout))
+            } else if e.is_connect() {
+                DownloadError::Network(format!("Connection failed: {}", e))
+            } else {
+                DownloadError::Network(format!("Failed to start download: {}", e))
+            }
+        })?;
 
         // Check response status
         let status = response.status();
@@ -242,18 +246,68 @@ impl DownloadManager {
         let mut stream = response.bytes_stream();
 
         // Create parent directory if it doesn't exist
+        // Enhanced error handling for permission denied and disk full errors
         if let Some(parent) = self.output_path.parent() {
-            std::fs::create_dir_all(parent).map_err(DownloadError::Io)?;
+            std::fs::create_dir_all(parent).map_err(|e| {
+                if e.kind() == std::io::ErrorKind::PermissionDenied {
+                    DownloadError::Io(std::io::Error::new(
+                        std::io::ErrorKind::PermissionDenied,
+                        format!(
+                            "Permission denied creating directory {}: {}",
+                            parent.display(),
+                            e
+                        ),
+                    ))
+                } else {
+                    DownloadError::Io(e)
+                }
+            })?;
         }
 
         // Open file in append mode if resuming, otherwise create new
+        // Enhanced error handling for permission denied and disk full errors
         let mut file = if start_byte > 0 {
             std::fs::OpenOptions::new()
                 .append(true)
                 .open(&self.output_path)
-                .map_err(DownloadError::Io)?
+                .map_err(|e| {
+                    if e.kind() == std::io::ErrorKind::PermissionDenied {
+                        DownloadError::Io(std::io::Error::new(
+                            std::io::ErrorKind::PermissionDenied,
+                            format!(
+                                "Permission denied accessing file {}: {}",
+                                self.output_path.display(),
+                                e
+                            ),
+                        ))
+                    } else {
+                        DownloadError::Io(e)
+                    }
+                })?
         } else {
-            std::fs::File::create(&self.output_path).map_err(DownloadError::Io)?
+            std::fs::File::create(&self.output_path).map_err(|e| {
+                if e.kind() == std::io::ErrorKind::PermissionDenied {
+                    DownloadError::Io(std::io::Error::new(
+                        std::io::ErrorKind::PermissionDenied,
+                        format!(
+                            "Permission denied creating file {}: {}",
+                            self.output_path.display(),
+                            e
+                        ),
+                    ))
+                } else if e.kind() == std::io::ErrorKind::StorageFull {
+                    DownloadError::Io(std::io::Error::new(
+                        std::io::ErrorKind::StorageFull,
+                        format!(
+                            "No space left on device for file {}: {}",
+                            self.output_path.display(),
+                            e
+                        ),
+                    ))
+                } else {
+                    DownloadError::Io(e)
+                }
+            })?
         };
 
         use futures_util::StreamExt;
@@ -266,7 +320,29 @@ impl DownloadManager {
             let chunk = chunk_result
                 .map_err(|e| DownloadError::Network(format!("Download chunk error: {}", e)))?;
 
-            file.write_all(&chunk).map_err(DownloadError::Io)?;
+            file.write_all(&chunk).map_err(|e| {
+                if e.kind() == std::io::ErrorKind::StorageFull {
+                    DownloadError::Io(std::io::Error::new(
+                        std::io::ErrorKind::StorageFull,
+                        format!(
+                            "No space left on device while writing to {}: {}",
+                            self.output_path.display(),
+                            e
+                        ),
+                    ))
+                } else if e.kind() == std::io::ErrorKind::PermissionDenied {
+                    DownloadError::Io(std::io::Error::new(
+                        std::io::ErrorKind::PermissionDenied,
+                        format!(
+                            "Permission denied writing to {}: {}",
+                            self.output_path.display(),
+                            e
+                        ),
+                    ))
+                } else {
+                    DownloadError::Io(e)
+                }
+            })?;
 
             bytes_downloaded += chunk.len() as u64;
 

@@ -396,6 +396,27 @@ impl ModelManager {
     }
 
     /// Validate the model file
+    ///
+    /// This function validates the model file by calculating its SHA-256 checksum
+    /// and comparing it with the expected checksum. If the checksums don't match,
+    /// it returns an error with detailed information about the mismatch.
+    ///
+    /// # Arguments
+    ///
+    /// * `expected_checksum` - The expected SHA-256 checksum of the model file
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(true)` - If the model file exists and the checksum matches
+    /// * `Ok(false)` - If the model file doesn't exist
+    /// * `Err(anyhow::Error)` - If the checksum doesn't match or validation fails
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - The model file cannot be read
+    /// - The checksum calculation fails
+    /// - The checksum doesn't match the expected value
     pub fn validate_model(&self, expected_checksum: &str) -> anyhow::Result<bool> {
         let model_path = self.model_path();
         if !model_path.exists() {
@@ -407,7 +428,11 @@ impl ModelManager {
 
         // Compare with expected checksum
         if checksum != expected_checksum {
-            return Ok(false);
+            return Err(anyhow::anyhow!(
+                "Checksum mismatch: expected {}, got {}",
+                expected_checksum,
+                checksum
+            ));
         }
 
         // Update metadata to mark as validated

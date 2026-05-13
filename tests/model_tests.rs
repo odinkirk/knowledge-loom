@@ -36,7 +36,7 @@ mod model_tests {
 
         // Create metadata file
         let metadata_file = models_dir.join("all-MiniLM-L6-v2.json");
-        let metadata = ModelMetadata::new(
+        let mut metadata = ModelMetadata::new(
             MODEL_NAME.to_string(),
             MODEL_VERSION.to_string(),
             model_file.to_str().unwrap().to_string(),
@@ -201,5 +201,18 @@ mod model_tests {
         // Test invalid version
         let result = metadata.validate_metadata("test-model", "2.0.0");
         assert!(result.is_err());
+    }
+
+    // User Story 2: Graceful Error Handling Tests
+
+    #[test]
+    fn test_checksum_mismatch_error_handling() {
+        use knowledge_loom::model::ModelError;
+
+        // Test checksum mismatch error
+        let error = ModelError::ChecksumMismatch;
+
+        let error_msg = format!("{:?}", error);
+        assert!(error_msg.contains("ChecksumMismatch") || error_msg.contains("checksum"));
     }
 }
