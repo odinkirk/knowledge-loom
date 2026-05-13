@@ -7,7 +7,7 @@
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
-**Total Tasks**: 119 (45 for MVP: User Story 1 only)
+**Total Tasks**: 123 (45 for MVP: User Story 1 only)
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -245,6 +245,10 @@
 - [X] T121 [P] Fix lock file cleanup (delete lock file after releasing lock)
 - [X] T122 [P] Fix HTTP Range request validation (validate partial file size < total size)
 - [X] T123 [P] Fix metadata update (create metadata if it doesn't exist after validation)
+- [ ] T124 [P] Add disk space check before download (fail early if insufficient space)
+- [ ] T125 [P] Implement signal handling for Windows (document Ctrl+C limitations on non-Unix)
+- [ ] T126 [P] Fix TOCTOU in lock acquisition (use atomic file locking)
+- [ ] T127 [P] Fix download state atomic write (write to temp file then rename)
 
 ---
 
