@@ -156,19 +156,25 @@ pub fn acquire_lock(lock_path: &PathBuf) -> Result<std::fs::File, DownloadError>
 
 /// Release file lock
 ///
-/// This function releases the lock on the lock file.
+/// This function releases the lock on the lock file and deletes the lock file.
 ///
 /// # Arguments
 ///
 /// * `file` - The file handle to release the lock from
+/// * `lock_path` - The path to the lock file to delete
 ///
 /// # Returns
 ///
-/// * `Ok(())` - If the lock was successfully released
-/// * `Err(DownloadError)` - If the lock cannot be released
-pub fn release_lock(file: std::fs::File) -> Result<(), DownloadError> {
+/// * `Ok(())` - If the lock was successfully released and file deleted
+/// * `Err(DownloadError)` - If the lock cannot be released or file cannot be deleted
+pub fn release_lock(file: std::fs::File, lock_path: &PathBuf) -> Result<(), DownloadError> {
     file.unlock()
         .map_err(|e| DownloadError::Network(format!("Failed to release lock: {}", e)))?;
+    
+    // Delete the lock file after releasing the lock
+    std::fs::remove_file(lock_path)
+        .map_err(|e| DownloadError::Io(e))?;
+    
     Ok(())
 }
 
@@ -361,6 +367,14 @@ impl DownloadManager {
                 .ok_or_else(|| DownloadError::Network("Missing content length".to_string()))?
         };
 
+        // Validate that partial file size is less than expected total size
+        // This prevents corrupted partial files from causing incorrect resume positions
+        if start_byte > 0 && total_bytes > 0 && start_byte >= total_bytes {
+            return Err(DownloadError::Network(
+                format!("Partial file size ({}) is not less than expected total size ({}). The partial file may be corrupted. Please delete it and try again.", start_byte, total_bytes)
+            ));
+        }
+
         // Initialize download tracking
         let mut bytes_downloaded = start_byte;
         let start_time = std::time::Instant::now();
@@ -520,7 +534,7 @@ impl DownloadManager {
                     "Retrying model download (attempt {} of {})...",
                     attempt, self.max_retries
                 );
-                tokio::time::sleep(self.retry_delay * attempt).await;
+                tokio::time::sleep(self.retry_delay * 2_u32.pow(attempt - 1)).await;
             }
 
             // Attempt download

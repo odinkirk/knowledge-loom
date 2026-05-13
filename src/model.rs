@@ -520,7 +520,24 @@ impl ModelManager {
         }
 
         // Update metadata to mark as validated
+        // Create metadata if it doesn't exist (e.g., after manual download)
         if let Some(mut metadata) = self.get_model_metadata()? {
+            metadata.mark_validated();
+            self.set_model_metadata(&metadata)?;
+        } else {
+            // Create new metadata with validation status
+            let file_size = std::fs::metadata(&self.model_path())
+                .context("Failed to get model file size")?
+                .len();
+            let metadata = ModelMetadata::new(
+                MODEL_NAME.to_string(),
+                MODEL_VERSION.to_string(),
+                self.model_path().to_string_lossy().to_string(),
+                file_size,
+                checksum.clone(),
+                MODEL_URL.to_string(),
+            );
+            let mut metadata = metadata;
             metadata.mark_validated();
             self.set_model_metadata(&metadata)?;
         }
