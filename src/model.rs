@@ -399,7 +399,13 @@ impl ModelManager {
         let content =
             serde_json::to_string_pretty(state).context("Failed to serialize download state")?;
 
-        std::fs::write(&state_path, content).context("Failed to write download state")?;
+        // Write to temporary file first, then rename atomically
+        // This prevents corruption if the process crashes during write
+        let temp_path = state_path.with_extension(".tmp");
+        std::fs::write(&temp_path, content).context("Failed to write temporary state file")?;
+        
+        // Rename atomically (this is guaranteed to be atomic on most filesystems)
+        std::fs::rename(&temp_path, &state_path).context("Failed to rename state file")?;
 
         Ok(())
     }

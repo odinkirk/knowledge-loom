@@ -245,10 +245,10 @@
 - [X] T121 [P] Fix lock file cleanup (delete lock file after releasing lock)
 - [X] T122 [P] Fix HTTP Range request validation (validate partial file size < total size)
 - [X] T123 [P] Fix metadata update (create metadata if it doesn't exist after validation)
-- [ ] T124 [P] Add disk space check before download (fail early if insufficient space)
-- [ ] T125 [P] Implement signal handling for Windows (document Ctrl+C limitations on non-Unix)
-- [ ] T126 [P] Fix TOCTOU in lock acquisition (use atomic file locking)
-- [ ] T127 [P] Fix download state atomic write (write to temp file then rename)
+- [X] T124 [P] Add disk space check before download (fail early if insufficient space)
+- [X] T125 [P] Implement signal handling for Windows (document Ctrl+C limitations on non-Unix)
+- [X] T126 [P] Fix TOCTOU in lock acquisition (use atomic file locking)
+- [X] T127 [P] Fix download state atomic write (write to temp file then rename)
 
 ---
 

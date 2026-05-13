@@ -9,6 +9,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
+// Import FileExt trait for file locking
+use fs2::FileExt;
+
 /// Maximum number of download retries
 pub const MAX_RETRIES: u32 = 3;
 
@@ -132,6 +135,7 @@ fn get_manual_download_instructions_summary() -> String {
 ///
 /// This function creates a lock file and acquires an exclusive lock on it.
 /// If the lock file already exists and is locked, it returns an error.
+/// If the lock file exists but is not locked (stale lock), it attempts to acquire the lock.
 ///
 /// # Arguments
 ///
@@ -142,16 +146,50 @@ fn get_manual_download_instructions_summary() -> String {
 /// * `Ok(std::fs::File)` - If the lock was successfully acquired
 /// * `Err(DownloadError)` - If the lock cannot be acquired
 pub fn acquire_lock(lock_path: &PathBuf) -> Result<std::fs::File, DownloadError> {
+    use std::time::Duration;
+    
+    // Try to open the file, creating it if it doesn't exist
     let file = std::fs::OpenOptions::new()
         .write(true)
-        .create_new(true)
+        .create(true)
         .open(lock_path)
         .map_err(DownloadError::Io)?;
-
-    file.try_lock()
-        .map_err(|e| DownloadError::Network(format!("Failed to acquire lock: {}", e)))?;
-
-    Ok(file)
+    
+    // Try to acquire exclusive lock with timeout
+    // This is atomic - either we get the lock or we don't
+    let lock_result = file.try_lock_exclusive();
+    
+    match lock_result {
+        Ok(_) => Ok(file),
+        Err(e) => {
+            // Check if the lock file is stale (older than 5 minutes)
+            if let Ok(metadata) = std::fs::metadata(lock_path) {
+                if let Ok(modified) = metadata.modified() {
+                    let age = modified.elapsed().unwrap_or(Duration::from_secs(0));
+                    if age > Duration::from_secs(300) {
+                        // Lock file is stale, try to delete and retry
+                        eprintln!("Warning: Found stale lock file ({} seconds old), attempting to remove it", age.as_secs());
+                        drop(file);
+                        std::fs::remove_file(lock_path).map_err(DownloadError::Io)?;
+                        
+                        // Retry after removing stale lock
+                        let file = std::fs::OpenOptions::new()
+                            .write(true)
+                            .create_new(true)
+                            .open(lock_path)
+                            .map_err(DownloadError::Io)?;
+                        
+                        file.try_lock_exclusive()
+                            .map_err(|e| DownloadError::Network(format!("Failed to acquire lock after removing stale lock: {}", e)))?;
+                        
+                        return Ok(file);
+                    }
+                }
+            }
+            
+            Err(DownloadError::Network(format!("Failed to acquire lock: {}", e)))
+        }
+    }
 }
 
 /// Release file lock
@@ -183,6 +221,10 @@ pub fn release_lock(file: std::fs::File, lock_path: &PathBuf) -> Result<(), Down
 /// This function sets up a signal handler for SIGINT (Ctrl+C) on Unix systems.
 /// When the signal is received, it sets the INTERRUPTED flag.
 ///
+/// On Windows, signal handling is limited. Ctrl+C is handled by the console
+/// and may not be caught reliably. The download will be interrupted when
+/// the process is terminated, but graceful cleanup may not occur.
+///
 /// # Returns
 ///
 /// * `Ok(())` - If the signal handler was successfully set up
@@ -195,6 +237,14 @@ pub fn setup_signal_handler() -> Result<(), DownloadError> {
         signal_hook::flag::register(SIGINT, flag).map_err(|e| {
             DownloadError::Network(format!("Failed to register signal handler: {}", e))
         })?;
+    }
+    #[cfg(windows)]
+    {
+        // On Windows, signal handling is limited
+        // Ctrl+C is handled by the console and may not be caught reliably
+        // The download will be interrupted when the process is terminated
+        // but graceful cleanup may not occur
+        eprintln!("Warning: Ctrl+C signal handling is limited on Windows. The download may not be interrupted gracefully.");
     }
     Ok(())
 }
@@ -373,6 +423,12 @@ impl DownloadManager {
             return Err(DownloadError::Network(
                 format!("Partial file size ({}) is not less than expected total size ({}). The partial file may be corrupted. Please delete it and try again.", start_byte, total_bytes)
             ));
+        }
+
+        // Check available disk space before starting download
+        // This prevents partial file corruption if disk fills during download
+        if total_bytes > 0 {
+            check_disk_space(&self.output_path, total_bytes)?;
         }
 
         // Initialize download tracking
@@ -578,4 +634,70 @@ pub fn calculate_checksum(output_path: &PathBuf) -> Result<String, DownloadError
     }
 
     Ok(format!("{:x}", hasher.finalize()))
+}
+
+/// Check available disk space before download
+///
+/// This function checks if there is sufficient disk space available for the download.
+/// It uses platform-specific APIs to get available disk space.
+///
+/// # Arguments
+///
+/// * `output_path` - The path where the file will be downloaded
+/// * `required_bytes` - The number of bytes required for the download
+///
+/// # Returns
+///
+/// * `Ok(())` - If there is sufficient disk space
+/// * `Err(DownloadError)` - If there is insufficient disk space or the check fails
+#[cfg(unix)]
+fn check_disk_space(output_path: &PathBuf, required_bytes: u64) -> Result<(), DownloadError> {
+    use nix::sys::statvfs::statvfs;
+    
+    // Get the directory where the file will be downloaded
+    let dir = if let Some(parent) = output_path.parent() {
+        parent.to_path_buf()
+    } else {
+        std::env::current_dir().map_err(|e| DownloadError::Io(e))?
+    };
+    
+    // Get filesystem statistics
+    let stat = statvfs(&dir).map_err(|e| {
+        DownloadError::Network(format!("Failed to get disk space: {}", e))
+    })?;
+    
+    let available_bytes = stat.blocks_available() as u64 * stat.block_size() as u64;
+    
+    // Add 10% buffer for safety
+    let required_with_buffer = required_bytes * 11 / 10;
+    
+    if available_bytes < required_with_buffer {
+        return Err(DownloadError::Network(
+            format!(
+                "Insufficient disk space: {} bytes required (with 10% buffer), {} bytes available",
+                required_with_buffer, available_bytes
+            )
+        ));
+    }
+    
+    Ok(())
+}
+
+/// Check available disk space before download (Windows stub)
+///
+/// On Windows, we skip the disk space check for now since we don't have
+/// Windows-specific dependencies. The download will fail with a disk full
+/// error if space is insufficient.
+#[cfg(windows)]
+fn check_disk_space(_output_path: &PathBuf, _required_bytes: u64) -> Result<(), DownloadError> {
+    // Skip disk space check on Windows for now
+    // The download will fail with a disk full error if space is insufficient
+    Ok(())
+}
+
+/// Check available disk space before download (fallback for other platforms)
+#[cfg(not(any(unix, windows)))]
+fn check_disk_space(_output_path: &PathBuf, _required_bytes: u64) -> Result<(), DownloadError> {
+    // Skip disk space check on other platforms for now
+    Ok(())
 }
