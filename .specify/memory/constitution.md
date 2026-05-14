@@ -119,6 +119,106 @@ CRG tools provide graph-powered code understanding that should be leveraged for 
 - No blanket consent or "go ahead" for multiple commits
 - The agent must ask for consent before every single `git commit` command
 
+### Commit Flow Guidance (NEW)
+
+#### Correct Flows ✅
+
+**Flow 1: Single Commit**
+```
+Agent: "I'm ready to commit these changes. Should I commit these changes? (yes/no)"
+User: "yes"
+Agent: git commit -m "feat(init): implement model download feature"
+```
+
+**Flow 2: Multiple Sequential Commits**
+```
+Agent: "Ready to commit feature implementation. Should I commit these changes? (yes/no)"
+User: "yes"
+Agent: git commit -m "feat(init): implement model download feature"
+
+Agent: "Ready to commit documentation updates. Should I commit these changes? (yes/no)"
+User: "yes"
+Agent: git commit -m "docs: add troubleshooting section for model download"
+```
+
+**Flow 3: Commit with Message Approval**
+```
+Agent: "Ready to commit with message: 'feat(init): implement model download feature'. Should I commit these changes? (yes/no)"
+User: "yes"
+Agent: git commit -m "feat(init): implement model download feature"
+```
+
+#### Incorrect Flows ❌
+
+**Incorrect 1: Blanket Consent**
+```
+❌ User: "Go ahead and commit all your changes"
+✅ Agent: "I need explicit consent for each commit individually. Should I commit these changes? (yes/no)"
+```
+
+**Incorrect 2: Silent Commits**
+```
+❌ Agent: commits without asking
+✅ Agent: "Should I commit these changes? (yes/no)"
+```
+
+**Incorrect 3: Multiple Commits in One Command**
+```
+❌ Agent: git add . && git commit -m "feat: multiple changes"
+✅ Agent: "Should I commit these changes? (yes/no)"
+```
+
+#### Explicit Consent Requirements
+
+**Valid Explicit Consent:**
+- "yes"
+- "commit"
+- "proceed"
+- "y"
+- Any clear affirmative response
+
+**Invalid Consent:**
+- "go ahead" (implies blanket consent)
+- "continue" (too vague)
+- "ok" (ambiguous)
+- No response (requires explicit consent)
+
+#### Edge Cases
+
+**Edge Case 1: Automated Tools**
+```
+Agent: "The build system requires a commit. Should I commit these changes? (yes/no)"
+User: "yes"
+Agent: git commit -m "chore: update dependencies"
+```
+
+**Edge Case 2: Emergency Commits**
+```
+Agent: "Critical security fix. Should I commit these changes immediately? (yes/no)"
+User: "yes"
+Agent: git commit -m "fix(security): patch critical vulnerability"
+```
+
+**Edge Case 3: Interactive Sessions**
+```
+Agent: "Should I commit these changes? (yes/no)"
+User: "yes"
+Agent: git commit -m "feat: implemented model download"
+```
+
+#### Constitutional Enforcement
+
+**Violation Protocol:**
+1. Any commit made without explicit consent is a constitutional violation
+2. Must be documented and justified in the commit message
+3. Requires retroactive approval from project maintainers
+4. Future commits must follow explicit consent protocol
+
+**Quality Gate Check:**
+- All commits must verify constitutional compliance
+- PRs must include "Constitution: ✅ PASSED" or "Constitution: ❌ VIOLATION [justification]"
+- Audit logs must track consent verification for each commit
+
 ### Commit Messages
 - Follow Conventional Commits format: `type(scope): description`
 - Types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`
