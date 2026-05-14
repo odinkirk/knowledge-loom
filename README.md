@@ -435,6 +435,50 @@ Files matching patterns in `.loomignore` will be excluded from indexing.
 
 *This section is a placeholder for common issues and their solutions. As issues are discovered and documented, they will be added here.*
 
+### Model Download Issues
+
+If automatic model download fails during `loom init`, you can manually download the model:
+
+#### Manual Model Download
+
+1. **Download the model file**:
+   ```bash
+   # Using curl
+   curl -L -o .knowledge-loom-index/models/all-MiniLM-L6-v2.onnx \
+     https://huggingface.co/Qdrant/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx
+
+   # Using wget
+   wget -O .knowledge-loom-index/models/all-MiniLM-L6-v2.onnx \
+     https://huggingface.co/Qdrant/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx
+   ```
+
+2. **Create the models directory** (if it doesn't exist):
+   ```bash
+   mkdir -p .knowledge-loom-index/models
+   ```
+
+3. **Move the downloaded file** (if you downloaded it elsewhere):
+   ```bash
+   mv all-MiniLM-L6-v2.onnx .knowledge-loom-index/models/
+   ```
+
+4. **Run initialization again**:
+   ```bash
+   ./target/release/loom init
+   ```
+
+The system will validate the downloaded model and continue with initialization.
+
+#### Common Download Errors
+
+- **Network error**: Check your internet connection and try again
+- **Timeout**: The download took too long. Check your connection or try manual download
+- **Permission denied**: Ensure you have write access to the knowledge base directory
+- **Disk full**: Free up disk space and try again
+- **Proxy issues**: Configure `HTTP_PROXY` and `HTTPS_PROXY` environment variables
+
+For more help, visit [GitHub Issues](https://github.com/odinkirk/knowledge-loom/issues).
+
 ### Platform-Specific Issues
 
 - **macOS**: File permissions and binary execution

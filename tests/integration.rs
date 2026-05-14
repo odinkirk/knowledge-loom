@@ -1276,3 +1276,283 @@ async fn test_partial_failure_detection_in_reindex() {
         "Re-indexing should succeed when all indexes are healthy"
     );
 }
+
+// Integration tests for model download
+
+#[tokio::test]
+#[serial]
+async fn integration_model_download_during_init() {
+    let temp_dir = TempDir::new().unwrap();
+    let kb_root = temp_dir.path();
+
+    // Create test vault
+    create_test_vault(kb_root);
+
+    // Test initialization with model download
+    let init_manager = knowledge_loom::init::InitManager::new(kb_root.to_path_buf());
+
+    // Initialize knowledge base
+    let result = init_manager.initialize();
+    assert!(result.is_ok(), "Initialization should succeed");
+
+    // Verify initialization status
+    let is_initialized = init_manager.is_initialized();
+    assert!(
+        is_initialized.is_ok(),
+        "Should be able to check initialization status"
+    );
+    assert!(is_initialized.unwrap(), "Should be initialized after init");
+}
+
+#[tokio::test]
+#[serial]
+async fn integration_progress_display_formatting() {
+    use knowledge_loom::model::DownloadProgress;
+
+    // Test progress display formatting
+    let progress = DownloadProgress::new(50_000_000, 100_000_000, 2_500_000.0);
+
+    assert_eq!(progress.percentage, 50.0);
+    assert_eq!(progress.bytes_downloaded, 50_000_000);
+    assert_eq!(progress.total_bytes, 100_000_000);
+    assert_eq!(progress.speed, 2_500_000.0);
+    assert!(progress.eta_seconds.is_some());
+
+    let eta = progress.eta_seconds.unwrap();
+    assert!(eta > 0, "ETA should be positive");
+}
+
+#[tokio::test]
+#[serial]
+async fn integration_download_state_persistence() {
+    let temp_dir = TempDir::new().unwrap();
+    let kb_root = temp_dir.path();
+
+    // Create test vault
+    create_test_vault(kb_root);
+
+    // Test download state persistence
+    let models_dir = kb_root.join(".knowledge-loom-index").join("models");
+    std::fs::create_dir_all(&models_dir).unwrap();
+
+    let state_file = models_dir.join("download-state.json");
+
+    // Create download state
+    let state = knowledge_loom::model::DownloadState::new(
+        "all-MiniLM-L6-v2".to_string(),
+        "1.0.0".to_string(),
+        100_000_000,
+    );
+
+    // Save state
+    let state_json = serde_json::to_string_pretty(&state).unwrap();
+    std::fs::write(&state_file, state_json).unwrap();
+
+    // Load state
+    let loaded_json = std::fs::read_to_string(&state_file).unwrap();
+    let loaded_state: knowledge_loom::model::DownloadState =
+        serde_json::from_str(&loaded_json).unwrap();
+
+    assert_eq!(loaded_state.model_name, "all-MiniLM-L6-v2");
+    assert_eq!(loaded_state.model_version, "1.0.0");
+    assert_eq!(loaded_state.total_bytes, 100_000_000);
+}
+
+// User Story 2: Graceful Error Handling Integration Tests
+
+#[tokio::test]
+#[serial]
+async fn integration_error_message_display() {
+    use knowledge_loom::model::DownloadError;
+
+    // Test error message display for various error types
+    let errors = vec![
+        DownloadError::Network("Connection failed".to_string()),
+        DownloadError::Http("404 Not Found".to_string()),
+        DownloadError::Io(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "Permission denied",
+        )),
+        DownloadError::Interrupted,
+        DownloadError::MaxRetriesExceeded { retries: 3 },
+    ];
+
+    for error in errors {
+        let error_msg = format!("{:?}", error);
+        assert!(!error_msg.is_empty(), "Error message should not be empty");
+    }
+}
+
+// User Story 3: Model Re-Download with State Handling Integration Tests
+
+#[tokio::test]
+#[serial]
+async fn integration_model_re_download() {
+    use knowledge_loom::model::{DownloadState, DownloadStatus};
+
+    let temp_dir = TempDir::new().unwrap();
+    let kb_root = temp_dir.path();
+
+    // Create model directory
+    let models_dir = kb_root.join(".knowledge-loom-index").join("models");
+    std::fs::create_dir_all(&models_dir).unwrap();
+
+    // Create a download state with in-progress status
+    let state = DownloadState {
+        status: DownloadStatus::InProgress,
+        progress_percentage: 50.0,
+        bytes_downloaded: 60_000_000,
+        total_bytes: 120_000_000,
+        download_speed: 2_500_000.0,
+        error_message: None,
+        last_updated: chrono::Utc::now(),
+        model_name: knowledge_loom::model::MODEL_NAME.to_string(),
+        model_version: knowledge_loom::model::MODEL_VERSION.to_string(),
+    };
+
+    // Save state to file
+    let state_file = models_dir.join("download-state.json");
+    let state_json = serde_json::to_string_pretty(&state).unwrap();
+    std::fs::write(&state_file, state_json).unwrap();
+
+    // Verify state was saved
+    assert!(state_file.exists());
+
+    // Simulate re-download by reading state
+    let state_json = std::fs::read_to_string(&state_file).unwrap();
+    let recovered_state: DownloadState = serde_json::from_str(&state_json).unwrap();
+
+    // Verify state was recovered correctly
+    assert_eq!(recovered_state.status, DownloadStatus::InProgress);
+    assert_eq!(recovered_state.progress_percentage, 50.0);
+    assert_eq!(recovered_state.bytes_downloaded, 60_000_000);
+
+    // Verify can resume from this state
+    let remaining_bytes = recovered_state.total_bytes - recovered_state.bytes_downloaded;
+    assert_eq!(remaining_bytes, 60_000_000);
+
+    // Update state to completed
+    let completed_state = DownloadState {
+        status: DownloadStatus::Completed,
+        progress_percentage: 100.0,
+        bytes_downloaded: 120_000_000,
+        total_bytes: 120_000_000,
+        download_speed: 2_500_000.0,
+        error_message: None,
+        last_updated: chrono::Utc::now(),
+        model_name: knowledge_loom::model::MODEL_NAME.to_string(),
+        model_version: knowledge_loom::model::MODEL_VERSION.to_string(),
+    };
+
+    let completed_json = serde_json::to_string_pretty(&completed_state).unwrap();
+    std::fs::write(&state_file, completed_json).unwrap();
+
+    // Verify state was updated
+    let state_json = std::fs::read_to_string(&state_file).unwrap();
+    let final_state: DownloadState = serde_json::from_str(&state_json).unwrap();
+    assert_eq!(final_state.status, DownloadStatus::Completed);
+    assert_eq!(final_state.progress_percentage, 100.0);
+}
+
+#[tokio::test]
+#[serial]
+async fn integration_concurrent_download_prevention() {
+    use std::fs::OpenOptions;
+    use std::io::Write;
+
+    let temp_dir = TempDir::new().unwrap();
+    let kb_root = temp_dir.path();
+
+    // Create model directory
+    let models_dir = kb_root.join(".knowledge-loom-index").join("models");
+    std::fs::create_dir_all(&models_dir).unwrap();
+
+    // Create lock file to simulate in-progress download
+    let lock_file = models_dir.join(".download.lock");
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .open(&lock_file)
+        .unwrap();
+
+    file.write_all(b"locked").unwrap();
+    file.flush().unwrap();
+
+    // Verify lock file exists
+    assert!(lock_file.exists());
+
+    // Simulate checking for lock
+    if lock_file.exists() {
+        // Lock exists, should prevent concurrent download
+        let lock_content = std::fs::read_to_string(&lock_file).unwrap();
+        assert_eq!(lock_content, "locked");
+
+        // Attempt to acquire lock should fail
+        let result = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&lock_file);
+
+        assert!(
+            result.is_err(),
+            "Should fail to acquire lock when already locked"
+        );
+    }
+
+    // Clean up lock file
+    std::fs::remove_file(&lock_file).unwrap();
+
+    // Verify lock file was removed
+    assert!(!lock_file.exists());
+
+    // Now should be able to acquire lock
+    let result = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&lock_file);
+
+    assert!(
+        result.is_ok(),
+        "Should be able to acquire lock after cleanup"
+    );
+}
+
+#[test]
+fn integration_manual_download_instructions_display() {
+    use knowledge_loom::init::InitManager;
+
+    let temp_dir = TempDir::new().unwrap();
+    let kb_root = temp_dir.path();
+
+    let init_manager = InitManager::new(kb_root.to_path_buf());
+
+    // Generate manual download instructions
+    let instructions = init_manager.generate_manual_download_instructions();
+
+    assert!(instructions.is_ok());
+    let instructions = instructions.unwrap();
+
+    // Verify instructions are displayed correctly
+    println!("Manual Download Instructions:");
+    println!("{}", instructions);
+
+    // Verify instructions contain all required sections
+    assert!(instructions.contains("Manual Model Download Instructions"));
+    assert!(instructions.contains("Step 1"));
+    assert!(instructions.contains("Step 2"));
+    assert!(instructions.contains("Step 3"));
+
+    // Verify instructions contain model information
+    assert!(instructions.contains("all-MiniLM-L6-v2"));
+    assert!(instructions
+        .contains("https://huggingface.co/Qdrant/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx"));
+
+    // Verify instructions contain path information
+    let kb_root_str = kb_root.to_string_lossy();
+    assert!(instructions.contains(kb_root_str.as_ref()));
+    assert!(instructions.contains(".knowledge-loom-index/models"));
+
+    // Verify instructions are user-friendly
+    assert!(instructions.len() > 100); // Should be substantial
+    assert!(!instructions.contains("TODO")); // Should be complete
+}

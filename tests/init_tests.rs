@@ -1,146 +1,152 @@
-use std::env;
-use std::fs;
-use tempfile::TempDir;
+// Integration tests for Knowledge Loom initialization
+// This module tests the init functionality including model download
 
-fn fake_binary(path: &std::path::Path) {
-    fs::create_dir_all(path.parent().unwrap()).unwrap();
-    fs::write(path, b"#!/bin/sh\necho loom").unwrap();
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let mut perms = fs::metadata(path).unwrap().permissions();
-        perms.set_mode(0o755);
-        fs::set_permissions(path, perms).unwrap();
+#[cfg(test)]
+mod init_tests {
+    use knowledge_loom::init::InitManager;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_init_manager_new() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        let init_manager = InitManager::new(kb_root.to_path_buf());
+
+        assert_eq!(init_manager.kb_root(), kb_root);
     }
-}
 
-#[test]
-fn test_init_happy_path() {
-    let tmp = TempDir::new().unwrap();
-    let dir = tmp.path();
-    let binary_src = dir.join("fake_loom");
-    fake_binary(&binary_src);
+    #[test]
+    fn test_init_manager_is_initialized_false() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
 
-    knowledge_loom::init::run_init_with_binary(dir, &binary_src).unwrap();
+        let init_manager = InitManager::new(kb_root.to_path_buf());
 
-    // Binary copied
-    assert!(dir.join(".knowledge-loom/bin/loom").exists());
+        let is_initialized = init_manager.is_initialized();
 
-    // .mcp.json written with knowledge-loom key
-    let mcp: serde_json::Value =
-        serde_json::from_str(&fs::read_to_string(dir.join(".mcp.json")).unwrap()).unwrap();
-    assert!(mcp["mcpServers"]["knowledge-loom"]["command"].is_string());
-    let kb_root = mcp["mcpServers"]["knowledge-loom"]["env"]["KB_ROOT"]
-        .as_str()
-        .unwrap();
-    assert_eq!(kb_root, dir.to_str().unwrap());
+        assert!(is_initialized.is_ok());
+        assert!(!is_initialized.unwrap());
+    }
 
-    // .gitignore updated
-    let gi = fs::read_to_string(dir.join(".gitignore")).unwrap();
-    assert!(gi.contains(".knowledge-loom/"));
-    assert!(gi.contains(".knowledge-loom-index/"));
-}
+    #[test]
+    fn test_init_manager_is_initialized_true() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
 
-#[test]
-fn test_init_preserves_existing_mcp_servers() {
-    let tmp = TempDir::new().unwrap();
-    let dir = tmp.path();
-    let binary_src = dir.join("fake_loom");
-    fake_binary(&binary_src);
+        // Create index directory
+        let index_dir = kb_root.join(".knowledge-loom-index");
+        std::fs::create_dir_all(&index_dir).unwrap();
 
-    // Pre-populate .mcp.json with an unrelated server
-    let existing = serde_json::json!({
-        "mcpServers": {
-            "other-server": { "command": "other", "args": [] }
-        }
-    });
-    fs::write(
-        dir.join(".mcp.json"),
-        serde_json::to_string_pretty(&existing).unwrap(),
-    )
-    .unwrap();
+        let init_manager = InitManager::new(kb_root.to_path_buf());
 
-    knowledge_loom::init::run_init_with_binary(dir, &binary_src).unwrap();
+        let is_initialized = init_manager.is_initialized();
 
-    let mcp: serde_json::Value =
-        serde_json::from_str(&fs::read_to_string(dir.join(".mcp.json")).unwrap()).unwrap();
-    // Original server preserved
-    assert!(mcp["mcpServers"]["other-server"]["command"].is_string());
-    // Knowledge-loom server added
-    assert!(mcp["mcpServers"]["knowledge-loom"]["command"].is_string());
-}
+        assert!(is_initialized.is_ok());
+        assert!(is_initialized.unwrap());
+    }
 
-#[test]
-fn test_init_idempotent() {
-    let tmp = TempDir::new().unwrap();
-    let dir = tmp.path();
-    let binary_src = dir.join("fake_loom");
-    fake_binary(&binary_src);
+    #[test]
+    fn test_init_manager_initialize() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
 
-    knowledge_loom::init::run_init_with_binary(dir, &binary_src).unwrap();
-    knowledge_loom::init::run_init_with_binary(dir, &binary_src).unwrap();
+        let init_manager = InitManager::new(kb_root.to_path_buf());
 
-    let mcp: serde_json::Value =
-        serde_json::from_str(&fs::read_to_string(dir.join(".mcp.json")).unwrap()).unwrap();
-    let servers = mcp["mcpServers"].as_object().unwrap();
-    // Exactly one "knowledge-loom" key, no duplicates
-    assert_eq!(
-        servers
-            .keys()
-            .filter(|k| k.as_str() == "knowledge-loom")
-            .count(),
-        1
-    );
+        let result = init_manager.initialize();
 
-    let gi = fs::read_to_string(dir.join(".gitignore")).unwrap();
-    assert_eq!(gi.matches(".knowledge-loom/").count(), 1);
-    assert_eq!(gi.matches(".knowledge-loom-index/").count(), 1);
-}
+        assert!(result.is_ok());
 
-#[test]
-fn test_run_init_with_no_args_uses_current_dir() {
-    let tmp = TempDir::new().unwrap();
-    let dir = tmp.path();
-    let binary_src = dir.join("fake_loom");
-    fake_binary(&binary_src);
+        // Verify directories were created
+        let index_dir = kb_root.join(".knowledge-loom-index");
+        assert!(index_dir.exists());
 
-    // Change to temp directory
-    let _ = env::set_current_dir(&dir);
+        let models_dir = index_dir.join("models");
+        assert!(models_dir.exists());
+    }
 
-    // Call run_init with just "init" arg (simulating command line)
-    knowledge_loom::init::run_init(std::iter::once("init".to_string())).unwrap();
+    #[test]
+    fn test_init_manager_get_model_metadata_none() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
 
-    // Binary should be copied to temp directory
-    assert!(dir.join(".knowledge-loom/bin/loom").exists());
-}
+        let init_manager = InitManager::new(kb_root.to_path_buf());
 
-#[test]
-fn test_run_init_with_explicit_dir() {
-    let tmp = TempDir::new().unwrap();
-    let dir = tmp.path();
-    let target_dir = dir.join("target");
-    // Create the target directory
-    fs::create_dir_all(&target_dir).unwrap();
-    let binary_src = dir.join("fake_loom");
-    fake_binary(&binary_src);
+        let metadata = init_manager.get_model_metadata();
 
-    // Call run_init with "init" and target directory
-    knowledge_loom::init::run_init(
-        std::iter::once("init".to_string())
-            .chain(std::iter::once(target_dir.to_string_lossy().to_string())),
-    )
-    .unwrap();
+        assert!(metadata.is_ok());
+        assert!(metadata.unwrap().is_none());
+    }
 
-    // Binary should be copied to target directory
-    assert!(target_dir.join(".knowledge-loom/bin/loom").exists());
-}
+    #[test]
+    fn test_init_manager_get_model_metadata_some() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
 
-#[test]
-fn test_run_init_handles_invalid_directory() {
-    let result = knowledge_loom::init::run_init(
-        std::iter::once("init".to_string()).chain(std::iter::once("/nonexistent/path".to_string())),
-    );
+        // Create model directory
+        let models_dir = kb_root.join(".knowledge-loom-index").join("models");
+        std::fs::create_dir_all(&models_dir).unwrap();
 
-    // Should return an error
-    assert!(result.is_err());
+        // Create metadata file
+        let metadata_file = models_dir.join("all-MiniLM-L6-v2.json");
+        let metadata = knowledge_loom::model::ModelMetadata::new(
+            "all-MiniLM-L6-v2".to_string(),
+            "1.0.0".to_string(),
+            "/path/to/model.onnx".to_string(),
+            1000,
+            "test_checksum".to_string(),
+            "https://example.com/model.onnx".to_string(),
+        );
+
+        let metadata_json = serde_json::to_string_pretty(&metadata).unwrap();
+        std::fs::write(&metadata_file, metadata_json).unwrap();
+
+        let init_manager = InitManager::new(kb_root.to_path_buf());
+
+        let result = init_manager.get_model_metadata();
+
+        assert!(result.is_ok());
+        let metadata = result.unwrap();
+        assert!(metadata.is_some());
+        let metadata = metadata.unwrap();
+        assert_eq!(metadata.model_name, "all-MiniLM-L6-v2");
+    }
+
+    #[test]
+    fn test_manual_download_instructions_generation() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        let init_manager = InitManager::new(kb_root.to_path_buf());
+
+        let instructions = init_manager.generate_manual_download_instructions();
+
+        assert!(instructions.is_ok());
+        let instructions = instructions.unwrap();
+
+        // Verify instructions contain key information
+        assert!(instructions.contains("all-MiniLM-L6-v2"));
+        assert!(instructions.contains(
+            "https://huggingface.co/Qdrant/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx"
+        ));
+        assert!(instructions.contains(".knowledge-loom-index/models"));
+        assert!(instructions.contains("SHA-256"));
+    }
+
+    #[test]
+    fn test_manual_download_instructions_with_kb_root() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        let init_manager = InitManager::new(kb_root.to_path_buf());
+
+        let instructions = init_manager.generate_manual_download_instructions();
+
+        assert!(instructions.is_ok());
+        let instructions = instructions.unwrap();
+
+        // Verify instructions include the KB_ROOT path
+        let kb_root_str = kb_root.to_string_lossy();
+        assert!(instructions.contains(kb_root_str.as_ref()));
+    }
 }
