@@ -101,13 +101,15 @@ fn test_run_init_with_platform_claude() {
     fs::write(&bin, b"#!/bin/sh").unwrap();
 
     // Simulate: loom init --platform claude <dir>
+    std::env::set_var("KB_ROOT", tmp.path().to_str().unwrap());
     let args = vec![
         "init".to_string(),
         "--platform".to_string(),
         "claude".to_string(),
         tmp.path().to_str().unwrap().to_string(),
     ];
-    knowledge_loom::init::run_init(args.into_iter()).unwrap();
+    knowledge_loom::init::run_init(args).unwrap();
+    std::env::remove_var("KB_ROOT");
 
     let mcp_path = tmp.path().join(".mcp.json");
     assert!(mcp_path.exists(), ".mcp.json not created");
@@ -116,12 +118,14 @@ fn test_run_init_with_platform_claude() {
 #[test]
 fn test_run_init_unknown_platform_errors() {
     let tmp = TempDir::new().unwrap();
+    std::env::set_var("KB_ROOT", tmp.path().to_str().unwrap());
     let args = vec![
         "init".to_string(),
         "--platform".to_string(),
         "nonexistent-platform".to_string(),
         tmp.path().to_str().unwrap().to_string(),
     ];
-    let result = knowledge_loom::init::run_init(args.into_iter());
+    let result = knowledge_loom::init::run_init(args);
+    std::env::remove_var("KB_ROOT");
     assert!(result.is_err(), "unknown platform should error");
 }

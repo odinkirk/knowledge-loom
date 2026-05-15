@@ -28,7 +28,7 @@ fn test_init_emits_shell_script() {
     let bin = tmp.path().join("loom");
     std::fs::write(&bin, b"#!/bin/sh").unwrap();
 
-    knowledge_loom::init::run_init_with_binary(tmp.path(), &bin).unwrap();
+    knowledge_loom::init::run_init_with_binary(&tmp.path().to_path_buf(), &bin).unwrap();
 
     let script_path = tmp.path().join("loom-shell.sh");
     assert!(script_path.exists(), "loom-shell.sh not created");

@@ -14,6 +14,7 @@ pub mod embed;
 pub mod graph;
 pub mod index;
 pub mod init;
+pub mod install;
 pub mod maintenance;
 pub mod model;
 pub mod platforms;

@@ -10,6 +10,7 @@ mod embed;
 mod graph;
 mod index;
 mod init;
+mod install;
 mod maintenance;
 mod model;
 mod platforms;
@@ -26,6 +27,30 @@ async fn main() {
             if let Err(e) = init::run_init(args().skip(1).collect()) {
                 eprintln!("knowledge-loom init failed: {e}");
                 exit(1);
+            }
+        }
+        Some("install") => {
+            let force = args().any(|a| a == "--force" || a == "-f");
+            let kb_root = std::env::var("KB_ROOT")
+                .unwrap_or_else(|_| ".".to_string())
+                .into();
+            match install::run_install(kb_root, force).await {
+                Ok(summary) => {
+                    println!(
+                        "Installed {} ({:.1} MB) to {}",
+                        summary.model_version,
+                        summary.size_bytes as f64 / 1_000_000.0,
+                        summary.target_location
+                    );
+                }
+                Err(install::InstallError::AlreadyInstalled) => {
+                    println!("fastembed model already installed and valid. Use --force to re-download.");
+                }
+                Err(e) => {
+                    eprintln!("ERROR: {}", e);
+                    eprintln!("Run with --force to retry: loom install --force");
+                    exit(1);
+                }
             }
         }
         Some("shell") => {
@@ -124,6 +149,8 @@ fn print_usage() {
     eprintln!(
         "  loom init [dir]    Initialize knowledge-loom in a directory (default: current dir)"
     );
+    eprintln!("  loom install       Download runtime data (fastembed models) to .knowledge-loom/models/");
+    eprintln!("  loom install --force  Re-download runtime data even if already installed");
     eprintln!("  loom daemon        Daemon management (start|stop|status|logs|add|remove)");
     eprintln!("  loom reindex       Reindex knowledge base (used by daemon)");
     eprintln!("  loom web [--port]  Start read-only web UI (default port 8080)");

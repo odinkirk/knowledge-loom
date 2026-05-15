@@ -43,7 +43,7 @@ fn test_init_uses_new_paths() {
         p.set_mode(0o755);
         std::fs::set_permissions(&bin, p).unwrap();
     }
-    knowledge_loom::init::run_init_with_binary(dir, &bin).unwrap();
+    knowledge_loom::init::run_init_with_binary(&dir.to_path_buf(), &bin).unwrap();
 
     // Binary in new dir
     assert!(dir.join(".knowledge-loom/bin/loom").exists());
