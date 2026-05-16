@@ -42,6 +42,7 @@ async fn main() {
                         summary.size_bytes as f64 / 1_000_000.0,
                         summary.target_location
                     );
+                    println!("Checksum: {}", summary.checksum);
                 }
                 Err(install::InstallError::AlreadyInstalled) => {
                     println!(

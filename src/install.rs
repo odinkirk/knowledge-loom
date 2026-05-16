@@ -9,6 +9,8 @@ pub const MODEL_DIR: &str = ".knowledge-loom/models";
 pub const STATE_FILE: &str = ".knowledge-loom/models/.install-state.json";
 pub const MODEL_URL: &str =
     "https://huggingface.co/Qdrant/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx";
+pub const EXPECTED_CHECKSUM: &str =
+    "bbd7b466f6d58e646fdc2bd5fd67b2f5e93c0b687011bd4548c420f7bd46f0c5";
 
 /// Install error types
 #[derive(Debug, thiserror::Error)]
@@ -24,9 +26,6 @@ pub enum InstallError {
 
     #[error("Network error: {0}")]
     NetworkError(String),
-
-    #[error("Disk full: required {required} MB, available {available} MB")]
-    DiskFull { required: u64, available: u64 },
 
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
@@ -97,9 +96,17 @@ impl InstallManager {
         // Write model file
         std::fs::write(&model_file, &bytes)?;
 
-        // Calculate checksum
+        // Calculate and validate checksum
         let checksum = sha2::Sha256::digest(&bytes);
         let checksum_hex = format!("{:x}", checksum);
+
+        if checksum_hex != EXPECTED_CHECKSUM {
+            std::fs::remove_file(&model_file).ok();
+            return Err(InstallError::ChecksumMismatch {
+                expected: EXPECTED_CHECKSUM.to_string(),
+                actual: checksum_hex,
+            });
+        }
 
         // Save state
         let state = InstallState {
@@ -127,12 +134,18 @@ impl InstallManager {
         }
 
         // Load state
-        let state_content = std::fs::read_to_string(self.state_path())?;
+        let state_content = match std::fs::read_to_string(self.state_path()) {
+            Ok(content) => content,
+            Err(_) => return Ok(false),
+        };
         let state: InstallState = serde_json::from_str(&state_content)?;
 
         // Read model file and verify checksum
         let model_file = self.model_path().join("model.onnx");
-        let bytes = std::fs::read(&model_file)?;
+        let bytes = match std::fs::read(&model_file) {
+            Ok(bytes) => bytes,
+            Err(_) => return Ok(false),
+        };
         let checksum = sha2::Sha256::digest(&bytes);
         let checksum_hex = format!("{:x}", checksum);
 
