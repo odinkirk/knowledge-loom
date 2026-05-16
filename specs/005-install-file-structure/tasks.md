@@ -116,14 +116,45 @@
 
 **Purpose**: Address identified technical debt to prevent accumulation
 
+### T057: Tests First (TDD - Constitution Section III)
+
+- [ ] T057a [P] Write unit tests for download_with_retry() in tests/download_utils_tests.rs
+- [ ] T057b [P] Write unit tests for validate_checksum() in tests/download_utils_tests.rs
+- [ ] T057c [P] Write unit tests for check_disk_space() in tests/download_utils_tests.rs
+- [ ] T057d [P] Write integration tests: verify DownloadManager integration in tests/download_integration_tests.rs
+
+### T052-T054: Download Infrastructure Consolidation
+
 - [x] T052 [P] Extract retry logic from download.rs into shared download utilities module in src/download/utils.rs
-- [ ] T053 [P] Refactor install.rs to use shared DownloadManager from download.rs
-- [ ] T054 [P] Refactor model.rs to use shared DownloadManager from download.rs
+- [ ] T053 [P] Refactor install.rs download_model() to use DownloadManager from download.rs
+  - Replace reqwest::Client direct usage with DownloadManager
+  - Remove duplicate checksum logic, use download::utils::validate_checksum()
+  - Keep install-specific logic: state management, integrity verification, --force flag
+- [ ] T054 [P] Refactor model.rs to use DownloadManager from download.rs
+  - Replace direct download logic with DownloadManager
+  - Reuse progress tracking from download module
+  - Keep model-specific logic: validation, metadata management
+
+### T055-T056: CLI Argument Parsing Standardization
+
 - [ ] T055 [P] Create shared CLI argument parsing utilities in src/cli/args.rs
+  - Handle --force, --platform, and other flags
+  - Edge cases: --force=value, unknown flags, missing values
+  - Provide clear error messages
 - [ ] T056 [P] Update install.rs to use robust argument parsing from src/cli/args.rs
-- [ ] T057 [P] Add integration tests for shared download utilities in tests/download_utils_tests.rs
+  - Replace args().any() with shared parser
+  - Add error handling for edge cases
+
+### T058-T059: Documentation
+
 - [ ] T058 [P] Update ARCHITECTURE.md with consolidated download infrastructure design
+  - Document DownloadManager usage pattern
+  - Show module dependencies: download/ → install.rs, model.rs
+  - Update data flow diagrams
 - [ ] T059 [P] Document technical debt reduction in CHANGELOG.md
+  - Record refactoring changes
+  - Note any internal API changes
+  - Highlight code quality improvements
 
 ## Dependencies
 
