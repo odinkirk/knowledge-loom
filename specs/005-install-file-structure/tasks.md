@@ -112,10 +112,23 @@
 - [ ] T050 [P] Verify 80% code coverage for install module
 - [x] T051 [P] Write performance benchmark test: verify `loom install` completes in <30s (100Mbps connection) in tests/install_benchmark.rs
 
+## Technical Debt Remediation Phase
+
+**Purpose**: Address identified technical debt to prevent accumulation
+
+- [ ] T052 [P] Extract retry logic from download.rs into shared download utilities module in src/download/utils.rs
+- [ ] T053 [P] Refactor install.rs to use shared DownloadManager from download.rs
+- [ ] T054 [P] Refactor model.rs to use shared DownloadManager from download.rs
+- [ ] T055 [P] Create shared CLI argument parsing utilities in src/cli/args.rs
+- [ ] T056 [P] Update install.rs to use robust argument parsing from src/cli/args.rs
+- [ ] T057 [P] Add integration tests for shared download utilities in tests/download_utils_tests.rs
+- [ ] T058 [P] Update ARCHITECTURE.md with consolidated download infrastructure design
+- [ ] T059 [P] Document technical debt reduction in CHANGELOG.md
+
 ## Dependencies
 
 ```
-Phase 1 (Setup) → Phase 2 (Foundational) → Phase 3 (US1) → Phase 4 (US2) → Phase 5 (US3) → Final Phase
+Phase 1 (Setup) → Phase 2 (Foundational) → Phase 3 (US1) → Phase 4 (US2) → Phase 5 (US3) → Final Phase → Tech Debt Remediation
                                                   ↕                   ↕
                                           Independent           Independent
                                           (no deps on US2)      (no deps on US3)
@@ -133,6 +146,8 @@ US1, US2, and US3 are designed to be independently testable. US2 depends on the 
 
 **FINAL PHASE parallel tasks**: T040-T045 are independent improvements. T046-T050 are sequential quality gates.
 
+**TECH DEBT REMEDIATION parallel tasks**: T052-T054 can run in parallel (refactoring). T055-T056 are sequential (CLI args). T057-T059 are parallel (tests/docs).
+
 ## Implementation Strategy
 
 **MVP Scope**: Phase 1 + Phase 2 + Phase 3 (US1) delivers the core `loom install` functionality with model download to `.knowledge-loom/models/`. This is independently testable and delivers user value.
@@ -142,3 +157,4 @@ US1, US2, and US3 are designed to be independently testable. US2 depends on the 
 2. US2 (P2) - Integrity: checksum verification, auto-repair on corruption
 3. US3 (P3) - Reinstall: --force flag, skip-if-valid optimization
 4. Final - Polish: error messages, docs, quality gates
+5. Tech Debt Remediation - Consolidate download infrastructure, prevent duplication

@@ -62,3 +62,46 @@ src/
 ## Complexity Tracking
 
 No constitution violations expected. Implementation is straightforward model download with standard patterns.
+
+## Technical Debt Remediation Plan
+
+**Identified**: 2026-05-16 | **Severity**: Low-Medium | **Impact**: Reliability & Code Quality
+
+### Issues to Address (NOT Deferred)
+
+1. **Missing retry logic for network failures** (SEVERITY: MEDIUM)
+   - Current: Single download attempt, fails on transient network errors
+   - Impact: Users must manually run `--force` after any network glitch
+   - **Action**: Reuse `DownloadManager` from `download.rs` with exponential backoff
+   - **Timeline**: Address in Feature 006 if it involves downloads, or as dedicated refactoring
+
+2. **Code duplication with existing download infrastructure** (SEVERITY: MEDIUM)
+   - Current: `install.rs` duplicates download functionality from `download.rs`
+   - Impact: Two code paths to maintain, inconsistent error handling
+   - **Action**: Refactor to create shared download utilities module
+   - **Timeline**: Dedicate 1-2 days for refactoring sprint before Feature 007
+
+3. **Argument parsing could be more robust** (SEVERITY: LOW)
+   - Current: Simple `args().any()` check for `--force` flag
+   - Impact: Doesn't handle edge cases like `--force=value` or provide detailed error messages
+   - **Action**: Create shared CLI argument parsing utilities
+   - **Timeline**: Address during standardization pass (same sprint as #2)
+
+4. **Checksum field usage** (SEVERITY: LOW)
+   - Status: ✅ RESOLVED - Added checksum display to success output in commit 5254fee
+
+### Remediation Commitments
+
+**Immediate** (before Feature 006):
+- Document download infrastructure duplication in Feature 006 planning
+- Estimate refactoring effort for shared utilities module
+
+**Short-term** (before Feature 007):
+- Dedicate sprint to refactoring: consolidate `download.rs`, `model.rs`, `install.rs`
+- Create shared download utilities with retry logic, progress tracking, error handling
+- Standardize CLI argument parsing across all subcommands
+
+**Tracking**:
+- Add technical debt remediation tasks to Feature 006/007 task lists
+- Review technical debt status at start of each new feature planning
+- Measure reduction in code duplication metrics after refactoring

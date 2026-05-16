@@ -73,7 +73,37 @@ Knowledge Loom is performance-critical:
 - All debug/logging output must use `eprintln!` or proper logging frameworks
 - This is non-negotiable for MCP server stability
 
-### X. Code Exploration and Analysis
+### X. Technical Debt Policy (CRITICAL)
+
+Technical debt must be avoided except by explicit consent:
+
+- **Definition**: Technical debt includes known bugs, missing error handling, code duplication, inadequate tests, performance issues, or architectural compromises
+- **Identification**: All technical debt must be documented immediately upon discovery (code review, testing, or implementation)
+- **Documentation**: Technical debt must be recorded in the feature's `plan.md` under a "Deferred Technical Debt" section with:
+  - Severity level (Low/Medium/High/Critical)
+  - Impact description (what could go wrong, who is affected)
+  - Recommended fix approach
+  - Deferred rationale (why it's being postponed)
+- **Explicit Consent Required**: Deferring technical debt requires explicit user consent
+  - Agent must present ALL identified technical debt items to the user before deferring any
+  - Each item must be presented individually with its severity and impact
+  - User must explicitly approve deferral of each item (e.g., "yes, defer T01-T04")
+  - **Blanket deferral without presenting items is a constitutional violation**
+  - **Deferring without asking is a constitutional violation**
+- **Tracking**: Deferred technical debt must be:
+  - Added to the feature's plan.md before the feature is considered complete
+  - Referenced in follow-up features if they touch the same code
+  - Addressed within 3 features or scheduled for a dedicated refactoring sprint
+- **Prohibited Patterns**:
+  - Deferring without explicit consent (ALL severity levels)
+  - Deferring critical bugs (severity: High/Critical) without explicit justification
+  - Accumulating technical debt across multiple features without addressing prior debt
+  - Using "time pressure" as justification for deferring security or correctness issues
+  - Adding technical debt to plan.md after the feature is "complete" (must be presented during implementation)
+
+**Rationale**: Technical debt compounds over time. Explicit consent ensures informed tradeoff decisions and prevents accidental debt accumulation. The act of presenting each item forces deliberate consideration rather than automatic deferment.
+
+### XI. Code Exploration and Analysis
 Use code-review-graph (CRG) tools for all code exploration and analysis tasks:
 - **ALWAYS use CRG tools first** before Grep/Glob/Read for code exploration
 - Use CRG for: understanding code structure, finding dependencies, impact analysis, code reviews
@@ -84,8 +114,6 @@ Use code-review-graph (CRG) tools for all code exploration and analysis tasks:
 - Knowledge Loom tools (`loom_*`) are the single entry point for Markdown operations
 
 CRG tools provide graph-powered code understanding that should be leveraged for all Rust code analysis.
-
-## Code Conventions
 
 ### Naming
 - **Files**: snake_case (e.g., `bm25.rs`, `search_engine.rs`)
@@ -299,4 +327,4 @@ Constitution amendments require:
 - Migration plan for existing code
 - Update of this constitution's version
 
-**Version**: 1.0.0 | **Ratified**: 2025-05-09 | **Last Amended**: 2025-05-09
+**Version**: 1.1.0 | **Ratified**: 2025-05-09 | **Last Amended**: 2026-05-16
