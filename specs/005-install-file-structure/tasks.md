@@ -130,18 +130,17 @@
   - Replace reqwest::Client direct usage with DownloadManager
   - Remove duplicate checksum logic, use download::utils::validate_checksum()
   - Keep install-specific logic: state management, integrity verification, --force flag
-- [ ] T054 [P] Refactor model.rs to use DownloadManager from download.rs
-  - Replace direct download logic with DownloadManager
-  - Reuse progress tracking from download module
-  - Keep model-specific logic: validation, metadata management
+- [x] T054 [P] Refactor model.rs to use DownloadManager from download.rs
+  - Note: model.rs only manages state/metadata/validation, no download logic to refactor
+  - init.rs already uses DownloadManager correctly
 
 ### T055-T056: CLI Argument Parsing Standardization
 
-- [ ] T055 [P] Create shared CLI argument parsing utilities in src/cli/args.rs
+- [x] T055 [P] Create shared CLI argument parsing utilities in src/cli/args.rs
   - Handle --force, --platform, and other flags
   - Edge cases: --force=value, unknown flags, missing values
   - Provide clear error messages
-- [ ] T056 [P] Update install.rs to use robust argument parsing from src/cli/args.rs
+- [x] T056 [P] Update install.rs to use robust argument parsing from src/cli/args.rs
   - Replace args().any() with shared parser
   - Add error handling for edge cases
 

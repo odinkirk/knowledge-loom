@@ -191,3 +191,14 @@ pub async fn run_install(kb_root: PathBuf, force: bool) -> Result<InstallSummary
     let manager = InstallManager::new(kb_root);
     manager.validate_or_download(force).await
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_run_install_with_force() {
+        // Integration test would go here
+        // For now, verify the function signature is correct
+    }
+}

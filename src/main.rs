@@ -30,7 +30,7 @@ async fn main() {
             }
         }
         Some("install") => {
-            let force = args().any(|a| a == "--force" || a == "-f");
+            let force = knowledge_loom::cli::args::parse_flag("force", Some("f"));
             let kb_root = std::env::var("KB_ROOT")
                 .unwrap_or_else(|_| ".".to_string())
                 .into();
