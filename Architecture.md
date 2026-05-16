@@ -194,8 +194,10 @@ graph LR
 
 ## Model Download Flow
 
-The model download flow handles automatic download of the embedding model during initialization,
-with support for resume, retry, and manual fallback. The `loom install` command provides
+The model download flow uses a consolidated download infrastructure with shared utilities.
+The `DownloadManager` class (in `src/download.rs`) provides retry logic, progress tracking,
+and error handling. Shared utilities (in `src/download/utils.rs`) provide checksum validation,
+disk space checking, and reusable download functions. The `loom install` command provides
 standalone model installation and integrity verification.
 
 ```mermaid
@@ -223,6 +225,13 @@ graph TB
         I -->|No| J[Retry with exponential backoff]
         J --> F
         I -->|Yes| K[Display error with manual instructions]
+    end
+
+    subgraph "Shared Utilities"
+        F --> L[download/utils.rs]
+        L --> M[calculate_checksum()]
+        L --> N[validate_checksum()]
+        L --> O[check_disk_space()]
     end
 
     subgraph "Validation"

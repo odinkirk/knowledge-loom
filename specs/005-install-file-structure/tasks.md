@@ -121,7 +121,7 @@
 - [x] T057a [P] Write unit tests for download_with_retry() in tests/download_utils_tests.rs
 - [x] T057b [P] Write unit tests for validate_checksum() in tests/download_utils_tests.rs
 - [x] T057c [P] Write unit tests for check_disk_space() in tests/download_utils_tests.rs
-- [ ] T057d [P] Write integration tests: verify DownloadManager integration in tests/download_integration_tests.rs
+- [x] T057d [P] Write integration tests: verify DownloadManager integration in tests/download_integration_tests.rs
 
 ### T052-T054: Download Infrastructure Consolidation
 
@@ -146,11 +146,11 @@
 
 ### T058-T059: Documentation
 
-- [ ] T058 [P] Update ARCHITECTURE.md with consolidated download infrastructure design
+- [x] T058 [P] Update ARCHITECTURE.md with consolidated download infrastructure design
   - Document DownloadManager usage pattern
   - Show module dependencies: download/ → install.rs, model.rs
   - Update data flow diagrams
-- [ ] T059 [P] Document technical debt reduction in CHANGELOG.md
+- [x] T059 [P] Document technical debt reduction in CHANGELOG.md
   - Record refactoring changes
   - Note any internal API changes
   - Highlight code quality improvements

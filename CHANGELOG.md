@@ -24,6 +24,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `loom install --force` for re-downloading models
     - Skip logic: reports "already installed" when model is valid
     - Overwrites existing model files on force re-download
+  - **Shared download utilities** (Technical Debt Remediation):
+    - Consolidated download logic in `src/download/utils.rs`
+    - Reusable `calculate_checksum()`, `validate_checksum()`, `check_disk_space()`
+    - Eliminated code duplication across install.rs, model.rs, init.rs
+  - **CLI argument parsing utilities** (Technical Debt Remediation):
+    - Created `src/cli/args.rs` with `parse_flag()`, `parse_string_value()`, `validate_flags()`
+    - Supports --flag, -f, --key=value, --key value forms
+    - Provides helpful error messages for missing values and unknown flags
   - **Init-time model download with structured plain text progress indicators**:
     - Automatic model download during `loom init` with progress display
     - Structured plain text format: "Downloading model: {percentage}% ({downloaded_mb}MB/{total_mb}MB) - {speed_mb}MB/s - {remaining}s remaining"
