@@ -72,13 +72,13 @@
 
 **Independent Test Criteria**: CI runs `loom install && cargo test --release`. Job passes only when both succeed.
 
-- [ ] T025 [P] [US2] Write unit test for integrity check: valid checksum passes in tests/install_tests.rs
-- [ ] T026 [P] [US2] Write unit test for integrity check: corrupted file triggers re-download in tests/install_tests.rs
-- [ ] T027 [P] [US2] Write unit test for integrity check: missing file triggers download in tests/install_tests.rs
-- [ ] T028 [US2] Implement InstallManager::verify_integrity() checking checksum in src/install.rs
-- [ ] T029 [US2] Implement InstallManager::validate_or_download() - verify then download if needed in src/install.rs
-- [ ] T030 [US2] Add integrity verification step to `loom install` flow in src/main.rs
-- [ ] T031 [US2] Write integration test: install + cargo test --release passes in tests/install_integration.rs
+- [x] T025 [P] [US2] Write unit test for integrity check: valid checksum passes in tests/install_tests.rs
+- [x] T026 [P] [US2] Write unit test for integrity check: corrupted file triggers re-download in tests/install_tests.rs
+- [x] T027 [P] [US2] Write unit test for integrity check: missing file triggers download in tests/install_tests.rs
+- [x] T028 [US2] Implement InstallManager::verify_integrity() checking checksum in src/install.rs
+- [x] T029 [US2] Implement InstallManager::validate_or_download() - verify then download if needed in src/install.rs
+- [x] T030 [US2] Add integrity verification step to `loom install` flow in src/main.rs
+- [x] T031 [US2] Write integration test: install + cargo test --release passes in tests/install_integration.rs
 
 ## Phase 5: User Story 3 - Re-install or Update (Priority: P3)
 

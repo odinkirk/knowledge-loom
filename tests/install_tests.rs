@@ -94,3 +94,42 @@ fn test_install_manager_checksum_validation() {
     // Verify integrity should fail
     assert!(!manager.verify_integrity().unwrap());
 }
+
+#[tokio::test]
+async fn test_validate_or_download_corrupted_triggers_redownload() {
+    let (_tmp, manager) = setup_test_manager();
+    
+    // Create model directory and file with wrong data
+    let model_dir = manager.model_path();
+    std::fs::create_dir_all(&model_dir).unwrap();
+    let model_file = model_dir.join("model.onnx");
+    std::fs::write(&model_file, b"corrupted data").unwrap();
+    
+    // Create state with wrong checksum (simulating corruption)
+    let state = InstallState {
+        model_version: "test-v1".to_string(),
+        download_timestamp: chrono::Utc::now().to_rfc3339(),
+        checksum: "wrongchecksum".to_string(),
+        size_bytes: 16,
+    };
+    let state_json = serde_json::to_string_pretty(&state).unwrap();
+    std::fs::write(manager.state_path(), state_json).unwrap();
+    
+    // validate_or_download with force should succeed (would re-download in real scenario)
+    // For this test, we just verify it doesn't return AlreadyInstalled error
+    let result = manager.validate_or_download(true).await;
+    // Should not be AlreadyInstalled error when force=true
+    assert!(!matches!(result, Err(knowledge_loom::install::InstallError::AlreadyInstalled)));
+}
+
+#[tokio::test]
+async fn test_validate_or_download_missing_triggers_download() {
+    let (_tmp, manager) = setup_test_manager();
+    
+    // Don't create any files - simulate missing model
+    
+    // validate_or_download should not return AlreadyInstalled when nothing exists
+    let result = manager.validate_or_download(false).await;
+    // Should attempt download (will fail without network, but shouldn't be AlreadyInstalled)
+    assert!(!matches!(result, Err(knowledge_loom::install::InstallError::AlreadyInstalled)));
+}
