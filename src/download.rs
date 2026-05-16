@@ -1,6 +1,8 @@
 // Download module for Knowledge Loom model download
 // This module handles HTTP download with retry logic, progress tracking, and checksum validation
 
+pub mod utils;
+
 use crate::model::{DownloadError, DownloadProgress};
 use reqwest::Client;
 use std::io::Write;
@@ -95,6 +97,9 @@ pub fn format_download_error(error: &DownloadError) -> String {
         DownloadError::Timeout(msg) => format!("Timeout: {}", msg),
         DownloadError::Io(e) => format!("IO error: {}", e),
         DownloadError::Reqwest(e) => format!("HTTP client error: {}", e),
+        DownloadError::ChecksumMismatch { expected, actual } => {
+            format!("Checksum mismatch: expected {}, got {}", expected, actual)
+        }
     };
 
     // Add manual download instructions for critical errors

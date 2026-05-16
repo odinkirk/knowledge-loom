@@ -79,34 +79,34 @@ impl InstallManager {
         let model_dir = self.model_path();
         std::fs::create_dir_all(&model_dir)?;
 
-        // Download model file
+        // Download model file using shared DownloadManager
         let model_file = model_dir.join("model.onnx");
-        let client = reqwest::Client::new();
-        let response = client
-            .get(MODEL_URL)
-            .send()
-            .await
-            .map_err(|e| InstallError::NetworkError(e.to_string()))?;
+        let mut manager = crate::download::DownloadManager::new(
+            MODEL_URL.to_string(),
+            model_file.clone(),
+        )
+        .map_err(|e| InstallError::DownloadFailed(e.to_string()))?
+        .with_retries(crate::download::MAX_RETRIES)
+        .with_retry_delay(std::time::Duration::from_secs(crate::download::RETRY_DELAY))
+        .with_timeout(std::time::Duration::from_secs(crate::download::TIMEOUT));
 
-        let bytes = response
-            .bytes()
+        manager
+            .download(|_| {})
             .await
             .map_err(|e| InstallError::DownloadFailed(e.to_string()))?;
 
-        // Write model file
-        std::fs::write(&model_file, &bytes)?;
+        // Read downloaded file for checksum validation
+        let bytes = std::fs::read(&model_file)?;
 
-        // Calculate and validate checksum
-        let checksum = sha2::Sha256::digest(&bytes);
-        let checksum_hex = format!("{:x}", checksum);
-
-        if checksum_hex != EXPECTED_CHECKSUM {
-            std::fs::remove_file(&model_file).ok();
+        // Validate checksum using shared utility
+        if let Err(e) = crate::download::utils::validate_checksum(&bytes, EXPECTED_CHECKSUM) {
             return Err(InstallError::ChecksumMismatch {
                 expected: EXPECTED_CHECKSUM.to_string(),
-                actual: checksum_hex,
+                actual: e.to_string(),
             });
         }
+
+        let checksum_hex = EXPECTED_CHECKSUM.to_string();
 
         // Save state
         let state = InstallState {

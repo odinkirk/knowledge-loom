@@ -118,15 +118,15 @@
 
 ### T057: Tests First (TDD - Constitution Section III)
 
-- [ ] T057a [P] Write unit tests for download_with_retry() in tests/download_utils_tests.rs
-- [ ] T057b [P] Write unit tests for validate_checksum() in tests/download_utils_tests.rs
-- [ ] T057c [P] Write unit tests for check_disk_space() in tests/download_utils_tests.rs
+- [x] T057a [P] Write unit tests for download_with_retry() in tests/download_utils_tests.rs
+- [x] T057b [P] Write unit tests for validate_checksum() in tests/download_utils_tests.rs
+- [x] T057c [P] Write unit tests for check_disk_space() in tests/download_utils_tests.rs
 - [ ] T057d [P] Write integration tests: verify DownloadManager integration in tests/download_integration_tests.rs
 
 ### T052-T054: Download Infrastructure Consolidation
 
 - [x] T052 [P] Extract retry logic from download.rs into shared download utilities module in src/download/utils.rs
-- [ ] T053 [P] Refactor install.rs download_model() to use DownloadManager from download.rs
+- [x] T053 [P] Refactor install.rs download_model() to use DownloadManager from download.rs
   - Replace reqwest::Client direct usage with DownloadManager
   - Remove duplicate checksum logic, use download::utils::validate_checksum()
   - Keep install-specific logic: state management, integrity verification, --force flag

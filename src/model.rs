@@ -80,6 +80,9 @@ pub enum DownloadError {
 
     #[error("Reqwest error: {0}")]
     Reqwest(#[from] reqwest::Error),
+
+    #[error("Checksum mismatch: expected {expected}, got {actual}")]
+    ChecksumMismatch { expected: String, actual: String },
 }
 
 /// Error types for initialization operations
