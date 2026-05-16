@@ -4,7 +4,7 @@
 use crate::model::{DownloadError, DownloadProgress};
 use reqwest::Client;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -152,6 +152,7 @@ pub fn acquire_lock(lock_path: &PathBuf) -> Result<std::fs::File, DownloadError>
     let file = std::fs::OpenOptions::new()
         .write(true)
         .create(true)
+        .truncate(true)
         .open(lock_path)
         .map_err(DownloadError::Io)?;
 
@@ -217,7 +218,7 @@ pub fn release_lock(file: std::fs::File, lock_path: &PathBuf) -> Result<(), Down
         .map_err(|e| DownloadError::Network(format!("Failed to release lock: {}", e)))?;
 
     // Delete the lock file after releasing the lock
-    std::fs::remove_file(lock_path).map_err(|e| DownloadError::Io(e))?;
+    std::fs::remove_file(lock_path).map_err(DownloadError::Io)?;
 
     Ok(())
 }
@@ -657,14 +658,14 @@ pub fn calculate_checksum(output_path: &PathBuf) -> Result<String, DownloadError
 /// * `Ok(())` - If there is sufficient disk space
 /// * `Err(DownloadError)` - If there is insufficient disk space or the check fails
 #[cfg(unix)]
-fn check_disk_space(output_path: &PathBuf, required_bytes: u64) -> Result<(), DownloadError> {
+fn check_disk_space(output_path: &Path, required_bytes: u64) -> Result<(), DownloadError> {
     use nix::sys::statvfs::statvfs;
 
     // Get the directory where the file will be downloaded
     let dir = if let Some(parent) = output_path.parent() {
         parent.to_path_buf()
     } else {
-        std::env::current_dir().map_err(|e| DownloadError::Io(e))?
+        std::env::current_dir().map_err(DownloadError::Io)?
     };
 
     // Get filesystem statistics

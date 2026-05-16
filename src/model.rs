@@ -532,7 +532,7 @@ impl ModelManager {
             self.set_model_metadata(&metadata)?;
         } else {
             // Create new metadata with validation status
-            let file_size = std::fs::metadata(&self.model_path())
+            let file_size = std::fs::metadata(self.model_path())
                 .context("Failed to get model file size")?
                 .len();
             let metadata = ModelMetadata::new(
