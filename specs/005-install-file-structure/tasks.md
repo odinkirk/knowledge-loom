@@ -86,14 +86,14 @@
 
 **Independent Test Criteria**: Run `loom install --force`, verify updated model files appear, all tests pass.
 
-- [ ] T032 [P] [US3] Write unit test for --force flag triggering re-download in tests/install_tests.rs
-- [ ] T033 [P] [US3] Write unit test for skip-download when model already valid in tests/install_tests.rs
-- [ ] T034 [P] [US3] Write unit test for error message when --force not provided and model exists in tests/install_tests.rs
-- [ ] T035 [US3] Implement --force flag handling in InstallManager in src/install.rs
-- [ ] T036 [US3] Add --force argument to `loom install` CLI parser in src/main.rs
-- [ ] T037 [US3] Implement skip logic: if model valid and no --force, report "already installed" and exit 0 in src/install.rs
-- [ ] T038 [US3] Implement re-download logic: if --force, re-download and overwrite model in src/install.rs
-- [ ] T039 [US3] Write integration test: force re-download + verify test suite in tests/install_integration.rs
+- [x] T032 [P] [US3] Write unit test for --force flag triggering re-download in tests/install_tests.rs
+- [x] T033 [P] [US3] Write unit test for skip-download when model already valid in tests/install_tests.rs
+- [x] T034 [P] [US3] Write unit test for error message when --force not provided and model exists in tests/install_tests.rs
+- [x] T035 [US3] Implement --force flag handling in InstallManager in src/install.rs
+- [x] T036 [US3] Add --force argument to `loom install` CLI parser in src/main.rs
+- [x] T037 [US3] Implement skip logic: if model valid and no --force, report "already installed" and exit 0 in src/install.rs
+- [x] T038 [US3] Implement re-download logic: if --force, re-download and overwrite model in src/install.rs
+- [x] T039 [US3] Write integration test: force re-download + verify test suite in tests/install_integration.rs
 
 ## Final Phase: Polish & Cross-Cutting Concerns
 

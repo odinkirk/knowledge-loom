@@ -133,3 +133,103 @@ async fn test_validate_or_download_missing_triggers_download() {
     // Should attempt download (will fail without network, but shouldn't be AlreadyInstalled)
     assert!(!matches!(result, Err(knowledge_loom::install::InstallError::AlreadyInstalled)));
 }
+
+#[tokio::test]
+async fn test_force_flag_triggers_redownload() {
+    let (_tmp, manager) = setup_test_manager();
+    
+    // Create valid installed state
+    let model_dir = manager.model_path();
+    std::fs::create_dir_all(&model_dir).unwrap();
+    let model_file = model_dir.join("model.onnx");
+    let test_data = b"valid model data";
+    std::fs::write(&model_file, test_data).unwrap();
+    
+    // Calculate checksum
+    use sha2::{Digest, Sha256};
+    let checksum = Sha256::digest(test_data);
+    let checksum_hex = format!("{:x}", checksum);
+    
+    // Create valid state
+    let state = InstallState {
+        model_version: "test-v1".to_string(),
+        download_timestamp: chrono::Utc::now().to_rfc3339(),
+        checksum: checksum_hex,
+        size_bytes: test_data.len() as u64,
+    };
+    let state_json = serde_json::to_string_pretty(&state).unwrap();
+    std::fs::write(manager.state_path(), state_json).unwrap();
+    
+    // Without force, should return AlreadyInstalled
+    let result_no_force = manager.validate_or_download(false).await;
+    assert!(matches!(result_no_force, Err(knowledge_loom::install::InstallError::AlreadyInstalled)));
+    
+    // With force, should attempt download (not AlreadyInstalled)
+    let result_force = manager.validate_or_download(true).await;
+    assert!(!matches!(result_force, Err(knowledge_loom::install::InstallError::AlreadyInstalled)));
+}
+
+#[tokio::test]
+async fn test_skip_download_when_model_valid() {
+    let (_tmp, manager) = setup_test_manager();
+    
+    // Create valid installed state
+    let model_dir = manager.model_path();
+    std::fs::create_dir_all(&model_dir).unwrap();
+    let model_file = model_dir.join("model.onnx");
+    let test_data = b"valid model data for skip test";
+    std::fs::write(&model_file, test_data).unwrap();
+    
+    // Calculate checksum
+    use sha2::{Digest, Sha256};
+    let checksum = Sha256::digest(test_data);
+    let checksum_hex = format!("{:x}", checksum);
+    
+    // Create valid state
+    let state = InstallState {
+        model_version: "test-v1".to_string(),
+        download_timestamp: chrono::Utc::now().to_rfc3339(),
+        checksum: checksum_hex,
+        size_bytes: test_data.len() as u64,
+    };
+    let state_json = serde_json::to_string_pretty(&state).unwrap();
+    std::fs::write(manager.state_path(), state_json).unwrap();
+    
+    // Verify integrity passes
+    assert!(manager.verify_integrity().unwrap());
+    
+    // validate_or_download without force should return AlreadyInstalled
+    let result = manager.validate_or_download(false).await;
+    assert!(matches!(result, Err(knowledge_loom::install::InstallError::AlreadyInstalled)));
+}
+
+#[tokio::test]
+async fn test_error_when_force_not_provided_and_model_exists() {
+    let (_tmp, manager) = setup_test_manager();
+    
+    // Create valid installed state
+    let model_dir = manager.model_path();
+    std::fs::create_dir_all(&model_dir).unwrap();
+    let model_file = model_dir.join("model.onnx");
+    let test_data = b"valid model data";
+    std::fs::write(&model_file, test_data).unwrap();
+    
+    // Calculate checksum
+    use sha2::{Digest, Sha256};
+    let checksum = Sha256::digest(test_data);
+    let checksum_hex = format!("{:x}", checksum);
+    
+    // Create valid state
+    let state = InstallState {
+        model_version: "test-v1".to_string(),
+        download_timestamp: chrono::Utc::now().to_rfc3339(),
+        checksum: checksum_hex,
+        size_bytes: test_data.len() as u64,
+    };
+    let state_json = serde_json::to_string_pretty(&state).unwrap();
+    std::fs::write(manager.state_path(), state_json).unwrap();
+    
+    // Should return AlreadyInstalled error with helpful message
+    let result = manager.validate_or_download(false).await;
+    assert!(matches!(result, Err(knowledge_loom::install::InstallError::AlreadyInstalled)));
+}

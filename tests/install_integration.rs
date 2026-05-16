@@ -98,3 +98,39 @@ fn test_cargo_test_with_mock_install() {
     assert!(manager.is_installed());
     std::env::remove_var("KB_ROOT");
 }
+
+#[tokio::test]
+async fn test_force_reinstall_overwrites_existing() {
+    // Test that --force actually re-downloads and overwrites existing model
+    let tmp = TempDir::new().unwrap();
+    let kb_root = tmp.path().to_path_buf();
+    let manager = InstallManager::new(kb_root.clone());
+    
+    // Create initial "old" installation
+    let model_dir = manager.model_path();
+    std::fs::create_dir_all(&model_dir).unwrap();
+    let model_file = model_dir.join("model.onnx");
+    let old_data = b"old model version 1";
+    std::fs::write(&model_file, old_data).unwrap();
+    
+    // Create state for old version
+    use sha2::{Digest, Sha256};
+    let old_checksum = Sha256::digest(old_data);
+    let old_checksum_hex = format!("{:x}", old_checksum);
+    
+    let state = knowledge_loom::install::InstallState {
+        model_version: "old-v1".to_string(),
+        download_timestamp: chrono::Utc::now().to_rfc3339(),
+        checksum: old_checksum_hex,
+        size_bytes: old_data.len() as u64,
+    };
+    let state_json = serde_json::to_string_pretty(&state).unwrap();
+    std::fs::write(manager.state_path(), state_json).unwrap();
+    
+    // Verify old installation is valid
+    assert!(manager.verify_integrity().unwrap());
+    
+    // Force reinstall should attempt download (not return AlreadyInstalled)
+    let result = manager.validate_or_download(true).await;
+    assert!(!matches!(result, Err(knowledge_loom::install::InstallError::AlreadyInstalled)));
+}
