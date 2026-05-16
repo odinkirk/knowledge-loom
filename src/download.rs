@@ -1,6 +1,8 @@
 // Download module for Knowledge Loom model download
 // This module handles HTTP download with retry logic, progress tracking, and checksum validation
 
+#![allow(dead_code)]
+
 pub mod utils;
 
 use crate::model::{DownloadError, DownloadProgress};

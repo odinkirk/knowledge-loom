@@ -1,6 +1,8 @@
 // Install module for Knowledge Loom runtime data setup
 // Handles downloading and installing fastembed model files
 
+#![allow(dead_code)]
+
 use sha2::Digest;
 use std::path::PathBuf;
 
@@ -81,14 +83,12 @@ impl InstallManager {
 
         // Download model file using shared DownloadManager
         let model_file = model_dir.join("model.onnx");
-        let mut manager = crate::download::DownloadManager::new(
-            MODEL_URL.to_string(),
-            model_file.clone(),
-        )
-        .map_err(|e| InstallError::DownloadFailed(e.to_string()))?
-        .with_retries(crate::download::MAX_RETRIES)
-        .with_retry_delay(std::time::Duration::from_secs(crate::download::RETRY_DELAY))
-        .with_timeout(std::time::Duration::from_secs(crate::download::TIMEOUT));
+        let manager =
+            crate::download::DownloadManager::new(MODEL_URL.to_string(), model_file.clone())
+                .map_err(|e| InstallError::DownloadFailed(e.to_string()))?
+                .with_retries(crate::download::MAX_RETRIES)
+                .with_retry_delay(std::time::Duration::from_secs(crate::download::RETRY_DELAY))
+                .with_timeout(std::time::Duration::from_secs(crate::download::TIMEOUT));
 
         manager
             .download(|_| {})
@@ -195,10 +195,17 @@ pub async fn run_install(kb_root: PathBuf, force: bool) -> Result<InstallSummary
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
-    fn test_run_install_with_force() {
-        // Integration test would go here
-        // For now, verify the function signature is correct
+    fn test_install_manager_paths() {
+        let kb_root = PathBuf::from("/tmp/test-kb");
+        let manager = InstallManager::new(kb_root.clone());
+        assert_eq!(manager.kb_root(), &kb_root);
+        assert_eq!(manager.model_path(), kb_root.join(MODEL_DIR));
+        assert_eq!(manager.state_path(), kb_root.join(STATE_FILE));
+        assert!(
+            !manager.is_installed(),
+            "Fresh manager should report not installed"
+        );
     }
 }

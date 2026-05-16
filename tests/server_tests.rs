@@ -8,7 +8,7 @@ async fn test_list_tools_returns_23_entries() {
     let kb_root = tmp.path().to_str().unwrap();
     let server = LoomServer::new(kb_root).await;
     let tools = server.tool_list();
-    let names: Vec<&str> = tools.iter().map(|t| t.name.as_ref()).collect();
+    let names: Vec<&str> = tools.iter().map(|t| t.name).collect();
     assert_eq!(
         tools.len(),
         23,
@@ -24,7 +24,7 @@ async fn test_list_tools_has_expected_names() {
     let kb_root = tmp.path().to_str().unwrap();
     let server = LoomServer::new(kb_root).await;
     let tools = server.tool_list();
-    let names: Vec<&str> = tools.iter().map(|t| t.name.as_ref()).collect();
+    let names: Vec<&str> = tools.iter().map(|t| t.name).collect();
     for expected in &[
         "search",
         "list_files",

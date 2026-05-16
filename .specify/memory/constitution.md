@@ -75,33 +75,41 @@ Knowledge Loom is performance-critical:
 
 ### X. Technical Debt Policy (CRITICAL)
 
-Technical debt must be avoided except by explicit consent:
+Technical debt must be avoided. When discovered, it **must** be either:
+1. **Fixed immediately** (default - address the debt), OR
+2. **Presented for explicit consent to defer** (only if large enough to warrant separate tracking)
+
+There is no third option. Documenting without fixing OR obtaining consent is a constitutional violation.
 
 - **Definition**: Technical debt includes known bugs, missing error handling, code duplication, inadequate tests, performance issues, or architectural compromises
 - **Identification**: All technical debt must be documented immediately upon discovery (code review, testing, or implementation)
-- **Documentation**: Technical debt must be recorded in the feature's `plan.md` under a "Deferred Technical Debt" section with:
-  - Severity level (Low/Medium/High/Critical)
-  - Impact description (what could go wrong, who is affected)
-  - Recommended fix approach
-  - Deferred rationale (why it's being postponed)
+- **Required Action**: Upon identifying technical debt:
+  - **Small/medium debt** (fixable in <1 hour): Fix immediately, no consent needed
+  - **Large debt** (requires significant refactoring/sprint): Present to user for explicit consent decision
 - **Explicit Consent Required**: Deferring technical debt requires explicit user consent
   - Agent must present ALL identified technical debt items to the user before deferring any
   - Each item must be presented individually with its severity and impact
   - User must explicitly approve deferral of each item (e.g., "yes, defer T01-T04")
   - **Blanket deferral without presenting items is a constitutional violation**
   - **Deferring without asking is a constitutional violation**
-- **Tracking**: Deferred technical debt must be:
-  - Added to the feature's plan.md before the feature is considered complete
-  - Referenced in follow-up features if they touch the same code
-  - Addressed within 3 features or scheduled for a dedicated refactoring sprint
+  - **Documenting in plan.md without fixing OR roadmap placement is a constitutional violation**
+- **Roadmap Requirement**: Deferred technical debt must be:
+  - Added to a specific future feature or dedicated refactoring sprint (e.g., "Feature 006" or "Q3 Refactoring Sprint")
+  - Tracked in that feature's plan.md under "Deferred Technical Debt" section with:
+    - Severity level (Low/Medium/High/Critical)
+    - Impact description (what could go wrong, who is affected)
+    - Recommended fix approach
+    - Specific timeline (which feature/sprint will address it)
+  - Addressed within 3 features or the committed sprint
 - **Prohibited Patterns**:
   - Deferring without explicit consent (ALL severity levels)
   - Deferring critical bugs (severity: High/Critical) without explicit justification
   - Accumulating technical debt across multiple features without addressing prior debt
   - Using "time pressure" as justification for deferring security or correctness issues
   - Adding technical debt to plan.md after the feature is "complete" (must be presented during implementation)
+  - Creating "remediation plan" or similar sections without explicit consent and roadmap placement
 
-**Rationale**: Technical debt compounds over time. Explicit consent ensures informed tradeoff decisions and prevents accidental debt accumulation. The act of presenting each item forces deliberate consideration rather than automatic deferment.
+**Rationale**: Technical debt compounds over time. Explicit consent ensures informed tradeoff decisions and prevents accidental debt accumulation. The act of presenting each item forces deliberate consideration rather than automatic deferment. "Avoided" means fixed by default, with deferment as the rare exception requiring explicit approval.
 
 ### XI. Code Exploration and Analysis
 Use code-review-graph (CRG) tools for all code exploration and analysis tasks:
@@ -327,4 +335,4 @@ Constitution amendments require:
 - Migration plan for existing code
 - Update of this constitution's version
 
-**Version**: 1.1.0 | **Ratified**: 2025-05-09 | **Last Amended**: 2026-05-16
+**Version**: 1.2.0 | **Ratified**: 2025-05-09 | **Last Amended**: 2026-05-16

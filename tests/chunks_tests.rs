@@ -215,7 +215,7 @@ fn test_module_error_handling() {
     for content in test_cases {
         let chunks = chunks::parse_chunks(content);
         // Should not panic, even with edge cases
-        assert!(chunks.len() >= 0);
+        assert!(!chunks.is_empty());
     }
 }
 

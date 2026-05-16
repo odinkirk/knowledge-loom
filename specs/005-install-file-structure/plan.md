@@ -219,4 +219,96 @@ src/
 
 - ✅ **Section III (TDD)**: Tests written before refactoring (T057 before T053-T054)
 - ✅ **Section V (Quality Gates)**: All quality gates must pass after refactoring
-- ✅ **Section X (Technical Debt)**: Explicit consent obtained, tracked in plan.md
+- ✅ **Section X (Technical Debt)**: All review findings will be FIXED (not deferred)
+
+## Code Review Findings & Remediation
+
+**Identified**: 2026-05-16 | **Severity**: High (Blocking) | **Source**: Automated Code Review
+
+**Constitutional Status**: All items below **will be fixed** before merge per Section X (Technical Debt must be avoided). No items are deferred. Explicit consent for deferral: NOT REQUESTED (all items will be fixed).
+
+### Blocking Issues (Must Fix Before Merge)
+
+**1. Missing `run_init_with_binary` Function**  
+**Severity**: HIGH - Compilation Failure  
+**Files Affected**: `tests/rename_tests.rs:46`, `tests/shell_tests.rs:31`  
+**Root Cause**: Function removed during refactoring but tests still call it
+
+**Fix Plan**: Restore `run_init_with_binary` as public function in `src/init.rs`
+
+---
+
+**2. Duplicate Model Validation Check**  
+**Severity**: LOW - Code Quality  
+**File**: `src/init.rs:259-275`  
+**Issue**: Lines 259-266 and 268-275 perform identical model validity checks
+
+**Fix Plan**: Remove duplicate check at lines 268-275
+
+---
+
+### Quality Gate Failures (Will Fix Before Merge)
+
+**3. Clippy Warnings** (6+ instances)
+- `src/download/utils.rs:6` - Unused `PathBuf` import
+- `src/install.rs:84` - Unnecessary `mut` on `manager`
+- `tests/download_integration_tests.rs:6` - Unused `PathBuf` import
+- `tests/install_integration.rs:5-6` - Unused `PathBuf`, `Command` imports
+- `tests/install_benchmark.rs:5` - Unused `PathBuf` import
+
+**Fix Plan**: Remove unused imports and `mut` qualifiers
+
+---
+
+**4. Dead Code** (Multiple files)
+- `src/download.rs`: `BUFFER_SIZE`, `format_download_error`, `acquire_lock`, `release_lock`
+- `src/model.rs`: `DownloadStatus`, `DownloadState`, multiple `ModelManager` methods
+- `src/download/utils.rs`: `download_with_retry`, `check_disk_space`
+
+**Fix Plan**: Add `#[allow(dead_code)]` for planned future use, remove truly obsolete code
+
+---
+
+**5. Test Quality Issues**
+- `src/cli/args.rs:168-181`: Tests accept any result without assertions
+- `src/install.rs:199-202`: Empty test body with comment only
+
+**Fix Plan**: Implement proper assertions
+
+---
+
+**6. Incomplete Validation**
+- `src/cli/args.rs:133-140`: Short flag validation is a no-op
+
+**Fix Plan**: Implement proper short flag validation (fix now, before merge)
+
+---
+
+### Fix Commitments (Not Deferrals)
+
+**All items above will be fixed before merge**. This section tracks progress, not deferrals.
+
+**Fix Sequence**:
+1. Restore `run_init_with_binary` function (unblock tests)
+2. Remove duplicate model validation check
+3. Fix all clippy warnings
+4. Fix test quality issues
+5. Audit dead code (add `#[allow(dead_code)]` or remove)
+6. Implement proper short flag validation
+
+**Testing Requirements**:
+- All 26 tests must pass (7 integration + 8 utils + 11 install)
+- Pre-existing tests must pass (rename_tests, shell_tests)
+- Zero clippy warnings (`cargo clippy -- -D warnings`)
+
+### Metrics
+
+**Current State**:
+- Tests: 26/26 passing (new tests) + 2 failing (pre-existing due to missing function)
+- Clippy: 6+ warnings (will fix)
+- Dead Code: 10+ unused functions/constants (will audit)
+
+**Target State** (Before Merge):
+- Tests: All passing
+- Clippy: Zero warnings
+- Dead Code: Documented with `#[allow(dead_code)]` or removed

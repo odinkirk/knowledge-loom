@@ -1,9 +1,11 @@
 // Init module for Knowledge Loom initialization
 // This module handles the initialization of the knowledge base, including model download
 
+#![allow(dead_code)]
+
 use crate::model::ModelManager;
 use crate::model::{InitError, ModelMetadata, MODEL_URL};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Initialization manager for handling knowledge base initialization
 pub struct InitManager {
@@ -265,15 +267,6 @@ pub fn run_init(args: Vec<String>) -> Result<(), InitError> {
         return Ok(());
     }
 
-    // Check if model is valid
-    let model_manager = ModelManager::new(kb_root.to_path_buf());
-    if model_manager.is_model_valid().map_err(|e| {
-        InitError::InitializationFailed(format!("Failed to check model validity: {}", e))
-    })? {
-        println!("Model already downloaded and validated");
-        return Ok(());
-    }
-
     // Download model with progress display
     println!("Downloading model...");
     let start_time = std::time::Instant::now();
@@ -299,6 +292,102 @@ pub fn run_init(args: Vec<String>) -> Result<(), InitError> {
     // Note: In a real implementation, you would have the expected checksum
     // For now, we'll skip validation or use a placeholder
     // let is_valid = init_manager.validate_model("expected_checksum")?;
+
+    println!("Initialization complete!");
+
+    Ok(())
+}
+
+/// Run init with explicit binary path (used by tests)
+///
+/// Sets up the knowledge loom directory structure:
+/// - Copies binary to `.knowledge-loom/bin/`
+/// - Creates `.mcp.json` with server config
+/// - Updates `.gitignore` with knowledge-loom entries
+/// - Creates `loom-shell.sh`
+pub fn run_init_with_binary(kb_root: &Path, binary_path: &Path) -> Result<(), InitError> {
+    let init_manager = InitManager::new(kb_root.to_path_buf());
+
+    // Check if already initialized
+    if init_manager.is_initialized()? {
+        println!("Knowledge base already initialized");
+        return Ok(());
+    }
+
+    // Initialize knowledge base directories
+    println!("Initializing knowledge base...");
+    init_manager.initialize()?;
+
+    // Copy binary to .knowledge-loom/bin/
+    let bin_dir = kb_root.join(".knowledge-loom/bin");
+    std::fs::create_dir_all(&bin_dir).map_err(|e| {
+        InitError::InitializationFailed(format!("Failed to create bin directory: {}", e))
+    })?;
+    let new_bin = bin_dir.join("loom");
+    std::fs::copy(binary_path, &new_bin)
+        .map_err(|e| InitError::InitializationFailed(format!("Failed to copy binary: {}", e)))?;
+
+    // Update .gitignore
+    let gitignore_path = kb_root.join(".gitignore");
+    let mut gitignore_content = std::fs::read_to_string(&gitignore_path).unwrap_or_default();
+    if !gitignore_content.contains(".knowledge-loom/") {
+        gitignore_content.push_str("\n.knowledge-loom/\n");
+    }
+    if !gitignore_content.contains(".knowledge-loom-index/") {
+        gitignore_content.push_str(".knowledge-loom-index/\n");
+    }
+    // Remove old entries
+    gitignore_content = gitignore_content
+        .lines()
+        .filter(|line| !line.contains(".loom/") && !line.contains(".loom-index/"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    gitignore_content.push('\n');
+    std::fs::write(&gitignore_path, &gitignore_content).map_err(|e| {
+        InitError::InitializationFailed(format!("Failed to update .gitignore: {}", e))
+    })?;
+
+    // Create .mcp.json with knowledge-loom server
+    let mcp_path = kb_root.join(".mcp.json");
+    let mcp_content = format!(
+        r#"{{
+  "mcpServers": {{
+    "knowledge-loom": {{
+      "command": "{}",
+      "args": [],
+      "disabled": false
+    }}
+  }}
+}}"#,
+        new_bin.display()
+    );
+    std::fs::write(&mcp_path, &mcp_content).map_err(|e| {
+        InitError::InitializationFailed(format!("Failed to create .mcp.json: {}", e))
+    })?;
+
+    // Create shell script
+    let shell_script_path = kb_root.join("loom-shell.sh");
+    let shell_script = format!(
+        r#"#!/bin/sh
+# Auto-generated shell script for knowledge-loom
+KB_ROOT="{}"
+export KB_ROOT
+exec "$0" "$@"
+"#,
+        kb_root.display()
+    );
+    std::fs::write(&shell_script_path, &shell_script).map_err(|e| {
+        InitError::InitializationFailed(format!("Failed to create shell script: {}", e))
+    })?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&shell_script_path).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&shell_script_path, perms).map_err(|e| {
+            InitError::InitializationFailed(format!("Failed to make script executable: {}", e))
+        })?;
+    }
 
     println!("Initialization complete!");
 

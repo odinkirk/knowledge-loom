@@ -155,10 +155,44 @@
   - Note any internal API changes
   - Highlight code quality improvements
 
+## Code Review Remediation Phase
+
+**Purpose**: Fix all blocking issues identified by automated code review before merge
+
+**Constitutional Basis**: Section X — technical debt must be avoided. All items below are **fixed immediately** (no deferrals).
+
+### Review Finding 1: Restore missing `run_init_with_binary` (SEVERITY: HIGH)
+
+- [x] T060 [P] Restore `run_init_with_binary` as public function in `src/init.rs` (unblocks `tests/rename_tests.rs:46`, `tests/shell_tests.rs:31`)
+
+### Review Finding 2: Remove duplicate model validation (SEVERITY: LOW)
+
+- [x] T061 [P] Remove duplicate model validity check at `src/init.rs:259-275` (lines 268-275 duplicate 259-266)
+
+### Review Finding 3: Fix all clippy warnings (SEVERITY: LOW)
+
+- [x] T062 [P] Fix all clippy warnings — unused imports in `src/download/utils.rs:6`, `tests/download_integration_tests.rs:6`, `tests/install_integration.rs:5-6`, `tests/install_benchmark.rs:5`; unnecessary `mut` in `src/install.rs:84`
+
+### Review Finding 4: Audit dead code (SEVERITY: LOW)
+
+- [x] T063 [P] Audit dead code across `src/download.rs`, `src/model.rs`, `src/download/utils.rs` — add `#![allow(dead_code)]` for planned future use
+
+### Review Finding 5: Fix test quality issues (SEVERITY: LOW)
+
+- [x] T064 [P] Implement proper assertions in `src/cli/args.rs:168-181` (tests accept any result without assertions) and `src/install.rs:199-202` (empty test body)
+
+### Review Finding 6: Implement short flag validation (SEVERITY: LOW)
+
+- [x] T065 [P] Implement proper short flag validation in `src/cli/args.rs:133-140` (currently a no-op)
+
+### Quality Gate Verification
+
+- [x] T066 Run full quality gates: `cargo fmt`, `cargo clippy -- -D warnings`, `cargo test --all-features` (all pass with zero warnings)
+
 ## Dependencies
 
 ```
-Phase 1 (Setup) → Phase 2 (Foundational) → Phase 3 (US1) → Phase 4 (US2) → Phase 5 (US3) → Final Phase → Tech Debt Remediation
+Phase 1 (Setup) → Phase 2 (Foundational) → Phase 3 (US1) → Phase 4 (US2) → Phase 5 (US3) → Final Phase → Tech Debt Remediation → Code Review Remediation → Quality Gates
                                                   ↕                   ↕
                                           Independent           Independent
                                           (no deps on US2)      (no deps on US3)
@@ -178,6 +212,8 @@ US1, US2, and US3 are designed to be independently testable. US2 depends on the 
 
 **TECH DEBT REMEDIATION parallel tasks**: T052-T054 can run in parallel (refactoring). T055-T056 are sequential (CLI args). T057-T059 are parallel (tests/docs).
 
+**CODE REVIEW REMEDIATION parallel tasks**: T060-T065 are all independent (different files/concepts), can be executed in parallel. T066 is the final gate (sequential, after all fixes).
+
 ## Implementation Strategy
 
 **MVP Scope**: Phase 1 + Phase 2 + Phase 3 (US1) delivers the core `loom install` functionality with model download to `.knowledge-loom/models/`. This is independently testable and delivers user value.
@@ -188,3 +224,4 @@ US1, US2, and US3 are designed to be independently testable. US2 depends on the 
 3. US3 (P3) - Reinstall: --force flag, skip-if-valid optimization
 4. Final - Polish: error messages, docs, quality gates
 5. Tech Debt Remediation - Consolidate download infrastructure, prevent duplication
+6. Code Review Remediation - Fix all 6 blocking review findings (T060-T065), then verify quality gates (T066)

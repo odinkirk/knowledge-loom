@@ -631,7 +631,6 @@ mod provider_enum_tests {
     fn test_provider_priority_chain() {
         // Test that provider priority works correctly
         // OpenRouter > Ollama > Local
-        let models_dir = PathBuf::from(".knowledge-loom-index/models");
 
         // Test local provider (default)
         std::env::remove_var("OLLAMA_URL");
@@ -661,7 +660,6 @@ mod provider_enum_tests {
     fn test_provider_fallback_logic() {
         // Test that fallback logic works correctly
         // This tests the EmbedProviderEnum::new method which handles provider selection
-        let models_dir = PathBuf::from(".knowledge-loom-index/models");
 
         // Test with no environment variables (should use local)
         std::env::remove_var("OLLAMA_URL");
@@ -696,7 +694,6 @@ mod provider_enum_tests {
     fn test_provider_warning_logging() {
         // Test that provider selection logs appropriate warnings
         // This is a basic test to ensure logging doesn't panic
-        let models_dir = PathBuf::from(".knowledge-loom-index/models");
 
         // Test local provider logging
         std::env::remove_var("OLLAMA_URL");

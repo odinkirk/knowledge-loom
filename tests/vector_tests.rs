@@ -82,7 +82,7 @@ mod tests {
         let index = VectorIndex::new(kb_root.to_str().unwrap()).await;
 
         // Add multiple embeddings
-        let paths = vec![
+        let paths = [
             kb_root.join("test1.md"),
             kb_root.join("test2.md"),
             kb_root.join("test3.md"),

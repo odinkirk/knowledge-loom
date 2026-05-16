@@ -2,8 +2,6 @@
 // Tests the full install flow: download + verification + test suite
 
 use knowledge_loom::install::{run_install, InstallManager};
-use std::path::PathBuf;
-use std::process::Command;
 use tempfile::TempDir;
 
 #[tokio::test]

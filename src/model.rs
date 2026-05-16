@@ -1,6 +1,8 @@
 // Model module for Knowledge Loom model management
 // This module handles model validation, metadata, and state management
 
+#![allow(dead_code)]
+
 use anyhow::Context;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

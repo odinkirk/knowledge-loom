@@ -1472,6 +1472,7 @@ async fn integration_concurrent_download_prevention() {
     let mut file = OpenOptions::new()
         .write(true)
         .create(true)
+        .truncate(true)
         .open(&lock_file)
         .unwrap();
 
