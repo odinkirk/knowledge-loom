@@ -99,18 +99,18 @@
 
 **Purpose**: Performance, documentation, and final quality checks
 
-- [ ] T040 [P] Add output summary to install: model version, download size, target location in src/install.rs
-- [ ] T041 [P] Handle network errors with user-friendly message recommending --force in src/install.rs
-- [ ] T042 [P] Handle disk full errors with clear message and partial cleanup in src/install.rs
-- [ ] T043 [P] Write manual download instructions error message in src/install.rs
-- [ ] T044 [P] Update CHANGELOG.md with new `loom install` feature
-- [ ] T045 [P] Update ARCHITECTURE.md if runtime data layout changes significantly
-- [ ] T046 [P] Run cargo fmt --all -- --check and fix
-- [ ] T047 [P] Run cargo clippy -- -D warnings and fix
-- [ ] T048 [P] Run cargo test --release and ensure all pass
+- [x] T040 [P] Add output summary to install: model version, download size, target location in src/install.rs
+- [x] T041 [P] Handle network errors with user-friendly message recommending --force in src/install.rs
+- [x] T042 [P] Handle disk full errors with clear message and partial cleanup in src/install.rs
+- [x] T043 [P] Write manual download instructions error message in src/install.rs
+- [x] T044 [P] Update CHANGELOG.md with new `loom install` feature
+- [x] T045 [P] Update ARCHITECTURE.md if runtime data layout changes significantly
+- [x] T046 [P] Run cargo fmt --all -- --check and fix
+- [ ] T047 [P] Run cargo clippy -- -D warnings and fix (pre-existing errors in download.rs, init.rs, model.rs)
+- [x] T048 [P] Run cargo test --release and ensure all pass
 - [ ] T049 [P] Run cargo deny check and fix any issues
 - [ ] T050 [P] Verify 80% code coverage for install module
-- [ ] T051 [P] Write performance benchmark test: verify `loom install` completes in <30s (100Mbps connection) in tests/install_benchmark.rs
+- [x] T051 [P] Write performance benchmark test: verify `loom install` completes in <30s (100Mbps connection) in tests/install_benchmark.rs
 
 ## Dependencies
 

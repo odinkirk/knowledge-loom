@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ## [Unreleased]
 
   ### Added
+  - **Runtime data install command**:
+    - New `loom install` subcommand to download fastembed models
+    - Models stored in `.knowledge-loom/models/` (separate from index)
+    - SHA-256 checksum verification for integrity
+    - `--force` flag to re-download even if already installed
+    - Skip download if model already valid
+    - Output summary: model version, download size (MB), target location
+    - Clear error messages with `--force` recommendation on failure
+  - **Integrity verification**:
+    - `verify_integrity()` checks SHA-256 checksum against stored state
+    - Auto-detects corrupted or missing model files
+    - Triggers re-download when integrity check fails
+  - **Re-install/update support**:
+    - `loom install --force` for re-downloading models
+    - Skip logic: reports "already installed" when model is valid
+    - Overwrites existing model files on force re-download
   - **Init-time model download with structured plain text progress indicators**:
     - Automatic model download during `loom init` with progress display
     - Structured plain text format: "Downloading model: {percentage}% ({downloaded_mb}MB/{total_mb}MB) - {speed_mb}MB/s - {remaining}s remaining"

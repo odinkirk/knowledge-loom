@@ -192,46 +192,55 @@ graph LR
   - Edit requests are queued during active re-indexing
   - Queued requests are processed sequentially after re-indexing completes
 
- ## Model Download Flow
+## Model Download Flow
 
- The model download flow handles automatic download of the embedding model during initialization,
- with support for resume, retry, and manual fallback.
+The model download flow handles automatic download of the embedding model during initialization,
+with support for resume, retry, and manual fallback. The `loom install` command provides
+standalone model installation and integrity verification.
 
- ```mermaid
- graph TB
-     subgraph "Initialization"
-         A[User runs loom init] --> B[InitManager::initialize]
-         B --> C{Model valid?}
-         C -->|Yes| D[Skip download]
-         C -->|No| E[ModelManager::download_model]
-     end
+```mermaid
+graph TB
+    subgraph "Initialization"
+        A[User runs loom init] --> B[InitManager::initialize]
+        B --> C{Model valid?}
+        C -->|Yes| D[Skip download]
+        C -->|No| E[ModelManager::download_model]
+    end
 
-     subgraph "Download Process"
-         E --> F[DownloadManager::download_with_retry]
-         F --> G{Download success?}
-         G -->|Yes| H[ModelManager::validate_model]
-         G -->|No| I{Retries exhausted?}
-         I -->|No| J[Retry with exponential backoff]
-         J --> F
-         I -->|Yes| K[Display error with manual instructions]
-     end
+    subgraph "Standalone Install"
+        A1[User runs loom install] --> B1[InstallManager::validate_or_download]
+        B1 --> C1{Model valid?}
+        C1 -->|Yes| D1[Report already installed]
+        C1 -->|No| E1[InstallManager::download_model]
+        B2[User runs loom install --force] --> E1
+    end
 
-     subgraph "Validation"
-         H --> L{Checksum valid?}
-         L -->|Yes| M[Mark model as validated]
-         L -->|No| N[Delete corrupted file]
-         N --> E
-     end
+    subgraph "Download Process"
+        E --> F[DownloadManager::download_with_retry]
+        F --> G{Download success?}
+        G -->|Yes| H[ModelManager::validate_model]
+        G -->|No| I{Retries exhausted?}
+        I -->|No| J[Retry with exponential backoff]
+        J --> F
+        I -->|Yes| K[Display error with manual instructions]
+    end
 
-     subgraph "State Management"
-         E --> O[DownloadState persistence]
-         F --> P[Progress updates]
-         P --> O
-         O --> Q[File locking]
-         Q --> R[Concurrent download prevention]
-     end
+    subgraph "Validation"
+        H --> L{Checksum valid?}
+        L -->|Yes| M[Mark model as validated]
+        L -->|No| N[Delete corrupted file]
+        N --> E
+    end
 
-     subgraph "Error Handling"
+    subgraph "State Management"
+        E --> O[DownloadState persistence]
+        F --> P[Progress updates]
+        P --> O
+        O --> Q[File locking]
+        Q --> R[Concurrent download prevention]
+    end
+
+    subgraph "Error Handling"
          K --> S[Network errors]
          K --> T[Disk full]
          K --> U[Permission denied]
@@ -694,6 +703,9 @@ pub async fn search_graph_fused_inner(
 .knowledge-loom/
 ├── bin/
 │   └── loom              # Installed binary
+├── models/
+│   ├── model.onnx        # Fastembed embedding model
+│   └── .install-state.json  # Install state (version, checksum, timestamp)
 └── loom-shell.sh         # Convenience script
 
 .knowledge-loom-index/

@@ -44,7 +44,9 @@ async fn main() {
                     );
                 }
                 Err(install::InstallError::AlreadyInstalled) => {
-                    println!("fastembed model already installed and valid. Use --force to re-download.");
+                    println!(
+                        "fastembed model already installed and valid. Use --force to re-download."
+                    );
                 }
                 Err(e) => {
                     eprintln!("ERROR: {}", e);
@@ -149,7 +151,9 @@ fn print_usage() {
     eprintln!(
         "  loom init [dir]    Initialize knowledge-loom in a directory (default: current dir)"
     );
-    eprintln!("  loom install       Download runtime data (fastembed models) to .knowledge-loom/models/");
+    eprintln!(
+        "  loom install       Download runtime data (fastembed models) to .knowledge-loom/models/"
+    );
     eprintln!("  loom install --force  Re-download runtime data even if already installed");
     eprintln!("  loom daemon        Daemon management (start|stop|status|logs|add|remove)");
     eprintln!("  loom reindex       Reindex knowledge base (used by daemon)");

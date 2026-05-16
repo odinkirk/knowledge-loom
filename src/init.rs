@@ -226,7 +226,10 @@ pub fn run_init(args: Vec<String>) -> Result<(), InitError> {
             if let Some(next_arg) = args.get(i + 1) {
                 platform = crate::platforms::PlatformName::from_str(next_arg);
                 if platform.is_none() {
-                    return Err(InitError::InitializationFailed(format!("Unknown platform: {}", next_arg)));
+                    return Err(InitError::InitializationFailed(format!(
+                        "Unknown platform: {}",
+                        next_arg
+                    )));
                 }
                 break;
             }
@@ -248,8 +251,9 @@ pub fn run_init(args: Vec<String>) -> Result<(), InitError> {
     // Install platform if specified
     if let Some(platform) = platform {
         let binary = kb_root.join(".knowledge-loom/bin/loom");
-        crate::platforms::install_platform(platform, &kb_root, &binary)
-            .map_err(|e| InitError::InitializationFailed(format!("Platform install failed: {}", e)))?;
+        crate::platforms::install_platform(platform, &kb_root, &binary).map_err(|e| {
+            InitError::InitializationFailed(format!("Platform install failed: {}", e))
+        })?;
     }
 
     // Check if model is valid
@@ -313,9 +317,8 @@ pub fn run_init_with_binary(kb_root: &PathBuf, binary_path: &PathBuf) -> Result<
         InitError::InitializationFailed(format!("Failed to create bin directory: {}", e))
     })?;
     let new_bin = bin_dir.join("loom");
-    std::fs::copy(binary_path, &new_bin).map_err(|e| {
-        InitError::InitializationFailed(format!("Failed to copy binary: {}", e))
-    })?;
+    std::fs::copy(binary_path, &new_bin)
+        .map_err(|e| InitError::InitializationFailed(format!("Failed to copy binary: {}", e)))?;
 
     // Update .gitignore
     let gitignore_path = kb_root.join(".gitignore");
@@ -339,7 +342,8 @@ pub fn run_init_with_binary(kb_root: &PathBuf, binary_path: &PathBuf) -> Result<
 
     // Create .mcp.json with knowledge-loom server
     let mcp_path = kb_root.join(".mcp.json");
-    let mcp_content = format!(r#"{{
+    let mcp_content = format!(
+        r#"{{
   "mcpServers": {{
     "knowledge-loom": {{
       "command": "{}",
@@ -347,19 +351,24 @@ pub fn run_init_with_binary(kb_root: &PathBuf, binary_path: &PathBuf) -> Result<
       "disabled": false
     }}
   }}
-}}"#, new_bin.display());
+}}"#,
+        new_bin.display()
+    );
     std::fs::write(&mcp_path, &mcp_content).map_err(|e| {
         InitError::InitializationFailed(format!("Failed to create .mcp.json: {}", e))
     })?;
 
     // Create shell script
     let shell_script_path = kb_root.join("loom-shell.sh");
-    let shell_script = format!(r#"#!/bin/sh
+    let shell_script = format!(
+        r#"#!/bin/sh
 # Auto-generated shell script for knowledge-loom
 KB_ROOT="{}"
 export KB_ROOT
 exec "$0" "$@"
-"#, kb_root.display());
+"#,
+        kb_root.display()
+    );
     std::fs::write(&shell_script_path, &shell_script).map_err(|e| {
         InitError::InitializationFailed(format!("Failed to create shell script: {}", e))
     })?;

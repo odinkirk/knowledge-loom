@@ -1,13 +1,14 @@
 // Install module for Knowledge Loom runtime data setup
 // Handles downloading and installing fastembed model files
 
-use sha2::{Digest, Sha256};
-use std::path::{Path, PathBuf};
+use sha2::Digest;
+use std::path::PathBuf;
 
 /// Constants for install module
 pub const MODEL_DIR: &str = ".knowledge-loom/models";
 pub const STATE_FILE: &str = ".knowledge-loom/models/.install-state.json";
-pub const MODEL_URL: &str = "https://huggingface.co/Qdrant/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx";
+pub const MODEL_URL: &str =
+    "https://huggingface.co/Qdrant/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx";
 
 /// Install error types
 #[derive(Debug, thiserror::Error)]
@@ -87,10 +88,6 @@ impl InstallManager {
             .send()
             .await
             .map_err(|e| InstallError::NetworkError(e.to_string()))?;
-
-        let total_size = response
-            .content_length()
-            .ok_or_else(|| InstallError::DownloadFailed("Unknown content length".to_string()))?;
 
         let bytes = response
             .bytes()
