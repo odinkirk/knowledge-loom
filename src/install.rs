@@ -4,6 +4,7 @@
 #![allow(dead_code)]
 
 use sha2::Digest;
+use std::io::Read;
 use std::path::PathBuf;
 
 /// Constants for install module
@@ -65,9 +66,9 @@ impl InstallManager {
         self.kb_root.join(STATE_FILE)
     }
 
-    /// Check if model is already installed
+    /// Check if model is already installed (checks for model.onnx file)
     pub fn is_installed(&self) -> bool {
-        self.model_path().exists()
+        self.model_path().join("model.onnx").exists()
     }
 
     /// Download the model file
@@ -128,7 +129,7 @@ impl InstallManager {
         })
     }
 
-    /// Verify model integrity
+    /// Verify model integrity using streaming checksum calculation
     pub fn verify_integrity(&self) -> Result<bool> {
         if !self.is_installed() {
             return Ok(false);
@@ -141,14 +142,26 @@ impl InstallManager {
         };
         let state: InstallState = serde_json::from_str(&state_content)?;
 
-        // Read model file and verify checksum
+        // Read model file and verify checksum using streaming
         let model_file = self.model_path().join("model.onnx");
-        let bytes = match std::fs::read(&model_file) {
-            Ok(bytes) => bytes,
+        let file = match std::fs::File::open(&model_file) {
+            Ok(file) => file,
             Err(_) => return Ok(false),
         };
-        let checksum = sha2::Sha256::digest(&bytes);
-        let checksum_hex = format!("{:x}", checksum);
+
+        // Stream checksum calculation (8KB chunks)
+        let mut hasher = sha2::Sha256::new();
+        let mut reader = std::io::BufReader::new(file);
+        let mut buffer = [0u8; 8192];
+        loop {
+            let n = match reader.read(&mut buffer) {
+                Ok(0) => break,
+                Ok(n) => n,
+                Err(_) => return Ok(false),
+            };
+            hasher.update(&buffer[..n]);
+        }
+        let checksum_hex = format!("{:x}", hasher.finalize());
 
         if checksum_hex != state.checksum {
             return Ok(false);

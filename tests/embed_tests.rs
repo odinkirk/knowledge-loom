@@ -719,7 +719,6 @@ mod provider_enum_tests {
 #[cfg(test)]
 mod integration_tests {
     use super::*;
-    use knowledge_loom::embed::EmbedProviderEnum;
     use std::path::PathBuf;
 
     #[tokio::test]
@@ -796,7 +795,7 @@ mod integration_tests {
     #[tokio::test]
     async fn test_http_client_memory_usage() {
         // Test Ollama client memory usage
-        let ollama = OllamaEmbedProvider::new("http://localhost:11434".to_string());
+        let _ollama = OllamaEmbedProvider::new("http://localhost:11434".to_string());
         let initial_memory = get_memory_usage();
 
         // Create multiple clients

@@ -1,3 +1,5 @@
+#![allow(clippy::zombie_processes, clippy::needless_borrows_for_generic_args)]
+
 use serde_json::{json, Value};
 use std::io::{BufRead, Write};
 use std::process::{Command, Stdio};

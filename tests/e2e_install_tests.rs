@@ -1,3 +1,4 @@
+use std::env;
 use std::fs;
 use std::thread;
 use std::time::Duration;
@@ -6,8 +7,19 @@ use tempfile::tempdir;
 mod e2e_helpers;
 use e2e_helpers::{assert_contains, assert_exit_code, assert_no_panic, run_loom_cmd};
 
+/// Helper to check if network tests should run
+/// Set LOOM_TEST_NETWORK=1 to enable network-dependent tests
+fn should_run_network_test() -> bool {
+    env::var("LOOM_TEST_NETWORK").unwrap_or_default() == "1"
+}
+
 #[test]
 fn test_install_clean_directory() {
+    if !should_run_network_test() {
+        eprintln!("Skipping network test: set LOOM_TEST_NETWORK=1 to enable");
+        return;
+    }
+
     let temp_dir = tempdir().expect("Failed to create temp directory");
     let kb_root = temp_dir.path();
 
@@ -30,6 +42,11 @@ fn test_install_clean_directory() {
 
 #[test]
 fn test_install_skip_valid_model() {
+    if !should_run_network_test() {
+        eprintln!("Skipping network test: set LOOM_TEST_NETWORK=1 to enable");
+        return;
+    }
+
     let temp_dir = tempdir().expect("Failed to create temp directory");
     let kb_root = temp_dir.path();
 
@@ -47,6 +64,11 @@ fn test_install_skip_valid_model() {
 
 #[test]
 fn test_install_force_redownload() {
+    if !should_run_network_test() {
+        eprintln!("Skipping network test: set LOOM_TEST_NETWORK=1 to enable");
+        return;
+    }
+
     let temp_dir = tempdir().expect("Failed to create temp directory");
     let kb_root = temp_dir.path();
 
@@ -57,9 +79,12 @@ fn test_install_force_redownload() {
     let output1 = run_loom_cmd(&["install"], kb_root);
     assert_exit_code(&output1, 0);
 
-    // Get timestamp of model files
-    let model_dir = kb_root.join(".knowledge-loom").join("models");
-    let first_timestamp = fs::metadata(&model_dir)
+    // Get timestamp of model file (not directory - directory mtime is filesystem-dependent)
+    let model_file = kb_root
+        .join(".knowledge-loom")
+        .join("models")
+        .join("model.onnx");
+    let first_timestamp = fs::metadata(&model_file)
         .expect("Failed to get model metadata")
         .modified()
         .expect("Failed to get modified time");
@@ -72,7 +97,7 @@ fn test_install_force_redownload() {
     assert_exit_code(&output2, 0);
 
     // Verify model was re-downloaded (timestamp should be newer)
-    let second_timestamp = fs::metadata(&model_dir)
+    let second_timestamp = fs::metadata(&model_file)
         .expect("Failed to get model metadata")
         .modified()
         .expect("Failed to get modified time");
@@ -85,6 +110,11 @@ fn test_install_force_redownload() {
 
 #[test]
 fn test_install_corrupted_model() {
+    if !should_run_network_test() {
+        eprintln!("Skipping network test: set LOOM_TEST_NETWORK=1 to enable");
+        return;
+    }
+
     let temp_dir = tempdir().expect("Failed to create temp directory");
     let kb_root = temp_dir.path();
 

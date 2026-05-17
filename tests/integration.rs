@@ -589,6 +589,7 @@ async fn integration_special_characters() {
 }
 
 #[tokio::test]
+#[serial]
 async fn smoke_test_against_test_vault() {
     // Use the actual test-vault for smoke testing
     let test_vault_path = Path::new("test-vault");
@@ -856,7 +857,6 @@ fn create_test_vault(kb_root: &Path) {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_cross_module_ordinal_handling() {
     let temp_dir = TempDir::new().unwrap();
     let kb_root = temp_dir.path();
@@ -912,7 +912,6 @@ async fn test_cross_module_ordinal_handling() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_end_to_end_index_retrieve_edit_reindex() {
     let temp_dir = TempDir::new().unwrap();
     let kb_root = temp_dir.path();
@@ -964,7 +963,6 @@ async fn test_end_to_end_index_retrieve_edit_reindex() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_no_duplicate_chunking_code() {
     let temp_dir = TempDir::new().unwrap();
     let kb_root = temp_dir.path();
@@ -999,7 +997,6 @@ async fn test_no_duplicate_chunking_code() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_consistent_chunking_behavior_across_modules() {
     let temp_dir = TempDir::new().unwrap();
     let kb_root = temp_dir.path();
@@ -1055,7 +1052,6 @@ async fn test_consistent_chunking_behavior_across_modules() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_ingestion_state_prevents_stale_reads_during_reindex() {
     let temp_dir = TempDir::new().unwrap();
     let kb_root = temp_dir.path();
@@ -1099,7 +1095,6 @@ async fn test_ingestion_state_prevents_stale_reads_during_reindex() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_ingestion_state_set_before_reindex_starts() {
     let temp_dir = TempDir::new().unwrap();
     let kb_root = temp_dir.path();
@@ -1153,7 +1148,6 @@ async fn test_ingestion_state_set_before_reindex_starts() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_atomic_index_updates_all_or_none() {
     let temp_dir = TempDir::new().unwrap();
     let kb_root = temp_dir.path();
@@ -1233,7 +1227,6 @@ async fn test_atomic_index_updates_all_or_none() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_partial_failure_detection_in_reindex() {
     let temp_dir = TempDir::new().unwrap();
     let kb_root = temp_dir.path();
@@ -1280,7 +1273,6 @@ async fn test_partial_failure_detection_in_reindex() {
 // Integration tests for model download
 
 #[tokio::test]
-#[serial]
 async fn integration_model_download_during_init() {
     let temp_dir = TempDir::new().unwrap();
     let kb_root = temp_dir.path();
@@ -1305,7 +1297,6 @@ async fn integration_model_download_during_init() {
 }
 
 #[tokio::test]
-#[serial]
 async fn integration_progress_display_formatting() {
     use knowledge_loom::model::DownloadProgress;
 
@@ -1323,7 +1314,6 @@ async fn integration_progress_display_formatting() {
 }
 
 #[tokio::test]
-#[serial]
 async fn integration_download_state_persistence() {
     let temp_dir = TempDir::new().unwrap();
     let kb_root = temp_dir.path();
@@ -1361,7 +1351,6 @@ async fn integration_download_state_persistence() {
 // User Story 2: Graceful Error Handling Integration Tests
 
 #[tokio::test]
-#[serial]
 async fn integration_error_message_display() {
     use knowledge_loom::model::DownloadError;
 
@@ -1386,7 +1375,6 @@ async fn integration_error_message_display() {
 // User Story 3: Model Re-Download with State Handling Integration Tests
 
 #[tokio::test]
-#[serial]
 async fn integration_model_re_download() {
     use knowledge_loom::model::{DownloadState, DownloadStatus};
 
@@ -1455,7 +1443,6 @@ async fn integration_model_re_download() {
 }
 
 #[tokio::test]
-#[serial]
 async fn integration_concurrent_download_prevention() {
     use std::fs::OpenOptions;
     use std::io::Write;

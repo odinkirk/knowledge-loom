@@ -123,6 +123,22 @@ Use code-review-graph (CRG) tools for all code exploration and analysis tasks:
 
 CRG tools provide graph-powered code understanding that should be leveraged for all Rust code analysis.
 
+### XII. Spec-Kit Workflow (CRITICAL)
+
+All feature development MUST follow the spec-kit workflow:
+
+1. **Feature Specification**: `specs/<feature>/spec.md` — user stories, requirements, success criteria
+2. **Implementation Plan**: `specs/<feature>/plan.md` — technical context, design decisions, architecture
+3. **Task Breakdown**: `specs/<feature>/tasks.md` — executable tasks with IDs, dependencies, file paths
+4. **Design Documents**: `specs/<feature>/{research.md, data-model.md, contracts/}` — as needed for complexity
+5. **Document-First**: All design documents MUST be updated BEFORE implementation begins
+6. **Extension Hooks**: `.specify/extensions.yml` hooks MUST be respected (git commits, scans, etc.)
+7. **Template Compliance**: Use `.specify/templates/` for plan.md and tasks.md structure
+
+**Rationale**: Spec-kit enforces deliberate design before code, preventing accidental complexity and technical debt. Bypassing spec-kit is a constitutional violation.
+
+**Exception**: Emergency hotfixes (security, data loss) may bypass spec-kit with post-hoc documentation within 24 hours.
+
 ### Naming
 - **Files**: snake_case (e.g., `bm25.rs`, `search_engine.rs`)
 - **Functions/Variables**: snake_case (e.g., `search_and_retrieve`, `top_k`)
@@ -335,4 +351,4 @@ Constitution amendments require:
 - Migration plan for existing code
 - Update of this constitution's version
 
-**Version**: 1.2.0 | **Ratified**: 2025-05-09 | **Last Amended**: 2026-05-16
+**Version**: 1.2.1 | **Ratified**: 2025-05-09 | **Last Amended**: 2026-05-17 (Added Section XII: Spec-Kit Workflow)

@@ -37,6 +37,7 @@ pub struct Chunk {
 /// # Examples
 ///
 /// ```
+/// use knowledge_loom::chunks::truncate_at_whitespace;
 /// let content = "Hello—World"; // em dash is 3 bytes
 /// let result = truncate_at_whitespace(content, 7);
 /// assert!(result.is_char_boundary(result.len()));
@@ -79,6 +80,7 @@ pub fn truncate_at_whitespace(content: &str, max: usize) -> &str {
 /// # Examples
 ///
 /// ```
+/// use knowledge_loom::chunks::parse_chunks;
 /// let content = "# Heading\n\nContent";
 /// let chunks = parse_chunks(content);
 /// assert_eq!(chunks[0].ordinal, 1);

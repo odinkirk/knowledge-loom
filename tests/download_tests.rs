@@ -393,7 +393,7 @@ mod download_tests {
         // Simulate checking for interrupt
         if interrupted.load(Ordering::SeqCst) {
             // Signal was received, should handle cleanup
-            assert!(true);
+            // Cleanup logic would go here
         }
     }
 

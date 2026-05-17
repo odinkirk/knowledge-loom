@@ -7,6 +7,8 @@
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
+**Total Tasks**: T001-T101 (101 tasks across 10 phases)
+
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: Can run in parallel (different files, no dependencies)
@@ -25,11 +27,11 @@
 
 **Purpose**: Project initialization and basic structure
 
-- [ ] T001 [P] Verify feature branch 005-install-file-structure is active
-- [ ] T002 [P] Review constitution requirements for implementation
-- [ ] T003 [P] Verify cargo build --release succeeds before any changes
-- [ ] T004 [P] Verify cargo test succeeds before any changes
-- [ ] T005 [P] Review existing model download code in src/model.rs and src/download.rs (feature 004)
+- [x] T001 [P] Verify feature branch 005-install-file-structure is active
+- [x] T002 [P] Review constitution requirements for implementation
+- [x] T003 [P] Verify cargo build --release succeeds before any changes
+- [x] T004 [P] Verify cargo test succeeds before any changes
+- [x] T005 [P] Review existing model download code in src/model.rs and src/download.rs (feature 004)
 
 ## Phase 2: Foundational (Blocking prerequisites for all user stories)
 
@@ -305,10 +307,51 @@
 
 - [x] T094 Run full quality gates: `cargo fmt`, `cargo clippy -- -D warnings`, `cargo test --all-features` (all pass with zero warnings)
 
+## Code Review Remediation Phase 3 (2026-05-17 Branch Review)
+
+**Purpose**: Fix bugs identified in 2026-05-17 branch review before merge
+
+**Constitutional Basis**: Section X — technical debt must be fixed immediately. All items below are **fixed immediately** (no deferrals).
+
+### Review Finding 1: `is_installed` checks directory, not file (SEVERITY: MEDIUM)
+
+- [x] T095 [P] Fix `is_installed()` in `src/install.rs:69-71`:
+  - Change `self.model_path().exists()` to `self.model_path().join("model.onnx").exists()`
+  - Verify returns `false` when directory exists but model file is missing
+  - Update doc comment to clarify it checks for model file, not directory
+
+- [x] T096 [P] Consolidate `check_disk_space` functions:
+  - Keep single implementation in `src/download/utils.rs:53` (public)
+  - Remove duplicate from `src/download.rs:668`
+  - Ensure Windows implementation exists (add `#[cfg(windows)]` variant or use cross-platform approach)
+  - Update all callers to use `download::utils::check_disk_space`
+
+- [x] T097 [P] Optimize checksum calculation in `src/install.rs:146`:
+  - Change `calculate_checksum` to accept `impl Read` instead of `&[u8]`
+  - Use streaming hash: read file in 8KB chunks (reuse pattern from `download.rs:633-651`)
+  - Verify memory usage reduced from 90MB to ~8KB buffer
+
+- [x] T098 [P] Simplify callback parameter in `src/download/utils.rs:28`:
+  - Change `Option<impl Fn(DownloadProgress) + Send + Sync>` to `F: Fn(DownloadProgress) + Send + Sync`
+  - Update callers to pass closure directly or use `|_| {}` for no-op
+  - Remove `Option` unwrapping logic inside function
+
+- [x] T099 [P] Add network guards to E2E install tests in `tests/e2e_install_tests.rs`:
+  - Add `LOOM_TEST_NETWORK` environment variable check to network-dependent tests
+  - OR add `#[ignore]` attribute with reason: "requires network access"
+  - Document in test comment how to enable: `cargo test -- --ignored` or `LOOM_TEST_NETWORK=1 cargo test`
+
+- [x] T100 [P] Fix mtime check in `tests/e2e_install_tests.rs:62-74`:
+  - Change from checking directory mtime to file mtime
+  - Use `model_dir.join("model.onnx").metadata().modified()` instead of `fs::metadata(&model_dir).modified()`
+  - Verify test passes on all filesystems (directory mtime behavior varies)
+
+- [x] T101 Run full quality gates: `cargo fmt`, `cargo clippy -- -D warnings`, `cargo test --all-features` (all pass with zero warnings)
+
 ## Dependencies
 
 ```text
-Phase 1 (Setup) → Phase 2 (Foundational) → Phase 3 (US1) → Phase 4 (US2) → Phase 5 (US3) → Phase 6 (US4 E2E Tests) → Phase 7 (Polish) → Code Review Remediation 1 (T060-T066) → Code Review Remediation 2 (T067-T072) → Quality Gates
+Phase 1 (Setup) → Phase 2 (Foundational) → Phase 3 (US1) → Phase 4 (US2) → Phase 5 (US3) → Phase 6 (US4 E2E Tests) → Phase 7 (Polish) → Code Review Remediation 1 (T060-T066) → Code Review Remediation 2 (T089-T094) → Code Review Remediation 3 (T095-T101) → Quality Gates
                                                     ↕                   ↕                    ↕
                                             Independent           Independent        TDD: Tests first (T071-T083)
                                             (no deps on US2)      (no deps on US3)   then fixes (T084-T087)
@@ -318,7 +361,11 @@ Phase 1 (Setup) → Phase 2 (Foundational) → Phase 3 (US1) → Phase 4 (US2) �
 
 **US4 (E2E Tests)**: Depends on binary being buildable. TDD approach: tests written first (T071-T083), expected to fail, then bugs fixed (T084-T087) to make tests pass.
 
+**Code Review Remediation 1 (T060-T065)**: All independent (different files), can be fixed in parallel. T066 is sequential gate after all fixes.
+
 **Code Review Remediation 2 (T089-T093)**: All independent (different files), can be fixed in parallel. T094 is sequential gate after all fixes.
+
+**Code Review Remediation 3 (T095-T100)**: All independent (different files), can be fixed in parallel. T101 is sequential gate after all fixes.
 
 ## Parallel Execution Examples
 
@@ -344,6 +391,7 @@ Phase 1 (Setup) → Phase 2 (Foundational) → Phase 3 (US1) → Phase 4 (US2) �
 **CODE REVIEW REMEDIATION parallel tasks**: 
 - Phase 1 (T060-T065): All independent (different files/concepts), can be executed in parallel. T066 is the final gate (sequential, after all fixes).
 - Phase 2 (T089-T093): All independent (different files/concepts), can be executed in parallel. T094 is the final gate (sequential, after all fixes).
+- Phase 3 (T095-T100): All independent (different files/concepts), can be executed in parallel. T101 is the final gate (sequential, after all fixes).
 
 ## Implementation Strategy
 
@@ -357,7 +405,8 @@ Phase 1 (Setup) → Phase 2 (Foundational) → Phase 3 (US1) → Phase 4 (US2) �
 5. Phase 7 - Polish: error messages, docs, quality gates
 6. Tech Debt Remediation - Consolidate download infrastructure, prevent duplication
 7. Code Review Remediation Phase 1 - Fix all 6 blocking review findings (T060-T065), verify quality gates (T066) ✅ COMPLETE
-8. Code Review Remediation Phase 2 - Fix post-E2E review bugs (T089-T093), verify quality gates (T094)
+8. Code Review Remediation Phase 2 - Fix post-E2E review bugs (T089-T093), verify quality gates (T094) ✅ COMPLETE
+9. Code Review Remediation Phase 3 - Fix 2026-05-17 branch review bugs (T095-T100), verify quality gates (T101)
 
 **TDD Enforcement for US4**:
 - Step 1: Write E2E test infrastructure (T067-T070)
@@ -367,6 +416,6 @@ Phase 1 (Setup) → Phase 2 (Foundational) → Phase 3 (US1) → Phase 4 (US2) �
 - Step 5: Verify all tests pass (T087-T088)
 
 **Constitutional Compliance (Section X)**:
-- All bugs in Code Review Remediation Phase 2 (T089-T093) must be fixed immediately
+- All bugs in Code Review Remediation Phase 3 (T095-T100) must be fixed immediately
 - No deferral without explicit user consent (per Section X)
-- Quality gates (T094) must pass before merge (per Section V)
+- Quality gates (T101) must pass before merge (per Section V)

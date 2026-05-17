@@ -16,26 +16,26 @@ use std::time::Duration;
 ///
 /// * `url` - The URL to download from
 /// * `output_path` - Where to save the downloaded file
-/// * `progress_callback` - Optional callback for progress updates
+/// * `progress_callback` - Callback for progress updates (use `|_| {}` for no-op)
 ///
 /// # Returns
 ///
 /// * `Ok(())` - If download completed successfully
 /// * `Err(DownloadError)` - If download failed
-pub async fn download_with_retry(
+pub async fn download_with_retry<F>(
     url: &str,
     output_path: &Path,
-    progress_callback: Option<impl Fn(DownloadProgress) + Send + Sync>,
-) -> Result<(), DownloadError> {
+    progress_callback: F,
+) -> Result<(), DownloadError>
+where
+    F: Fn(DownloadProgress) + Send + Sync,
+{
     let manager = DownloadManager::new(url.to_string(), output_path.to_path_buf())?
         .with_retries(MAX_RETRIES)
         .with_retry_delay(Duration::from_secs(RETRY_DELAY))
         .with_timeout(Duration::from_secs(TIMEOUT));
 
-    match progress_callback {
-        Some(callback) => manager.download(callback).await,
-        None => manager.download(|_| {}).await,
-    }
+    manager.download(progress_callback).await
 }
 
 /// Check available disk space before download

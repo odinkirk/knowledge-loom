@@ -8,7 +8,7 @@ pub mod utils;
 use crate::model::{DownloadError, DownloadProgress};
 use reqwest::Client;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -442,7 +442,7 @@ impl DownloadManager {
         // Check available disk space before starting download
         // This prevents partial file corruption if disk fills during download
         if total_bytes > 0 {
-            check_disk_space(&self.output_path, total_bytes)?;
+            crate::download::utils::check_disk_space(&self.output_path, total_bytes)?;
         }
 
         // Initialize download tracking
@@ -648,67 +648,4 @@ pub fn calculate_checksum(output_path: &PathBuf) -> Result<String, DownloadError
     }
 
     Ok(format!("{:x}", hasher.finalize()))
-}
-
-/// Check available disk space before download
-///
-/// This function checks if there is sufficient disk space available for the download.
-/// It uses platform-specific APIs to get available disk space.
-///
-/// # Arguments
-///
-/// * `output_path` - The path where the file will be downloaded
-/// * `required_bytes` - The number of bytes required for the download
-///
-/// # Returns
-///
-/// * `Ok(())` - If there is sufficient disk space
-/// * `Err(DownloadError)` - If there is insufficient disk space or the check fails
-#[cfg(unix)]
-fn check_disk_space(output_path: &Path, required_bytes: u64) -> Result<(), DownloadError> {
-    use nix::sys::statvfs::statvfs;
-
-    // Get the directory where the file will be downloaded
-    let dir = if let Some(parent) = output_path.parent() {
-        parent.to_path_buf()
-    } else {
-        std::env::current_dir().map_err(DownloadError::Io)?
-    };
-
-    // Get filesystem statistics
-    let stat = statvfs(&dir)
-        .map_err(|e| DownloadError::Network(format!("Failed to get disk space: {}", e)))?;
-
-    let available_bytes = stat.blocks_available() as u64 * stat.block_size() as u64;
-
-    // Add 10% buffer for safety
-    let required_with_buffer = required_bytes * 11 / 10;
-
-    if available_bytes < required_with_buffer {
-        return Err(DownloadError::Network(format!(
-            "Insufficient disk space: {} bytes required (with 10% buffer), {} bytes available",
-            required_with_buffer, available_bytes
-        )));
-    }
-
-    Ok(())
-}
-
-/// Check available disk space before download (Windows stub)
-///
-/// On Windows, we skip the disk space check for now since we don't have
-/// Windows-specific dependencies. The download will fail with a disk full
-/// error if space is insufficient.
-#[cfg(windows)]
-fn check_disk_space(_output_path: &PathBuf, _required_bytes: u64) -> Result<(), DownloadError> {
-    // Skip disk space check on Windows for now
-    // The download will fail with a disk full error if space is insufficient
-    Ok(())
-}
-
-/// Check available disk space before download (fallback for other platforms)
-#[cfg(not(any(unix, windows)))]
-fn check_disk_space(_output_path: &PathBuf, _required_bytes: u64) -> Result<(), DownloadError> {
-    // Skip disk space check on other platforms for now
-    Ok(())
 }

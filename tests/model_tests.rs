@@ -331,6 +331,7 @@ mod model_tests {
         let mut file = OpenOptions::new()
             .write(true)
             .create(true)
+            .truncate(true)
             .open(&lock_file)
             .unwrap();
 
@@ -363,6 +364,7 @@ mod model_tests {
         let mut file = OpenOptions::new()
             .write(true)
             .create(true)
+            .truncate(true)
             .open(&lock_file)
             .unwrap();
 

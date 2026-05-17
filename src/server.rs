@@ -241,6 +241,7 @@ impl LoomServer {
                                     "content": s.content,
                                     "line_start": s.line_start,
                                     "line_end": s.line_end,
+                                    "chunk_ordinal": s.chunk_ordinal,
                                     "score": s.score,
                                 })
                             })
@@ -282,6 +283,7 @@ impl LoomServer {
                                     "content": s.content,
                                     "line_start": s.line_start,
                                     "line_end": s.line_end,
+                                    "chunk_ordinal": s.chunk_ordinal,
                                     "score": s.score,
                                 })
                             })
