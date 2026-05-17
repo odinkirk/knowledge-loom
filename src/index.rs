@@ -175,7 +175,7 @@ impl VectorIndex {
 
         let mut stmt = conn_lock.prepare(
             "
-            SELECT path, heading, content, vec_distance_cosine(embedding, ?1) as distance
+            SELECT path, heading, content, COALESCE(vec_distance_cosine(embedding, ?1), 1.0) as distance
             FROM embeddings
             ORDER BY distance
             LIMIT ?2

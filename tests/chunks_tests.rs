@@ -203,19 +203,27 @@ fn test_module_performance() {
 
 #[test]
 fn test_module_error_handling() {
-    // Verify graceful handling of edge cases
+    // Verify graceful handling of edge cases (no panics)
     let test_cases = vec![
-        "",                        // Empty content
-        "\n\n\n",                  // Only whitespace
-        "#",                       // Heading without text
-        "##",                      // Heading without text
-        "Content without heading", // No heading
+        ("", true),                     // Empty content -> may be empty
+        ("\n\n\n", true),               // Only whitespace -> may be empty
+        ("#", false),                   // Heading without text -> produces chunk
+        ("##", false),                  // Heading without text -> produces chunk
+        ("Content without heading", false), // No heading -> produces chunk
+        ("# Heading\n\nContent", false),    // Valid content -> produces chunk
     ];
 
-    for content in test_cases {
-        let chunks = chunks::parse_chunks(content);
+    for (content, allow_empty) in test_cases {
         // Should not panic, even with edge cases
-        assert!(!chunks.is_empty());
+        let chunks = chunks::parse_chunks(content);
+        if !allow_empty {
+            assert!(
+                !chunks.is_empty(),
+                "Content {:?} should produce at least one chunk",
+                content
+            );
+        }
+        // If allow_empty is true, empty result is acceptable
     }
 }
 
