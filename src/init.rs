@@ -67,7 +67,7 @@ impl InitManager {
     }
 
     /// Download the model
-    pub fn download_model<F>(&self, progress_callback: F) -> Result<(), InitError>
+    pub async fn download_model_async<F>(&self, progress_callback: F) -> Result<(), InitError>
     where
         F: Fn(crate::model::DownloadProgress) + Send + Sync,
     {
@@ -79,19 +79,24 @@ impl InitManager {
             crate::download::DownloadManager::new(MODEL_URL.to_string(), output_path)
                 .map_err(InitError::Download)?;
 
-        // Download with retry
+        download_manager
+            .download_with_retry(&progress_callback)
+            .await
+            .map_err(InitError::Download)?;
+
+        Ok(())
+    }
+
+    /// Download the model (sync wrapper for backwards compatibility)
+    pub fn download_model<F>(&self, progress_callback: F) -> Result<(), InitError>
+    where
+        F: Fn(crate::model::DownloadProgress) + Send + Sync,
+    {
         let rt = tokio::runtime::Runtime::new().map_err(|e| {
             InitError::InitializationFailed(format!("Failed to create runtime: {}", e))
         })?;
 
-        rt.block_on(async {
-            download_manager
-                .download_with_retry(&progress_callback)
-                .await
-        })
-        .map_err(InitError::Download)?;
-
-        Ok(())
+        rt.block_on(async { self.download_model_async(&progress_callback).await })
     }
 
     /// Validate the model
@@ -215,7 +220,7 @@ Models directory: {}
 }
 
 /// Run the init command with progress display
-pub fn run_init(args: Vec<String>) -> Result<(), InitError> {
+pub async fn run_init_async(args: Vec<String>) -> Result<(), InitError> {
     // Get KB_ROOT from environment or use current directory
     let kb_root: PathBuf = std::env::var("KB_ROOT")
         .unwrap_or_else(|_| ".".to_string())
@@ -271,9 +276,11 @@ pub fn run_init(args: Vec<String>) -> Result<(), InitError> {
     println!("Downloading model...");
     let start_time = std::time::Instant::now();
 
-    init_manager.download_model(|progress| {
-        println!("{}", crate::download::format_download_progress(&progress));
-    })?;
+    init_manager
+        .download_model_async(|progress| {
+            println!("{}", crate::download::format_download_progress(&progress));
+        })
+        .await?;
 
     let duration = start_time.elapsed().as_secs();
     let file_size = std::fs::metadata(model_manager.model_path())
@@ -296,6 +303,14 @@ pub fn run_init(args: Vec<String>) -> Result<(), InitError> {
     println!("Initialization complete!");
 
     Ok(())
+}
+
+/// Run the init command with progress display (sync wrapper)
+pub fn run_init(args: Vec<String>) -> Result<(), InitError> {
+    let rt = tokio::runtime::Runtime::new()
+        .map_err(|e| InitError::InitializationFailed(format!("Failed to create runtime: {}", e)))?;
+
+    rt.block_on(run_init_async(args))
 }
 
 /// Run init with explicit binary path (used by tests)

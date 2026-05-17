@@ -7,32 +7,33 @@
 
 ## Summary
 
-Implement `loom install` command that downloads and installs fastembed model files into `.knowledge-loom/models/` with cache and config. MCP configuration files (opencode.json, .mcp.json) remain at repository root; index data stays in .knowledge-loom-index/. Supports --force for re-download, checksum-based integrity verification, and graceful error handling with clear user messaging.
+Implement `loom install` command that downloads and installs fastembed model files into `.knowledge-loom/models/` with cache and config. MCP configuration files (opencode.json, .mcp.json) remain at repository root; index data stays in .knowledge-loom-index/. Supports --force for re-download, checksum-based integrity verification, and graceful error handling with clear user messaging. **Includes comprehensive E2E test suite** that invokes compiled `loom` binary as subprocess for all commands (`init`, `install`, `serve`, `shell`), catching runtime-level bugs (tokio panics, exit codes, subprocess failures) that integration tests miss. All tests must pass before merge.
 
 ## Technical Context
 
 **Language/Version**: Rust 1.75+
-**Primary Dependencies**: reqwest (HTTP download), sha2 (checksum), tokio (async runtime), serde/serde_json (state persistence), anyhow/thiserror (error handling)
+**Primary Dependencies**: reqwest (HTTP download), sha2 (checksum), tokio (async runtime), serde/serde_json (state persistence), anyhow/thiserror (error handling), tempfile (E2E test isolation)
 **Storage**: Model files stored in `.knowledge-loom/models/` on filesystem
-**Testing**: cargo test (built-in), tempfile for file system tests
+**Testing**: cargo test (built-in), tempfile for file system tests, std::process::Command for E2E subprocess invocation
 **Target Platform**: Linux, macOS, Windows (cross-platform CLI tool)
 **Project Type**: Library/Package with CLI binary
-**Performance Goals**: Model download + verification < 30s (100Mbps connection)
-**Constraints**: Offline-capable after installation, no external network dependencies at runtime
-**Scale/Scope**: Single model download (~120MB), single file per model
+**Performance Goals**: Model download + verification < 30s (100Mbps connection); E2E test suite < 5 minutes
+**Constraints**: Offline-capable after installation, no external network dependencies at runtime; E2E tests must catch tokio runtime panics
+**Scale/Scope**: Single model download (~120MB), single file per model; 13 E2E test scenarios across 4 command categories
 
 ## Constitution Check
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-- **III. Test-First Development (NON-NEGOTIABLE)**: All new code will follow TDD cycle. [PASS]
-- **V. Quality Gates**: Formatting, linting, testing, 80% coverage, security checks. [PASS]
+- **III. Test-First Development (NON-NEGOTIABLE)**: All new code will follow TDD cycle. E2E tests written before bug fixes. [PASS]
+- **IV. Integration Testing**: E2E tests required for CLI commands (`loom init`, `install`, `serve`, `shell`). [PASS]
+- **V. Quality Gates**: Formatting, linting, testing, 80% coverage, security checks. All tests must pass before merge. [PASS]
 - **IX. Output Conventions**: Use `eprintln!` for debug/logging, `println!` for CLI output. [PASS]
 - **X. Code Exploration**: Use code-review-graph tools for Rust analysis. [PASS]
 - **Commit Policy**: Explicit individual consent required for each commit. [PASS]
 - **Naming**: snake_case files/vars, PascalCase types, SCREAMING_SNAKE_CASE constants. [PASS]
 - **Error Handling**: `Result<T, E>` with `anyhow::Error`/`thiserror::Error`. [PASS]
-- **Async Patterns**: tokio for async operations. [PASS]
+- **Async Patterns**: tokio for async operations. E2E tests verify async compatibility. [PASS]
 - **Documentation**: Doc comments on public APIs, CHANGELOG and ARCHITECTURE updates. [PASS]
 
 ## Project Structure
@@ -57,6 +58,22 @@ src/
 ├── main.rs              # UPDATED: Add loom install [--force] subcommand
 ├── model.rs             # EXISTING: Reuse model download logic from feature 004
 ├── ...                  # All other modules unchanged
+```
+
+### Test Structure
+
+```text
+tests/
+├── e2e/
+│   ├── mod.rs              # E2E test module
+│   ├── helpers.rs          # Subprocess helpers
+│   ├── init_tests.rs       # E2E tests for `loom init`
+│   ├── install_tests.rs    # E2E tests for `loom install`
+│   ├── serve_tests.rs      # E2E tests for `loom serve`
+│   └── shell_tests.rs      # E2E tests for `loom shell`
+├── integration.rs          # Existing integration tests
+├── install_tests.rs        # Existing unit/integration tests
+└── ...                     # Other existing test files
 ```
 
 ## Complexity Tracking
@@ -312,3 +329,143 @@ src/
 - Tests: All passing
 - Clippy: Zero warnings
 - Dead Code: Documented with `#[allow(dead_code)]` or removed
+
+## End-to-End Test Suite Technical Specification (US4)
+
+**Added**: 2026-05-17 | **Phase**: E2E Test Implementation | **Estimate**: 1 day
+
+### Technical Approach
+
+**Goal**: Create comprehensive E2E test suite that invokes compiled `loom` binary as subprocess, catching runtime-level bugs (tokio panics, exit codes, subprocess failures) that integration tests miss.
+
+**Architecture**:
+
+```
+tests/
+├── e2e/
+│   ├── mod.rs              # E2E test module
+│   ├── helpers.rs          # Subprocess helpers (run_loom_cmd, assert_exit_code)
+│   ├── init_tests.rs       # E2E tests for `loom init`
+│   ├── install_tests.rs    # E2E tests for `loom install`
+│   ├── serve_tests.rs      # E2E tests for `loom serve`
+│   └── shell_tests.rs      # E2E tests for `loom shell`
+├── integration.rs          # Existing integration tests (unchanged)
+└── ...                     # Other existing test files
+```
+
+**Key Design Decisions**:
+
+1. **Subprocess Invocation**: Use `std::process::Command` to invoke compiled binary
+2. **Test Isolation**: Use `tempfile::tempdir()` for isolated test directories
+3. **Timeout Handling**: Set reasonable timeouts (30s) for subprocess calls
+4. **Panic Detection**: Capture stderr output, detect tokio runtime panics
+5. **Exit Code Validation**: Assert expected exit codes (0 for success, non-zero for failures)
+
+### Test Categories
+
+**Category 1: `loom init` E2E Tests** (T071-T075)
+- Fresh initialization: clean directory → exit 0, no panic
+- Tokio runtime context: invoke from async test → no "runtime within runtime" panic
+- Re-initialization: already initialized → "already initialized" message, exit 0
+- Partial initialization: missing model → completes setup
+
+**Category 2: `loom install` E2E Tests** (T076-T080)
+- Fresh install: clean `.knowledge-loom/` → downloads model, exit 0
+- Skip valid: existing valid model → "already installed", exit 0
+- Force re-download: `--force` flag → overwrites existing
+- Corrupted model: detects corruption → re-downloads
+
+**Category 3: `loom serve` E2E Tests** (T081-T082)
+- Server start: initialized KB → MCP server accepts connections
+- Graceful shutdown: SIGTERM → clean exit, no zombie processes
+
+**Category 4: `loom shell` E2E Test** (T083)
+- Interactive shell: starts with MCP server running
+
+### Bug Fix Phase (T084-T087)
+
+**After E2E tests written (expecting failures)**:
+
+1. **T084: Fix tokio runtime panic in `loom init`**
+   - Root cause: `run_init()` called from `#[tokio::main]` but `download_model()` tries `block_on`
+   - Fix: Make `run_init()` async-compatible (use `download_model_async()` or handle existing runtime)
+   - Test: T072 passes (no panic in tokio context)
+
+2. **T085: Fix subprocess invocation bugs**
+   - Debug any path/binary location issues exposed by E2E tests
+   - Fix environment variable handling (KB_ROOT)
+
+3. **T086: Fix exit code handling**
+   - Ensure all error paths return appropriate exit codes
+   - Verify success paths return 0
+
+4. **T087: Verify all E2E tests pass**
+   - Run `cargo test --test e2e_*` → all pass
+   - Run full `cargo test --all-features` → zero failures
+
+### Testing Strategy
+
+**TDD Enforcement**:
+1. Write E2E tests FIRST (T071-T083) → expect failures
+2. Run tests → document failures (tokio panic, etc.)
+3. Fix bugs (T084-T086) → make tests pass
+4. Verify (T087) → all tests pass
+
+**Test Helpers** (`tests/e2e/helpers.rs`):
+- `run_loom_cmd(args: &[&str], temp_dir: &Path) -> CommandOutput`
+- `assert_exit_code(output: CommandOutput, expected: i32)`
+- `assert_no_panic(output: CommandOutput)`
+- `assert_contains(output: CommandOutput, expected_substring: &str)`
+
+**CommandOutput struct**:
+```rust
+struct CommandOutput {
+    exit_code: i32,
+    stdout: String,
+    stderr: String,
+    panicked: bool,  // detected via stderr patterns
+}
+```
+
+### Risk Assessment
+
+**Low Risk**:
+- Subprocess invocation (standard `std::process::Command`)
+- Exit code assertion (simple integer comparison)
+
+**Medium Risk**:
+- Tokio runtime panic fix (may require async refactoring)
+- Test isolation (tempfile cleanup on failures)
+
+**Mitigation**:
+- TDD approach (tests first, then fix)
+- Small incremental commits
+- Verify each test category independently
+
+### Success Criteria
+
+**Functional**:
+- All E2E tests pass (13 scenarios across 4 categories)
+- Tokio runtime panic bug fixed
+- No false positives (tests don't fail on valid code)
+
+**Code Quality**:
+- E2E tests follow project conventions
+- Helper utilities are reusable and well-documented
+- Test output is clear on failure (helps debugging)
+
+**Metrics**:
+- E2E test suite executes in < 5 minutes
+- 100% of user-facing commands covered (`init`, `install`, `serve`, `shell`)
+- Zero tokio runtime panics in E2E tests
+
+### Dependencies
+
+**Blocks**: Merge of feature 005 (E2E tests must pass before merge per spec)
+**Blocked By**: None (can proceed immediately after spec approval)
+
+### Constitution Compliance
+
+- ✅ **Section III (TDD)**: Tests written before bug fixes (T071-T083 before T084-T086)
+- ✅ **Section V (Quality Gates)**: All tests must pass before merge
+- ✅ **Section X (Technical Debt)**: Runtime bugs fixed immediately (not deferred)

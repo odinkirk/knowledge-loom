@@ -68,6 +68,41 @@ After a model version update, a developer wants to re‑install runtime data wit
 
 ---
 
+### User Story 4 - End-to-End Test Coverage (Priority: P1)
+
+Developers run `cargo test` and expect a **full suite** of end-to-end tests to pass, catching issues that integration tests miss (e.g., tokio runtime panics, binary invocation errors, subprocess failures, async runtime conflicts).
+
+**Why this priority**: Integration tests call library functions directly and miss runtime-level bugs. E2E tests exercise the actual compiled binary as users invoke it, catching panics, exit codes, and subprocess behavior.
+
+**Independent Test**: Run `cargo test` and verify all E2E tests pass across all command categories.
+
+**Acceptance Scenarios** - E2E tests must cover:
+
+**Category 1: `loom init` command**
+1. **Given** a clean test directory, **When** E2E test runs `loom init` as subprocess, **Then** command completes without panic and returns exit code 0
+2. **Given** a tokio runtime context, **When** E2E test invokes `loom init`, **Then** no "Cannot start a runtime from within a runtime" panic occurs
+3. **Given** an already-initialized directory, **When** `loom init` runs, **Then** it reports "already initialized" and exits gracefully
+4. **Given** a directory with partial initialization, **When** `loom init` runs, **Then** it completes the setup
+
+**Category 2: `loom install` command**
+5. **Given** a clean `.knowledge-loom/` directory, **When** `loom install` runs, **Then** model downloads and installs successfully
+6. **Given** an existing valid model, **When** `loom install` runs without `--force`, **Then** it reports "already installed" and exits 0
+7. **Given** an existing model, **When** `loom install --force` runs, **Then** it re-downloads and overwrites
+8. **Given** a corrupted model file, **When** `loom install` runs, **Then** it detects corruption and re-downloads
+
+**Category 3: `loom serve` command**
+9. **Given** an initialized knowledge base, **When** `loom serve` starts, **Then** MCP server starts and accepts connections
+10. **Given** a running `loom serve` process, **When** SIGTERM is sent, **Then** server shuts down gracefully
+
+**Category 4: `loom shell` command**
+11. **Given** an initialized knowledge base, **When** `loom shell` runs, **Then** interactive shell starts with MCP server running
+
+**Category 5: Regression Prevention**
+12. **Given** any code change that breaks binary invocation, **When** developer runs `cargo test`, **Then** E2E tests fail and catch the regression before merge
+13. **Given** a tokio runtime bug introduced, **When** E2E tests run, **Then** they detect the panic and fail
+
+---
+
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
@@ -80,6 +115,10 @@ After a model version update, a developer wants to re‑install runtime data wit
 - **FR-006**: System **MUST** output a concise summary showing: model version, download size, and target location.
 - **FR-007**: System **MUST** exit with status code `0` only when runtime data is installed correctly (test suite verification is a separate step).
 - **FR-008**: System **MUST** leave MCP configuration files (`opencode.json`, `.mcp.json`) and `.knowledge-loom-index/` untouched.
+- **FR-009**: System **MUST** provide end-to-end tests that invoke the compiled `loom` binary as a subprocess for all user-facing commands (`loom init`, `loom install`, `loom serve`).
+- **FR-010**: E2E tests **MUST** catch tokio runtime panics, subprocess failures, and exit code errors that integration tests miss.
+- **FR-011**: All tests (unit, integration, E2E) **MUST** pass before merge — zero failures tolerated.
+- **FR-012**: No tests **MUST** be removed, bypassed, or marked `#[ignore]` without explicit authorization.
 
 ### Key Entities
 
@@ -97,6 +136,9 @@ After a model version update, a developer wants to re‑install runtime data wit
 - **SC-002**: Corrupted model files are detected via checksum and re-downloaded automatically.
 - **SC-003**: MCP config files (`opencode.json`, `.mcp.json`) remain at root, unmodified.
 - **SC-004**: Installation (download + verify) completes within 30 seconds on a standard developer machine (macOS 12+, SSD, 100Mbps connection).
+- **SC-005**: Full E2E test suite executes in under 5 minutes on CI infrastructure.
+- **SC-006**: All tests (unit, integration, E2E) pass with zero failures before merge.
+- **SC-007**: E2E tests catch tokio runtime panics and subprocess failures that integration tests miss.
 
 ## Assumptions
 
@@ -120,11 +162,16 @@ After a model version update, a developer wants to re‑install runtime data wit
 
 ### Testing Requirements *(mandatory for all features)*
 
-- **TEST-001**: Unit tests **MUST** achieve at least **80 %** coverage for runtime data installation logic.
+- **TEST-001**: Unit tests **MUST** achieve at least **80%** coverage for runtime data installation logic.
 - **TEST-002**: Integration tests **MUST** verify model download and checksum validation.
 - **TEST-003**: Tests **MUST** verify that `--force` re-downloads even if models exist.
 - **TEST-004**: Tests **MUST** verify error handling on download failures (network, disk full).
 - **TEST-005**: Tests **MUST** confirm MCP config files and `.knowledge-loom-index/` remain untouched.
+- **TEST-006**: **End-to-End tests MUST** invoke the compiled `loom` binary as a subprocess for all user-facing commands.
+- **TEST-007**: **E2E tests MUST** cover: `loom init` (fresh, re-init, partial), `loom install` (fresh, already installed, --force, corrupted), `loom serve` (start, graceful shutdown), `loom shell` (interactive start).
+- **TEST-008**: **E2E tests MUST** catch tokio runtime panics, subprocess failures, and exit code errors.
+- **TEST-009**: **All tests MUST pass** before merge — zero failures tolerated.
+- **TEST-010**: **No tests MAY be removed**, bypassed, or marked `#[ignore]` without explicit authorization.
 
 ## Module Impact *(mandatory for all features)*
 

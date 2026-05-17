@@ -24,7 +24,7 @@ mod web;
 async fn main() {
     match args().nth(1).as_deref() {
         Some("init") => {
-            if let Err(e) = init::run_init(args().skip(1).collect()) {
+            if let Err(e) = init::run_init_async(args().skip(1).collect()).await {
                 eprintln!("knowledge-loom init failed: {e}");
                 exit(1);
             }

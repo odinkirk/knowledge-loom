@@ -49,6 +49,7 @@
 - Root-level MCP configs are untouched
 - `.knowledge-loom-index/` is unchanged
 - `cargo test --release` passes
+- E2E tests invoke `loom install` as subprocess and verify exit code 0
 
 - [x] T010 [P] [US1] Write unit test for InstallManager::new() in tests/install_tests.rs
 - [x] T011 [P] [US1] Write unit test for InstallManager::model_path() returning `.knowledge-loom/models/` in tests/install_tests.rs
@@ -95,7 +96,77 @@
 - [x] T038 [US3] Implement re-download logic: if --force, re-download and overwrite model in src/install.rs
 - [x] T039 [US3] Write integration test: force re-download + verify test suite in tests/install_integration.rs
 
-## Final Phase: Polish & Cross-Cutting Concerns
+## Phase 6: End-to-End Test Suite (Priority: P1)
+
+**Purpose**: Full E2E test suite that invokes compiled `loom` binary as subprocess, catching runtime panics and integration gaps
+
+**TDD Approach**: Write tests FIRST (they will fail), THEN fix code to make them pass
+
+**Independent Test Criteria**: Run `cargo test` and verify all E2E tests pass across all command categories. Tests must catch tokio runtime panics, subprocess failures, and exit code errors.
+
+### E2E Test Infrastructure (T067-T070)
+
+- [x] T067 [P] [US4] Create `tests/e2e/` directory
+- [x] T068 [P] [US4] Create `tests/e2e/helpers.rs` with:
+  - `struct CommandOutput { exit_code: i32, stdout: String, stderr: String }`
+  - `fn run_loom_cmd(args: &[&str], kb_root: &Path) -> CommandOutput`
+  - `fn assert_exit_code(output: &CommandOutput, expected: i32)`
+  - `fn assert_no_panic(output: &CommandOutput)` (checks stderr for "panicked" or "tokio")
+  - `fn assert_contains(output: &CommandOutput, expected: &str)`
+- [x] T069 [P] [US4] Add `tempfile = "3"` to `[dev-dependencies]` in `Cargo.toml`
+- [x] T070 [P] [US4] Create `tests/e2e/mod.rs` declaring modules: `mod helpers; mod init_tests; mod install_tests; mod serve_tests; mod shell_tests;`
+
+### E2E Tests: `loom init` (T071-T075) - Catches tokio runtime panic bug
+
+- [x] T071 [P] [US4] Write `tests/e2e/init_tests.rs::test_init_clean_directory_exit_code_0`:
+  - Create temp dir, run `loom init`, assert exit_code == 0
+- [x] T072 [P] [US4] Write `tests/e2e/init_tests.rs::test_init_no_tokio_panic`:
+  - Run `loom init`, assert stderr does not contain "Cannot start a runtime from within a runtime"
+- [x] T073 [P] [US4] Write `tests/e2e/init_tests.rs::test_init_reinit_already_initialized`:
+  - Run `loom init` twice, second run asserts stderr contains "already initialized"
+- [x] T074 [P] [US4] Write `tests/e2e/init_tests.rs::test_init_partial_completion`:
+  - Create `.knowledge-loom-index/` without model, run `loom init`, assert model downloaded
+- [x] T075 [US4] Run `cargo test --test e2e init_tests` and document failures (expected: tokio panic in T072)
+
+### E2E Tests: `loom install` (T076-T080)
+
+- [x] T076 [P] [US4] Write `tests/e2e/install_tests.rs::test_install_clean_directory`:
+  - Create temp dir with `.knowledge-loom/`, run `loom install`, assert exit_code == 0 and model exists
+- [x] T077 [P] [US4] Write `tests/e2e/install_tests.rs::test_install_skip_valid_model`:
+  - Run `loom install` twice, second run asserts stderr contains "already installed"
+- [x] T078 [P] [US4] Write `tests/e2e/install_tests.rs::test_install_force_redownload`:
+  - Run `loom install --force`, assert model re-downloaded (check timestamp or output message)
+- [x] T079 [P] [US4] Write `tests/e2e/install_tests.rs::test_install_corrupted_model`:
+  - Write garbage to model file, run `loom install`, assert re-download occurs
+- [x] T080 [US4] Run `cargo test --test e2e install_tests` and document failures
+
+### E2E Tests: `loom serve` (T081-T082)
+
+- [x] T081 [P] [US4] Write `tests/e2e/serve_tests.rs::test_serve_starts_successfully`:
+  - Initialize temp dir, run `loom serve` with timeout, assert starts without error
+- [x] T082 [P] [US4] Write `tests/e2e/serve_tests.rs::test_serve_graceful_shutdown`:
+  - Start `loom serve`, send SIGTERM, assert clean exit (no zombie process, exit code 0)
+
+### E2E Tests: `loom shell` (T083)
+
+- [x] T083 [P] [US4] Write `tests/e2e/shell_tests.rs::test_shell_starts_interactive`:
+  - Initialize temp dir, run `loom shell` with timeout, assert interactive shell starts
+
+### Bug Fixes (T084-T088) - Make failing E2E tests pass
+
+- [x] T084 [US4] Fix `src/init.rs::run_init()` tokio runtime panic:
+  - Change `download_model()` to handle existing runtime (use `Handle::try_current()` check)
+  - Verify T072 passes (no "runtime within runtime" panic)
+- [x] T085 [US4] Fix subprocess path issues in E2E helpers:
+  - Ensure `run_loom_cmd()` finds binary via `cargo build` or PATH
+  - Verify all E2E tests can locate and invoke `loom` binary
+- [x] T086 [US4] Fix exit code handling in `src/main.rs`:
+  - Verify all error paths call `exit(1)`, success paths call `exit(0)`
+  - Verify T071, T076 pass (correct exit codes)
+- [x] T087 [P] [US4] Run `cargo test --test e2e` and verify all tests pass
+- [x] T088 [P] [US4] Run `cargo test --all-features` and verify zero failures (unit + integration + E2E)
+
+## Phase 7: Polish & Cross-Cutting Concerns
 
 **Purpose**: Performance, documentation, and final quality checks
 
@@ -191,14 +262,16 @@
 
 ## Dependencies
 
-```
-Phase 1 (Setup) → Phase 2 (Foundational) → Phase 3 (US1) → Phase 4 (US2) → Phase 5 (US3) → Final Phase → Tech Debt Remediation → Code Review Remediation → Quality Gates
-                                                  ↕                   ↕
-                                          Independent           Independent
-                                          (no deps on US2)      (no deps on US3)
+```text
+Phase 1 (Setup) → Phase 2 (Foundational) → Phase 3 (US1) → Phase 4 (US2) → Phase 5 (US3) → Phase 6 (US4 E2E Tests) → Phase 7 (Polish) → Tech Debt → Code Review → Quality Gates
+                                                   ↕                   ↕                    ↕
+                                           Independent           Independent        TDD: Tests first (T071-T083)
+                                           (no deps on US2)      (no deps on US3)   then fixes (T084-T087)
 ```
 
-US1, US2, and US3 are designed to be independently testable. US2 depends on the `verify_integrity()` method built in US1, and US3 depends on the `--force` flag added alongside US1.
+**US1, US2, US3**: Independently testable. US2 depends on `verify_integrity()` from US1. US3 depends on `--force` flag from US1.
+
+**US4 (E2E Tests)**: Depends on binary being buildable. TDD approach: tests written first (T071-T083), expected to fail, then bugs fixed (T084-T087) to make tests pass.
 
 ## Parallel Execution Examples
 
@@ -208,7 +281,16 @@ US1, US2, and US3 are designed to be independently testable. US2 depends on the 
 
 **PHASE 5 (US3) parallel tasks**: T032, T033, T034 are independent test cases. T035-T038 are sequential.
 
-**FINAL PHASE parallel tasks**: T040-T045 are independent improvements. T046-T050 are sequential quality gates.
+**PHASE 6 (US4 E2E Tests) parallel tasks**:
+- Infrastructure: T067, T068, T069, T070 can all run in parallel (different files)
+- Init tests: T071, T072, T073, T074 are independent test functions, can write simultaneously
+- Install tests: T076, T077, T078, T079 are independent, can write simultaneously
+- Serve tests: T081, T082 are independent
+- Shell tests: T083 is standalone
+- Bug fixes: T084 (tokio panic fix) is blocking; T085, T086 can run in parallel after T084
+- Verification: T087, T088 are sequential (run after all fixes)
+
+**PHASE 7 (Polish) parallel tasks**: T040-T045 are independent improvements. T046-T050 are sequential quality gates.
 
 **TECH DEBT REMEDIATION parallel tasks**: T052-T054 can run in parallel (refactoring). T055-T056 are sequential (CLI args). T057-T059 are parallel (tests/docs).
 
@@ -222,6 +304,14 @@ US1, US2, and US3 are designed to be independently testable. US2 depends on the 
 1. US1 (P1) - Core install: model download, path setup, CLI wiring
 2. US2 (P2) - Integrity: checksum verification, auto-repair on corruption
 3. US3 (P3) - Reinstall: --force flag, skip-if-valid optimization
-4. Final - Polish: error messages, docs, quality gates
-5. Tech Debt Remediation - Consolidate download infrastructure, prevent duplication
-6. Code Review Remediation - Fix all 6 blocking review findings (T060-T065), then verify quality gates (T066)
+4. US4 (P1) - E2E test suite: full coverage of all commands, catch runtime bugs
+5. Phase 7 - Polish: error messages, docs, quality gates
+6. Tech Debt Remediation - Consolidate download infrastructure, prevent duplication
+7. Code Review Remediation - Fix all 6 blocking review findings (T060-T065), then verify quality gates (T066)
+
+**TDD Enforcement for US4**:
+- Step 1: Write E2E test infrastructure (T067-T070)
+- Step 2: Write all E2E tests (T071-T083) - expect failures
+- Step 3: Run tests, document failures (T075, T080)
+- Step 4: Fix bugs (T084-T086) - tokio panic, subprocess issues, exit codes
+- Step 5: Verify all tests pass (T087-T088)

@@ -71,18 +71,18 @@ impl InstallManager {
     }
 
     /// Download the model file
-    pub async fn download_model(&self, force: bool) -> Result<InstallSummary> {
-        // Check if already installed
-        if self.is_installed() && !force {
-            return Err(InstallError::AlreadyInstalled);
-        }
-
+    pub async fn download_model(&self, _force: bool) -> Result<InstallSummary> {
         // Create model directory
         let model_dir = self.model_path();
         std::fs::create_dir_all(&model_dir)?;
 
-        // Download model file using shared DownloadManager
+        // Remove existing file to ensure clean download (avoids resume from corrupted file)
         let model_file = model_dir.join("model.onnx");
+        if model_file.exists() {
+            std::fs::remove_file(&model_file)?;
+        }
+
+        // Download model file using shared DownloadManager
         let manager =
             crate::download::DownloadManager::new(MODEL_URL.to_string(), model_file.clone())
                 .map_err(|e| InstallError::DownloadFailed(e.to_string()))?
