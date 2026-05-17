@@ -99,10 +99,11 @@ impl InstallManager {
         let bytes = std::fs::read(&model_file)?;
 
         // Validate checksum using shared utility
-        if let Err(e) = crate::download::utils::validate_checksum(&bytes, EXPECTED_CHECKSUM) {
+        let actual_checksum = crate::download::utils::calculate_checksum(&bytes);
+        if actual_checksum != EXPECTED_CHECKSUM {
             return Err(InstallError::ChecksumMismatch {
                 expected: EXPECTED_CHECKSUM.to_string(),
-                actual: e.to_string(),
+                actual: actual_checksum,
             });
         }
 

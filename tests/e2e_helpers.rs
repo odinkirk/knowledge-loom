@@ -2,6 +2,7 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 
 /// Output from running a loom command
+#[allow(dead_code)]
 pub struct CommandOutput {
     pub exit_code: i32,
     pub stdout: String,
@@ -9,6 +10,7 @@ pub struct CommandOutput {
 }
 
 /// Run a loom command with the given arguments and KB_ROOT
+#[allow(dead_code)]
 pub fn run_loom_cmd(args: &[&str], kb_root: &Path) -> CommandOutput {
     let binary_path = env!("CARGO_BIN_EXE_loom");
 
@@ -28,6 +30,7 @@ pub fn run_loom_cmd(args: &[&str], kb_root: &Path) -> CommandOutput {
 }
 
 /// Assert the command exited with the expected code
+#[allow(dead_code)]
 pub fn assert_exit_code(output: &CommandOutput, expected: i32) {
     assert_eq!(
         output.exit_code, expected,
@@ -37,6 +40,7 @@ pub fn assert_exit_code(output: &CommandOutput, expected: i32) {
 }
 
 /// Assert the command did not panic (check stderr for panic messages)
+#[allow(dead_code)]
 pub fn assert_no_panic(output: &CommandOutput) {
     assert!(
         !output.stderr.contains("panicked"),
@@ -53,6 +57,7 @@ pub fn assert_no_panic(output: &CommandOutput) {
 }
 
 /// Assert the output contains the expected string
+#[allow(dead_code)]
 pub fn assert_contains(output: &CommandOutput, expected: &str) {
     assert!(
         output.stdout.contains(expected) || output.stderr.contains(expected),

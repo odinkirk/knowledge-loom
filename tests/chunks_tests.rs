@@ -205,10 +205,10 @@ fn test_module_performance() {
 fn test_module_error_handling() {
     // Verify graceful handling of edge cases (no panics)
     let test_cases = vec![
-        ("", true),                     // Empty content -> may be empty
-        ("\n\n\n", true),               // Only whitespace -> may be empty
-        ("#", false),                   // Heading without text -> produces chunk
-        ("##", false),                  // Heading without text -> produces chunk
+        ("", true),                         // Empty content -> may be empty
+        ("\n\n\n", true),                   // Only whitespace -> may be empty
+        ("#", false),                       // Heading without text -> produces chunk
+        ("##", false),                      // Heading without text -> produces chunk
         ("Content without heading", false), // No heading -> produces chunk
         ("# Heading\n\nContent", false),    // Valid content -> produces chunk
     ];

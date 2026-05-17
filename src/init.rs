@@ -255,9 +255,84 @@ pub async fn run_init_async(args: Vec<String>) -> Result<(), InitError> {
     println!("Initializing knowledge base...");
     init_manager.initialize()?;
 
-    // Install platform if specified
+    // Install platform if specified - same setup as run_init_with_binary
     if let Some(platform) = platform {
-        let binary = kb_root.join(".knowledge-loom/bin/loom");
+        let bin_dir = kb_root.join(".knowledge-loom/bin");
+        std::fs::create_dir_all(&bin_dir).map_err(|e| {
+            InitError::InitializationFailed(format!("Failed to create bin directory: {}", e))
+        })?;
+        let binary = bin_dir.join("loom");
+
+        // Copy current binary to .knowledge-loom/bin/
+        let current_binary = std::env::current_exe().map_err(|e| {
+            InitError::InitializationFailed(format!("Failed to get current exe path: {}", e))
+        })?;
+        std::fs::copy(&current_binary, &binary).map_err(|e| {
+            InitError::InitializationFailed(format!("Failed to copy binary: {}", e))
+        })?;
+
+        // Update .gitignore
+        let gitignore_path = kb_root.join(".gitignore");
+        let mut gitignore_content = std::fs::read_to_string(&gitignore_path).unwrap_or_default();
+        if !gitignore_content.contains(".knowledge-loom/") {
+            gitignore_content.push_str("\n.knowledge-loom/\n");
+        }
+        if !gitignore_content.contains(".knowledge-loom-index/") {
+            gitignore_content.push_str(".knowledge-loom-index/\n");
+        }
+        gitignore_content = gitignore_content
+            .lines()
+            .filter(|line| !line.contains(".loom/") && !line.contains(".loom-index/"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        gitignore_content.push('\n');
+        std::fs::write(&gitignore_path, &gitignore_content).map_err(|e| {
+            InitError::InitializationFailed(format!("Failed to update .gitignore: {}", e))
+        })?;
+
+        // Create .mcp.json
+        let mcp_path = kb_root.join(".mcp.json");
+        let mcp_content = format!(
+            r#"{{
+  "mcpServers": {{
+    "knowledge-loom": {{
+      "command": "{}",
+      "args": [],
+      "disabled": false
+    }}
+  }}
+}}"#,
+            binary.display()
+        );
+        std::fs::write(&mcp_path, &mcp_content).map_err(|e| {
+            InitError::InitializationFailed(format!("Failed to create .mcp.json: {}", e))
+        })?;
+
+        // Create shell script
+        let shell_script_path = kb_root.join("loom-shell.sh");
+        let shell_script = format!(
+            r#"#!/bin/sh
+# Auto-generated shell script for knowledge-loom
+KB_ROOT="{}"
+export KB_ROOT
+exec "$0" "$@"
+"#,
+            kb_root.display()
+        );
+        std::fs::write(&shell_script_path, &shell_script).map_err(|e| {
+            InitError::InitializationFailed(format!("Failed to create shell script: {}", e))
+        })?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = std::fs::metadata(&shell_script_path).unwrap().permissions();
+            perms.set_mode(0o755);
+            std::fs::set_permissions(&shell_script_path, perms).map_err(|e| {
+                InitError::InitializationFailed(format!("Failed to make script executable: {}", e))
+            })?;
+        }
+
+        // Install platform-specific components
         crate::platforms::install_platform(platform, &kb_root, &binary).map_err(|e| {
             InitError::InitializationFailed(format!("Platform install failed: {}", e))
         })?;

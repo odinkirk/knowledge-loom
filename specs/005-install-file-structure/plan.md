@@ -78,7 +78,16 @@ tests/
 
 ## Complexity Tracking
 
-No constitution violations expected. Implementation is straightforward model download with standard patterns.
+**Original Estimate**: Straightforward model download with standard patterns
+
+**Post-Review Reality**: Medium-severity bugs discovered requiring immediate remediation
+
+**Constitutional Status**:
+- ✅ All tests passing (Section V satisfied)
+- ⚠️ Medium-severity bugs identified (Section X requires immediate fix)
+- ✅ Code review findings documented in plan (proper workflow followed)
+
+**Next Steps**: Fix medium-severity bugs immediately (Section X default). Present low-severity items for explicit consent decision.
 
 ## Technical Debt Remediation Plan
 
@@ -97,6 +106,62 @@ No constitution violations expected. Implementation is straightforward model dow
    - Impact: Two code paths to maintain, inconsistent error handling
    - **Action**: Refactor to create shared download utilities module
    - **Timeline**: Dedicate 1-2 days for refactoring sprint before Feature 007
+
+## Code Review Findings (Post-Implementation)
+
+**Reviewed**: 2026-05-17 | **Severity**: Low-Medium | **Status**: Documented for remediation
+
+### Medium Severity Bugs
+
+1. **Incorrect checksum error message** (`src/install.rs:102-106`)
+   - **Issue**: Error messages show nested "Checksum mismatch: expected X, got Checksum mismatch: expected X, got Y"
+   - **Root Cause**: `validate_checksum()` returns `DownloadError::ChecksumMismatch` with full message, not just actual checksum
+   - **Impact**: Confusing error messages for users
+   - **Fix**: Use `calculate_checksum()` directly instead of parsing error message
+   - **Timeline**: Immediate fix required (user-facing bug)
+
+2. **Platform install inconsistency** (`src/init.rs:256-262` vs `324-405`)
+   - **Issue**: `loom init --platform` doesn't create same state as `run_init_with_binary` (used by tests)
+   - **Root Cause**: `--platform` path only calls `install_platform`, missing .gitignore update, .mcp.json creation, shell script
+   - **Impact**: Inconsistent initialization depending on code path
+   - **Fix**: Make `run_init_async` call same setup logic as `run_init_with_binary`
+   - **Timeline**: Immediate fix required (functional inconsistency)
+
+### Low Severity Issues
+
+3. **Dead code warnings in test helpers** (`tests/e2e_helpers.rs`)
+   - **Issue**: `CommandOutput` fields and helper functions marked `pub` but unused in some test files
+   - **Impact**: Compiler warnings, incomplete test integration
+   - **Fix**: Add `#[allow(dead_code)]` or use helpers consistently
+   - **Timeline**: Minor cleanup, can defer
+
+4. **Args collection design** (`src/cli/args.rs:18-101`)
+   - **Issue**: `parse_flag` and `parse_string_value` call `args()` independently
+   - **Impact**: Makes unit testing difficult, fragile design
+   - **Fix**: Accept `args: &[String]` as parameter (like `validate_flags_from` already does)
+   - **Timeline**: Refactoring improvement, can defer
+
+5. **Test assertion logic** (`tests/chunks_tests.rs:203-229`)
+   - **Issue**: Test assumes bare headings ("#", "##") produce chunks, may not match `parse_chunks` behavior
+   - **Impact**: Test may assert incorrect behavior
+   - **Fix**: Verify `parse_chunks` behavior with bare headings, adjust test expectations
+   - **Timeline**: Minor test fix, can defer
+
+### Remediation Approach
+
+**Constitutional Compliance** (Section X):
+- Medium severity bugs (#1, #2): Fix immediately (Section X default - no consent needed for fixing)
+- Low severity issues (#3-#5): Present to user for explicit consent decision
+
+**Required Action**:
+1. Fix medium severity bugs immediately (user-facing correctness) - NO CONSENT NEEDED (this is the default)
+2. For low severity issues, user must explicitly approve deferral of EACH item:
+   - "Do you consent to defer #3 (dead code warnings) to Feature 006?"
+   - "Do you consent to defer #4 (args parsing design) to Feature 006?"
+   - "Do you consent to defer #5 (test assertion logic) to Feature 006?"
+3. Any deferred items must be documented in Feature 006 plan under "Deferred Technical Debt" with timeline
+
+**Explicit Consent Required**: Per Constitution Section X, deferring bugs requires explicit user consent BEFORE deferring. This plan documents findings; user must approve each deferral individually. Blanket deferral is a violation.
 
 3. **Argument parsing could be more robust** (SEVERITY: LOW)
    - Current: Simple `args().any()` check for `--force` flag
