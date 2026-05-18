@@ -7,7 +7,7 @@
 
 ## Summary
 
-Implement `loom install` command that downloads and installs fastembed model files into `.knowledge-loom/models/` with cache and config. MCP configuration files (opencode.json, .mcp.json) remain at repository root; index data stays in .knowledge-loom-index/. Supports --force for re-download, checksum-based integrity verification, and graceful error handling with clear user messaging. **Includes comprehensive E2E test suite** that invokes compiled `loom` binary as subprocess for all commands (`init`, `install`, `serve`, `shell`), catching runtime-level bugs (tokio panics, exit codes, subprocess failures) that integration tests miss. **All tests passing**. Code review identified 6 issues (1 medium, 3 low, 2 info) requiring remediation before merge per Constitution Section X.
+Implement `loom install` command that downloads and installs fastembed model files into `.knowledge-loom/models/` with cache and config. MCP configuration files (opencode.json, .mcp.json) remain at repository root; index data stays in .knowledge-loom-index/. Supports --force for re-download, checksum-based integrity verification, and graceful error handling with clear user messaging. **Includes comprehensive E2E test suite** that invokes compiled `loom` binary as subprocess for all commands (`init`, `install`, `serve`, `shell`), catching runtime-level bugs (tokio panics, exit codes, subprocess failures) that integration tests miss. **All existing tests passing**. Code review identified 6 issues (1 medium, 3 low, 2 info) requiring remediation before merge per Constitution Section X — all resolved. **Smoke test (2026-05-17) identified 3 additional defects: chunk truncation, OpenCode platform config, reindex performance, and parallel indexing opportunity. Phase 8 tasks (T102-T117) pending.**
 
 ## Technical Context
 
@@ -89,7 +89,7 @@ tests/
 - ✅ Code review findings documented in plan (proper workflow followed)
 - ✅ All findings FIXED before merge (Section X default - no deferrals)
 
-**Next Steps**: Branch ready for merge. All constitutional requirements satisfied.
+**Next Steps**: Phase 8 (T102-T117) pending: (1) chunk truncation → split, (2) OpenCode platform config format, (3) reindex batch embedding, (4) parallel BM25+vector indexing.
 
 ## Technical Debt Remediation Plan
 
@@ -560,3 +560,73 @@ struct CommandOutput {
 - ✅ **Section III (TDD)**: Tests written before bug fixes (T071-T083 before T084-T086)
 - ✅ **Section V (Quality Gates)**: All tests must pass before merge
 - ✅ **Section X (Technical Debt)**: Runtime bugs fixed immediately (not deferred)
+
+## Smoke Test Findings (2026-05-17)
+
+**Context**: Full smoke test on live corpus (91 markdown files, unspoken-world project). Three classes of defects discovered.
+
+---
+
+### Finding 1: Chunk Truncation Defect (SEVERITY: MEDIUM)
+
+**Observed**: The Story Bible (1403 lines, 131 heading sections) indexed as 133 embedding rows — correct count. But each section is truncated to 2000 characters instead of being split into multiple sequential chunks.
+
+**Root Cause**: `parse_chunks()` in `src/chunks.rs:88–169` creates one chunk per heading section. When section content exceeds `MAX_CHUNK_CHARS` (2000), `truncate_at_whitespace()` (line 140) silently discards everything beyond the limit. Content past 2000 chars is permanently absent from both BM25 and vector search.
+
+**Impact**: Long narrative sections lose most of their content from the search index. Which portion survives depends on lexicographic truncation — the first 2000 chars of each section are included, the rest is lost.
+
+**Additional Issue**: `VectorIndex::chunk_content()` in `src/index.rs:260–282` uses a completely different chunking strategy (per-heading splits with no size cap or ordinal assignment), meaning BM25 and vector search operate over different chunk boundaries, degrading RRF fusion quality.
+
+**Expected Behavior**:
+1. Sections longer than `MAX_CHUNK_CHARS` are split into multiple sequential chunks, each ≤ 2000 chars, at whitespace boundaries
+2. All chunks from the same heading share the same heading breadcrumb context
+3. Chunk ordinals remain file-local and sequential across all chunks including splits
+4. The headingless fallback also splits long content instead of truncating
+5. `VectorIndex::chunk_content()` is replaced by reuse of `parse_chunks()` so both indexes share consistent chunk boundaries
+
+---
+
+### Finding 2: OpenCode Platform Config Defect (SEVERITY: HIGH)
+
+**Observed**: `loom init --platform opencode` produces a wrong `opencode.json` and an unwanted `.mcp.json`.
+
+**Root Cause — Bug A**: `run_init_async()` in `src/init.rs:319–335` unconditionally creates `.mcp.json` before calling `install_platform()`. For OpenCode platform, this produces both `.mcp.json` (unwanted) and `opencode.json` (broken).
+
+**Root Cause — Bug B**: The OpenCode handler in `src/platforms.rs:153–160` calls `write_json_object_entry(&path, "mcpServers", ...)` with `opencode=true`. The `build_entry()` function (platforms.rs:200–213) with `opencode=true` sets `env` to `[]` (a hack for an older format) and produces `type: "stdio"`.
+
+**Research — Correct Format**: Verified against the authoritative OpenCode config schema at `https://opencode.ai/config.json` (§`McpLocalConfig`) and the working local `opencode.json` from the test corpus.
+
+| Aspect | Current Code Output | Required Format |
+|---|---|---|
+| Schema | missing `$schema` | `"$schema": "https://opencode.ai/config.json"` |
+| MCP key | writes `mcpServers` | must write `mcp` (primary key per schema) |
+| `type` field | `"stdio"` | `"local"` |
+| `command` field | single string | array of strings: `[binary_path, "serve"]` |
+| `environment` field | `[]` (empty array) | object: `{"KB_ROOT": "/path/to/kb"}` |
+| `.mcp.json` | created unconditionally | must NOT be created for OpenCode |
+
+Note: The `mcpServers` key in the existing corpus file is NOT defined in the OpenCode config schema and appears to be legacy/alien. The only MCP key defined by the schema is `mcp`.
+
+**Expected Behavior**:
+1. When `--platform opencode` is specified, `run_init_async()` skips `.mcp.json` creation
+2. `install_platform(OpenCode, ...)` writes `opencode.json` with correct `$schema`, `mcp` key, `type: "local"`, `command` as array, and `environment` as object
+3. `build_entry()` removal of `opencode` boolean parameter — format is always the schema-conformant `mcp` key format
+
+---
+
+### Finding 3: Reindex Performance Defect (SEVERITY: MEDIUM)
+
+**Observed**: `loom reindex` for 91 markdown files (3998 chunks) takes multiple minutes. Users expect seconds for this corpus size.
+
+**Root Cause**: `VectorIndex::index_vault()` in `src/index.rs:201–258` calls `embed_provider.embed()` once per chunk — 3998 individual ONNX model inferences. The local embed provider at `src/embed/local.rs:187` passes a single-element Vec to fastembed: `model.embed(vec![text], None)`. fastembed supports batch inference but the code never uses it.
+
+**Performance Analysis**:
+- Per-chunk embedding: ~80–150ms × 3998 chunks ≈ 5–10 minutes for embedding alone
+- Plus BM25 indexing (sequential per-file), graph building, and SQLite writes add more
+- With batch size 32: 125 inference calls instead of 3998 → ~30× speedup
+- Total reindex time should be <10 seconds for a 91-file corpus with batch embedding
+
+**Expected Behavior**:
+1. Chunks are batched (e.g., 32 at a time) before calling fastembed for inference
+2. BM25 and vector indexing can proceed in parallel (currently serial)
+3. `loom reindex` completes in under 10 seconds for 100-file corpora
