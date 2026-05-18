@@ -221,6 +221,22 @@ Models directory: {}
 
 /// Run the init command with progress display
 pub async fn run_init_async(args: Vec<String>) -> Result<(), InitError> {
+    // Handle --help flag
+    if args.iter().any(|a| a == "--help" || a == "-h") {
+        eprintln!("loom init — Initialize knowledge-loom in a directory");
+        eprintln!();
+        eprintln!("USAGE:");
+        eprintln!("  loom init [OPTIONS]");
+        eprintln!();
+        eprintln!("OPTIONS:");
+        eprintln!("  --platform <NAME>  Install for specific platform (claude, cursor, windsurf, zed, continue, opencode, kiro, codex)");
+        eprintln!("  -h, --help         Show this help message");
+        eprintln!();
+        eprintln!("ENVIRONMENT:");
+        eprintln!("  KB_ROOT            Root path for knowledge base (default: current directory)");
+        return Ok(());
+    }
+
     // Get KB_ROOT from environment or use current directory
     let kb_root: PathBuf = std::env::var("KB_ROOT")
         .unwrap_or_else(|_| ".".to_string())
@@ -262,6 +278,16 @@ pub async fn run_init_async(args: Vec<String>) -> Result<(), InitError> {
             InitError::InitializationFailed(format!("Failed to create bin directory: {}", e))
         })?;
         let binary = bin_dir.join("loom");
+
+        // Create .knowledge-loom/.gitignore
+        let kl_gitignore_path = kb_root.join(".knowledge-loom/.gitignore");
+        let kl_gitignore_content = "bin/\nmodels/\n";
+        std::fs::write(&kl_gitignore_path, kl_gitignore_content).map_err(|e| {
+            InitError::InitializationFailed(format!(
+                "Failed to create .knowledge-loom/.gitignore: {}",
+                e
+            ))
+        })?;
 
         // Copy current binary to .knowledge-loom/bin/
         let current_binary = std::env::current_exe().map_err(|e| {
@@ -315,8 +341,9 @@ pub async fn run_init_async(args: Vec<String>) -> Result<(), InitError> {
 # Auto-generated shell script for knowledge-loom
 KB_ROOT="{}"
 export KB_ROOT
-exec "$0" "$@"
+exec "{}/.knowledge-loom/bin/loom" shell "$@"
 "#,
+            kb_root.display(),
             kb_root.display()
         );
         std::fs::write(&shell_script_path, &shell_script).map_err(|e| {
