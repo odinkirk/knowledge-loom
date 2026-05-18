@@ -59,9 +59,21 @@ fn test_install_opencode_creates_opencode_json() {
     let oc: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(tmp.path().join("opencode.json")).unwrap())
             .unwrap();
-    assert!(oc["mcpServers"]["knowledge-loom"]["command"].is_string());
-    // opencode requires env array
-    assert!(oc["mcpServers"]["knowledge-loom"]["env"].is_array());
+
+    // $schema must be present
+    assert_eq!(oc["$schema"], "https://opencode.ai/config.json");
+
+    // mcp key (not mcpServers) per https://opencode.ai/config.json McpLocalConfig
+    let entry = &oc["mcp"]["knowledge-loom"];
+    assert_eq!(entry["type"], "local");
+    // command is an array of strings
+    assert!(entry["command"].is_array());
+    let cmd = entry["command"].as_array().unwrap();
+    assert_eq!(cmd.len(), 2);
+    assert_eq!(cmd[1], "serve");
+    // environment is an object
+    assert!(entry["environment"].is_object());
+    assert!(entry["environment"]["KB_ROOT"].is_string());
 }
 
 #[test]

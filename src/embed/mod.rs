@@ -54,6 +54,18 @@ pub trait EmbedProvider: Send + Sync {
     /// ```
     async fn embed(&self, text: &str) -> Result<Vec<f32>>;
 
+    /// Generate embeddings for a batch of texts
+    ///
+    /// Default implementation falls back to single-text `embed()` in a loop.
+    /// Providers that support native batching (e.g., fastembed) should override.
+    async fn embed_batch(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
+        let mut results = Vec::with_capacity(texts.len());
+        for text in texts {
+            results.push(self.embed(text).await?);
+        }
+        Ok(results)
+    }
+
     /// Get the dimension of the embedding vectors produced by this provider
     ///
     /// # Returns
@@ -205,6 +217,21 @@ impl EmbedProviderEnum {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    /// Generate embeddings for a batch of texts
+    pub async fn embed_batch(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
+        match self {
+            Self::Local(p) => p.embed_batch(texts).await,
+            // Ollama and OpenRouter fall back to single-text loop
+            _ => {
+                let mut results = Vec::with_capacity(texts.len());
+                for text in texts {
+                    results.push(self.embed(text).await?);
+                }
+                Ok(results)
             }
         }
     }

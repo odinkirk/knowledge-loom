@@ -316,10 +316,12 @@ pub async fn run_init_async(args: Vec<String>) -> Result<(), InitError> {
             InitError::InitializationFailed(format!("Failed to update .gitignore: {}", e))
         })?;
 
-        // Create .mcp.json
-        let mcp_path = kb_root.join(".mcp.json");
-        let mcp_content = format!(
-            r#"{{
+        // Create .mcp.json (skip for OpenCode — it uses opencode.json instead)
+        let is_opencode = matches!(platform, crate::platforms::PlatformName::OpenCode);
+        if !is_opencode {
+            let mcp_path = kb_root.join(".mcp.json");
+            let mcp_content = format!(
+                r#"{{
   "mcpServers": {{
     "knowledge-loom": {{
       "command": "{}",
@@ -328,11 +330,12 @@ pub async fn run_init_async(args: Vec<String>) -> Result<(), InitError> {
     }}
   }}
 }}"#,
-            binary.display()
-        );
-        std::fs::write(&mcp_path, &mcp_content).map_err(|e| {
-            InitError::InitializationFailed(format!("Failed to create .mcp.json: {}", e))
-        })?;
+                binary.display()
+            );
+            std::fs::write(&mcp_path, &mcp_content).map_err(|e| {
+                InitError::InitializationFailed(format!("Failed to create .mcp.json: {}", e))
+            })?;
+        }
 
         // Create shell script
         let shell_script_path = kb_root.join("loom-shell.sh");

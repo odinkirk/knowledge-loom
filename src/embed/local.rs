@@ -208,6 +208,77 @@ impl LocalEmbedProvider {
         Ok(embedding)
     }
 
+    /// Generate embeddings for a batch of texts using native fastembed batch inference
+    pub async fn embed_batch(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
+        if texts.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut results = Vec::with_capacity(texts.len());
+        let mut uncached_texts: Vec<String> = Vec::new();
+        let mut uncached_indices: Vec<usize> = Vec::new();
+
+        // Check cache for each text
+        {
+            let mut cache = self.cache.lock().await;
+            for (i, text) in texts.iter().enumerate() {
+                use std::collections::hash_map::DefaultHasher;
+                use std::hash::{Hash, Hasher};
+                let mut hasher = DefaultHasher::new();
+                text.hash(&mut hasher);
+                let key = hasher.finish();
+
+                if let Some(cached) = cache.get(key) {
+                    // Pad results with None placeholders, we'll fill in later
+                    while results.len() <= i {
+                        results.push(None);
+                    }
+                    results[i] = Some(cached.clone());
+                } else {
+                    uncached_texts.push(text.clone());
+                    uncached_indices.push(i);
+                }
+            }
+        }
+
+        // Batch-embed uncached texts
+        if !uncached_texts.is_empty() {
+            let model = self.model.clone();
+            let embeddings = tokio::task::spawn_blocking(move || {
+                model.embed(uncached_texts, None).map_err(|e| {
+                    EmbedError::EmbeddingError(format!("Failed to generate batch embedding: {}", e))
+                })
+            })
+            .await
+            .map_err(|e| EmbedError::EmbeddingError(format!("Task join error: {}", e)))??;
+
+            // Store in cache and map results
+            let mut cache = self.cache.lock().await;
+            for (idx, embedding) in uncached_indices.iter().zip(embeddings.into_iter()) {
+                use std::collections::hash_map::DefaultHasher;
+                use std::hash::{Hash, Hasher};
+                let mut hasher = DefaultHasher::new();
+                texts[*idx].hash(&mut hasher);
+                let key = hasher.finish();
+
+                cache.put(key, embedding.clone());
+
+                while results.len() <= *idx {
+                    results.push(None);
+                }
+                results[*idx] = Some(embedding);
+            }
+        }
+
+        // Unwrap all results
+        results
+            .into_iter()
+            .map(|r| {
+                r.ok_or_else(|| EmbedError::EmbeddingError("Missing embedding result".to_string()))
+            })
+            .collect()
+    }
+
     /// Get the dimension of the embedding vectors
     ///
     /// # Returns

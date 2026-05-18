@@ -267,24 +267,31 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_chunks_caps_large_section_at_2000() {
+    fn test_parse_chunks_splits_large_section() {
         let body = "word ".repeat(500); // 2500 chars
         let md = format!("# Big Section\n\n{}", body);
         let chunks = parse_chunks(&md);
-        assert_eq!(chunks.len(), 1);
         assert!(
-            chunks[0].content.len() <= 2000,
-            "chunk len {} exceeds 2000",
-            chunks[0].content.len()
+            chunks.len() > 1,
+            "2500 chars should produce multiple chunks"
         );
+        for chunk in &chunks {
+            assert!(
+                chunk.content.len() <= 2000,
+                "chunk len {} exceeds 2000",
+                chunk.content.len()
+            );
+        }
     }
 
     #[test]
-    fn test_headingless_fallback_caps_large_content() {
+    fn test_headingless_fallback_splits_large_content() {
         let md = "word ".repeat(500); // no headings, 2500 chars
         let chunks = parse_chunks(&md);
-        assert_eq!(chunks.len(), 1);
-        assert!(chunks[0].content.len() <= 2000);
+        assert!(chunks.len() > 1, "2500 chars headingless should split");
+        for chunk in &chunks {
+            assert!(chunk.content.len() <= 2000);
+        }
     }
 
     #[tokio::test]

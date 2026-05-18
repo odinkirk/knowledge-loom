@@ -1544,3 +1544,39 @@ fn integration_manual_download_instructions_display() {
     assert!(instructions.len() > 100); // Should be substantial
     assert!(!instructions.contains("TODO")); // Should be complete
 }
+
+#[tokio::test]
+async fn smoke_test_subdrop_search() {
+    // Search the unspoken-world corpus for "subdrop"
+    let search_engine = knowledge_loom::search::SearchEngine::new(
+        "/Users/odinkirk/Documents/Claude/Projects/unspoken-world",
+    )
+    .await;
+    let results = search_engine.search("subdrop", 10).await;
+
+    println!("Found {} results for 'subdrop':", results.len());
+    for r in &results {
+        for s in &r.sections {
+            println!(
+                "  - {} ({})",
+                r.path,
+                s.heading.as_deref().unwrap_or("no heading")
+            );
+            println!(
+                "    Content: {}...",
+                s.content.chars().take(150).collect::<String>()
+            );
+        }
+    }
+
+    assert!(
+        !results.is_empty(),
+        "Should find the subdrop passage in Story Bible"
+    );
+    assert!(
+        results
+            .iter()
+            .any(|r| r.sections.iter().any(|s| s.content.contains("subdrop"))),
+        "Should contain 'subdrop' in content"
+    );
+}

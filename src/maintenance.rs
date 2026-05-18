@@ -38,43 +38,81 @@ impl MaintenanceManager {
     pub async fn reindex_all(&self) -> Result<String, String> {
         let mut status_lines = Vec::new();
 
-        // Set ingestion state and acquire lock in the same block to prevent race condition
-        let mut bm25_lock = {
+        // Set ingestion state
+        {
             let bm25_lock = self.bm25_index.lock().await;
             bm25_lock.set_ingesting(true).await;
-            bm25_lock
-        };
+        }
 
-        // Rebuild BM25 index
-        status_lines.push("Rebuilding BM25 index...".to_string());
-        let bm25_result = bm25_lock.index_vault(&*self.vault_state.lock().await).await;
-        match bm25_result {
-            Ok(_) => {
-                status_lines.push("  BM25 index rebuilt".to_string());
+        // Scan files once and read all content upfront to avoid vault_lock contention
+        let files = {
+            let vault_lock = self.vault_state.lock().await;
+            vault_lock.scan_files().await
+        };
+        let mut file_contents: Vec<(std::path::PathBuf, String)> = Vec::new();
+        let vault_lock = self.vault_state.lock().await;
+        for file_path in &files {
+            if let Some(content) = vault_lock.read_file(file_path).await {
+                file_contents.push((file_path.clone(), content));
             }
+        }
+        drop(vault_lock);
+
+        // Run BM25 and vector indexing in parallel
+        status_lines.push("Rebuilding indexes...".to_string());
+        let bm25_idx = self.bm25_index.clone();
+        let vector_idx = self.vector_index.clone();
+        let embed = self.embed_provider.clone();
+        let file_data = &file_contents;
+
+        let (bm25_result, vector_result) = tokio::join!(
+            async {
+                let mut bm25_lock = bm25_idx.lock().await;
+                let mut indexed = 0;
+                for (path, content) in file_data {
+                    if let Err(e) = bm25_lock.index_file(path, content).await {
+                        return Err(format!("BM25 index failed for {}: {}", path.display(), e));
+                    }
+                    indexed += 1;
+                }
+                let mut writer = bm25_lock.writer.lock().await;
+                if let Err(e) = writer.commit() {
+                    return Err(format!("BM25 commit failed: {}", e));
+                }
+                Ok(indexed)
+            },
+            async {
+                let vector_lock = vector_idx.lock().await;
+                let mut total = 0;
+                for (path, content) in file_data {
+                    match vector_lock.index_file(path, content, &embed).await {
+                        Ok((success, _failed)) => total += success,
+                        Err(e) => {
+                            eprintln!("Vector index failed for {}: {}", path.display(), e);
+                        }
+                    }
+                }
+                Ok(total)
+            }
+        );
+
+        // Check BM25 result
+        match bm25_result {
+            Ok(count) => status_lines.push(format!("  BM25 index rebuilt ({} files)", count)),
             Err(e) => {
-                // Clear ingestion state on error
+                let bm25_lock = self.bm25_index.lock().await;
                 bm25_lock.set_ingesting(false).await;
-                return Err(format!("BM25 index rebuild failed: {}", e));
+                return Err(e);
             }
         }
 
-        // Rebuild vector index
-        status_lines.push("Rebuilding vector index...".to_string());
-        let vector_result = self
-            .vector_index
-            .lock()
-            .await
-            .index_vault(&*self.vault_state.lock().await, &self.embed_provider)
-            .await;
+        // Check vector result
         match vector_result {
-            Ok(_) => {
-                status_lines.push("  Vector index rebuilt".to_string());
-            }
+            Ok(chunks) => status_lines.push(format!("  Vector index rebuilt ({} chunks)", chunks)),
             Err(e) => {
-                // Clear ingestion state on error
+                let bm25_lock = self.bm25_index.lock().await;
                 bm25_lock.set_ingesting(false).await;
-                return Err(format!("Vector index rebuild failed: {}", e));
+                return Err(e);
             }
         }
 
@@ -91,14 +129,17 @@ impl MaintenanceManager {
                 status_lines.push("  Graph rebuilt".to_string());
             }
             Err(e) => {
-                // Clear ingestion state on error
+                let bm25_lock = self.bm25_index.lock().await;
                 bm25_lock.set_ingesting(false).await;
                 return Err(format!("Graph rebuild failed: {}", e));
             }
         }
 
         // Clear ingestion state on success
-        bm25_lock.set_ingesting(false).await;
+        {
+            let bm25_lock = self.bm25_index.lock().await;
+            bm25_lock.set_ingesting(false).await;
+        }
 
         status_lines.push("Reindex complete.".to_string());
         Ok(status_lines.join("\n"))

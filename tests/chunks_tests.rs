@@ -287,3 +287,91 @@ fn test_module_concurrency() {
         assert!(result > 0);
     }
 }
+
+// --- Smoke Bug 1: Chunk splitting tests (T102) ---
+
+#[test]
+fn test_parse_chunks_splits_long_section_into_multiple() {
+    let mut content = String::from("# Heading\n\n");
+    let word = "word ";
+    let words_needed = (knowledge_loom::chunks::MAX_CHUNK_CHARS / word.len()) * 3;
+    content.push_str(&word.repeat(words_needed));
+    let chunks = knowledge_loom::chunks::parse_chunks(&content);
+    assert!(
+        chunks.len() > 1,
+        "Expected multiple chunks, got {}",
+        chunks.len()
+    );
+    for chunk in &chunks {
+        assert!(chunk.content.len() <= knowledge_loom::chunks::MAX_CHUNK_CHARS);
+    }
+}
+
+#[test]
+fn test_parse_chunks_split_chunks_share_heading() {
+    let mut content = String::from("# Main\n## Sub\n\n");
+    let word = "word ";
+    let words_needed = (knowledge_loom::chunks::MAX_CHUNK_CHARS / word.len()) * 3;
+    content.push_str(&word.repeat(words_needed));
+    let chunks = knowledge_loom::chunks::parse_chunks(&content);
+    assert!(chunks.len() > 1);
+    let expected_heading = Some("Main > Sub".to_string());
+    for chunk in &chunks {
+        assert_eq!(chunk.heading, expected_heading);
+    }
+}
+
+#[test]
+fn test_parse_chunks_split_ordinals_sequential() {
+    let mut content = String::from("# A\n\n");
+    let word = "word ";
+    let words_needed = (knowledge_loom::chunks::MAX_CHUNK_CHARS / word.len()) * 5;
+    content.push_str(&word.repeat(words_needed));
+    let chunks = knowledge_loom::chunks::parse_chunks(&content);
+    assert!(chunks.len() > 1);
+    for (i, chunk) in chunks.iter().enumerate() {
+        assert_eq!(chunk.ordinal, (i + 1) as u64);
+    }
+}
+
+#[test]
+fn test_parse_chunks_splits_at_whitespace() {
+    let mut content = String::from("# Heading\n\n");
+    let word = "word ";
+    let words_needed = (knowledge_loom::chunks::MAX_CHUNK_CHARS / word.len()) * 2 + 10;
+    content.push_str(&word.repeat(words_needed));
+    let chunks = knowledge_loom::chunks::parse_chunks(&content);
+    assert!(chunks.len() > 1);
+    for chunk in &chunks {
+        let start = &chunk.content[..20.min(chunk.content.len())];
+        assert!(
+            !chunk.content.starts_with('d'),
+            "Chunk starts mid-word: {:?}",
+            start
+        );
+    }
+}
+
+#[test]
+fn test_parse_chunks_headingless_splits_long_content() {
+    let word = "word ";
+    let words_needed = (knowledge_loom::chunks::MAX_CHUNK_CHARS / word.len()) * 3;
+    let content = word.repeat(words_needed);
+    let chunks = knowledge_loom::chunks::parse_chunks(&content);
+    assert!(chunks.len() > 1, "Headingless content should split");
+    for chunk in &chunks {
+        assert!(chunk.heading.is_none());
+        assert!(chunk.content.len() <= knowledge_loom::chunks::MAX_CHUNK_CHARS);
+    }
+    for (i, chunk) in chunks.iter().enumerate() {
+        assert_eq!(chunk.ordinal, (i + 1) as u64);
+    }
+}
+
+#[test]
+fn test_parse_chunks_short_section_still_single_chunk() {
+    let content = "# Short\n\nJust a short section.";
+    let chunks = knowledge_loom::chunks::parse_chunks(content);
+    assert_eq!(chunks.len(), 1);
+    assert_eq!(chunks[0].content, "Just a short section.");
+}

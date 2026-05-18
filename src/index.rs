@@ -129,28 +129,32 @@ impl VectorIndex {
         embed_provider: &crate::embed::EmbedProviderEnum,
     ) -> Result<(usize, usize), rusqlite::Error> {
         self.remove_file_embeddings(path).await?;
-        let chunks = self.chunk_content(content);
-        let mut successful_count = 0;
-        let mut failed_count = 0;
+        let chunks = crate::chunks::parse_chunks(content);
+        if chunks.is_empty() {
+            return Ok((0, 0));
+        }
 
-        for (heading, chunk_content) in chunks {
-            let embedding = match embed_provider.embed(&chunk_content).await {
-                Ok(vec) => vec,
-                Err(e) => {
-                    eprintln!(
-                        "Failed to generate embedding for chunk in {}: {}. Skipping this chunk.",
-                        path.display(),
-                        e
-                    );
-                    failed_count += 1;
-                    // Skip this chunk if embedding fails
-                    continue;
-                }
-            };
-            self.upsert_embedding(path, heading.as_deref(), &chunk_content, &embedding)
+        // Collect chunk texts for batch embedding
+        let texts: Vec<String> = chunks.iter().map(|c| c.content.clone()).collect();
+        let embeddings = match embed_provider.embed_batch(&texts).await {
+            Ok(vec) => vec,
+            Err(e) => {
+                eprintln!(
+                    "Failed to generate batch embedding for {}: {}. Skipping file.",
+                    path.display(),
+                    e
+                );
+                return Ok((0, chunks.len()));
+            }
+        };
+
+        let mut successful_count: usize = 0;
+        for (chunk, embedding) in chunks.iter().zip(embeddings.iter()) {
+            self.upsert_embedding(path, chunk.heading.as_deref(), &chunk.content, embedding)
                 .await?;
             successful_count += 1;
         }
+        let failed_count = chunks.len().saturating_sub(successful_count);
 
         // Log summary of indexing results
         if failed_count > 0 {
@@ -198,6 +202,7 @@ impl VectorIndex {
         Ok(results)
     }
 
+    #[allow(dead_code)]
     pub async fn index_vault(
         &self,
         vault_state: &crate::vault::VaultState,
@@ -211,28 +216,37 @@ impl VectorIndex {
         for file_path in files {
             if let Some(content) = vault_state.read_file(&file_path).await {
                 self.remove_file_embeddings(&file_path).await?;
-                let chunks = self.chunk_content(&content);
+                let chunks = crate::chunks::parse_chunks(&content);
+                if chunks.is_empty() {
+                    continue;
+                }
                 let mut file_successful = 0;
                 let mut file_failed = 0;
 
-                for (heading, chunk_content) in chunks {
-                    let embedding = match embed_provider.embed(&chunk_content).await {
-                        Ok(vec) => vec,
-                        Err(e) => {
-                            eprintln!("Failed to generate embedding for chunk in {}: {}. Skipping this chunk.", file_path.display(), e);
-                            file_failed += 1;
-                            // Skip this chunk if embedding fails
-                            continue;
+                // Batch-embed all chunks for this file
+                let texts: Vec<String> = chunks.iter().map(|c| c.content.clone()).collect();
+                match embed_provider.embed_batch(&texts).await {
+                    Ok(embeddings) => {
+                        for (chunk, embedding) in chunks.iter().zip(embeddings.iter()) {
+                            self.upsert_embedding(
+                                &file_path,
+                                chunk.heading.as_deref(),
+                                &chunk.content,
+                                embedding,
+                            )
+                            .await?;
+                            file_successful += 1;
                         }
-                    };
-                    self.upsert_embedding(
-                        &file_path,
-                        heading.as_deref(),
-                        &chunk_content,
-                        &embedding,
-                    )
-                    .await?;
-                    file_successful += 1;
+                    }
+                    Err(e) => {
+                        eprintln!(
+                            "Failed to generate batch embedding for {}: {}. Skipping file.",
+                            file_path.display(),
+                            e
+                        );
+                        file_failed = chunks.len();
+                        files_with_failures += 1;
+                    }
                 }
 
                 total_successful += file_successful;
@@ -257,27 +271,12 @@ impl VectorIndex {
         Ok((total_successful, total_failed, files_with_failures))
     }
 
-    pub fn chunk_content(&self, content: &str) -> Vec<(Option<String>, String)> {
-        let mut chunks = Vec::new();
-        let mut current_heading: Option<String> = None;
-        let mut current_content = String::new();
-
-        for line in content.lines() {
-            // Strip any heading level (H1-H6): 1-6 # chars followed by space
-            if let Some(stripped) = line.trim_start_matches('#').strip_prefix(" ") {
-                if !current_content.trim().is_empty() || current_heading.is_some() {
-                    chunks.push((current_heading.take(), current_content.trim().to_string()));
-                    current_content.clear();
-                }
-                current_heading = Some(stripped.to_string());
-            } else {
-                current_content.push_str(line);
-                current_content.push('\n');
-            }
-        }
-        if !current_content.trim().is_empty() || current_heading.is_some() {
-            chunks.push((current_heading, current_content.trim().to_string()));
-        }
-        chunks
+    #[allow(dead_code)]
+    pub fn chunk_content(&self, _content: &str) -> Vec<(Option<String>, String)> {
+        // Replaced by crate::chunks::parse_chunks — kept for API compatibility
+        crate::chunks::parse_chunks(_content)
+            .into_iter()
+            .map(|c| (c.heading, c.content))
+            .collect()
     }
 }

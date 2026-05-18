@@ -112,14 +112,14 @@ pub fn install_platform(
     match &platform {
         PlatformName::Claude => {
             let path = repo_root.join(".mcp.json");
-            write_json_object_entry(&path, "mcpServers", &binary_str, true, false)?;
+            write_json_object_entry(&path, "mcpServers", &binary_str, true)?;
             written.push(path);
         }
         PlatformName::Cursor => {
             let dir = repo_root.join(".cursor");
             fs::create_dir_all(&dir)?;
             let path = dir.join("mcp.json");
-            write_json_object_entry(&path, "mcpServers", &binary_str, true, false)?;
+            write_json_object_entry(&path, "mcpServers", &binary_str, true)?;
             written.push(path);
             let rules = repo_root.join(".cursorrules");
             write_instruction_file(&rules)?;
@@ -130,7 +130,7 @@ pub fn install_platform(
                 .ok_or("no home dir")?
                 .join(".codeium/windsurf/mcp_config.json");
             fs::create_dir_all(path.parent().unwrap())?;
-            write_json_object_entry(&path, "mcpServers", &binary_str, false, false)?;
+            write_json_object_entry(&path, "mcpServers", &binary_str, false)?;
             written.push(path);
             let rules = repo_root.join(".windsurfrules");
             write_instruction_file(&rules)?;
@@ -139,7 +139,7 @@ pub fn install_platform(
         PlatformName::Zed => {
             let path = zed_settings_path()?;
             fs::create_dir_all(path.parent().unwrap())?;
-            write_json_object_entry(&path, "context_servers", &binary_str, false, false)?;
+            write_json_object_entry(&path, "context_servers", &binary_str, false)?;
             written.push(path);
         }
         PlatformName::Continue => {
@@ -152,7 +152,20 @@ pub fn install_platform(
         }
         PlatformName::OpenCode => {
             let path = repo_root.join("opencode.json");
-            write_json_object_entry(&path, "mcpServers", &binary_str, true, true)?;
+            let full_path = std::path::PathBuf::from(repo_root);
+            let kb_root = format!("{}", full_path.display());
+            let entry = serde_json::json!({
+                "$schema": "https://opencode.ai/config.json",
+                "mcp": {
+                    "knowledge-loom": {
+                        "type": "local",
+                        "command": [binary_str, "serve".to_string()],
+                        "environment": { "KB_ROOT": kb_root },
+                        "enabled": true
+                    }
+                }
+            });
+            write_json_atomic(&path, &entry)?;
             written.push(path);
             let agents = repo_root.join("AGENTS.md");
             write_instruction_file(&agents)?;
@@ -162,7 +175,7 @@ pub fn install_platform(
             let dir = repo_root.join(".kiro/settings");
             fs::create_dir_all(&dir)?;
             let path = dir.join("mcp.json");
-            write_json_object_entry(&path, "mcpServers", &binary_str, true, false)?;
+            write_json_object_entry(&path, "mcpServers", &binary_str, true)?;
             written.push(path);
             let agents = repo_root.join("AGENTS.md");
             write_instruction_file(&agents)?;
@@ -197,7 +210,7 @@ pub fn install_all_detected(
         .collect()
 }
 
-fn build_entry(binary: &str, needs_type: bool, opencode: bool) -> Value {
+fn build_entry(binary: &str, needs_type: bool) -> Value {
     let mut entry = serde_json::json!({
         "command": binary,
         "args": ["serve"],
@@ -205,9 +218,6 @@ fn build_entry(binary: &str, needs_type: bool, opencode: bool) -> Value {
     });
     if needs_type {
         entry["type"] = Value::String("stdio".into());
-    }
-    if opencode {
-        entry["env"] = Value::Array(vec![]);
     }
     entry
 }
@@ -217,7 +227,6 @@ fn write_json_object_entry(
     servers_key: &str,
     binary: &str,
     needs_type: bool,
-    opencode: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut root: Value = if path.exists() {
         serde_json::from_str(&fs::read_to_string(path)?)?
@@ -227,7 +236,7 @@ fn write_json_object_entry(
     if root[servers_key].is_null() {
         root[servers_key] = serde_json::json!({});
     }
-    root[servers_key][MCP_CONFIG_KEY] = build_entry(binary, needs_type, opencode);
+    root[servers_key][MCP_CONFIG_KEY] = build_entry(binary, needs_type);
     write_json_atomic(path, &root)
 }
 
@@ -242,7 +251,7 @@ fn write_json_array_entry(
         serde_json::json!({})
     };
     let entry = {
-        let mut e = build_entry(binary, true, false);
+        let mut e = build_entry(binary, true);
         e["name"] = Value::String(MCP_CONFIG_KEY.to_string());
         e
     };

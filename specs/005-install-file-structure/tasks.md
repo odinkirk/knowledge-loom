@@ -356,57 +356,57 @@
 
 ### Smoke Bug 1: Chunk Truncation → Splitting (SEVERITY: MEDIUM)
 
-- [ ] T102 [P] Write unit tests for `parse_chunks()` splitting behavior in `tests/chunks_tests.rs`:
+- [x] T102 [P] Write unit tests for `parse_chunks()` splitting behavior in `tests/chunks_tests.rs`:
   - Content exceeding 2000 chars produces multiple chunks
   - Split chunks share the same heading breadcrumb
   - Ordinals are sequential across split chunks
   - Test at whitespace boundary (not mid-word)
   - Test headingless fallback also splits >2000 chars
 
-- [ ] T103 Modify `parse_chunks()` in `src/chunks.rs` to split sections exceeding `MAX_CHUNK_CHARS` into multiple chunks instead of truncating
+- [x] T103 Modify `parse_chunks()` in `src/chunks.rs` to split sections exceeding `MAX_CHUNK_CHARS` into multiple chunks instead of truncating
 
-- [ ] T104 Replace `VectorIndex::chunk_content()` in `src/index.rs:260–282` with reuse of `parse_chunks()` from `src/chunks.rs`. Update callers in `index_file()` (line 132,136) and `index_vault()` (line 214,218) to destructure `Chunk` struct fields (`chunk.heading`, `chunk.content`) instead of the current `(heading, content)` tuple pattern. Result: BM25 and vector indexes share consistent chunk boundaries.
+- [x] T104 Replace `VectorIndex::chunk_content()` in `src/index.rs:260–282` with reuse of `parse_chunks()` from `src/chunks.rs`. Update callers in `index_file()` (line 132,136) and `index_vault()` (line 214,218) to destructure `Chunk` struct fields (`chunk.heading`, `chunk.content`) instead of the current `(heading, content)` tuple pattern. Result: BM25 and vector indexes share consistent chunk boundaries.
 
 ### Smoke Bug 2: OpenCode Platform Config Format (SEVERITY: HIGH)
 
-- [ ] T105 [P] Write unit test for `install_platform(OpenCode, ...)` in `tests/platforms_tests.rs` — verify generated `opencode.json` matches schema at `https://opencode.ai/config.json` §`McpLocalConfig`: `$schema` present, `mcp` key (not `mcpServers`), `type: "local"`, `command` is array of two strings with absolute paths, `environment` object with absolute `KB_ROOT`. Test will fail until T106 implemented (TDD per Constitution §III).
+- [x] T105 [P] Write unit test for `install_platform(OpenCode, ...)` in `tests/platforms_tests.rs` — verify generated `opencode.json` matches schema at `https://opencode.ai/config.json` §`McpLocalConfig`: `$schema` present, `mcp` key (not `mcpServers`), `type: "local"`, `command` is array of two strings with absolute paths, `environment` object with absolute `KB_ROOT`. Test will fail until T106 implemented (TDD per Constitution §III).
 
-- [ ] T106 Fix `install_platform(OpenCode, ...)` in `src/platforms.rs:153–160` to write `opencode.json` directly (not via `write_json_object_entry`, which targets `mcpServers` key):
+- [x] T106 Fix `install_platform(OpenCode, ...)` in `src/platforms.rs:153–160` to write `opencode.json` directly (not via `write_json_object_entry`, which targets `mcpServers` key):
   - Root: `"$schema": "https://opencode.ai/config.json"`
   - `"mcp"."knowledge-loom"`: `type: "local"`, `command: [absolute_binary_path, "serve"]`, `environment: {"KB_ROOT": absolute_repo_root}`
   - Use absolute paths for both `command` and `KB_ROOT` (matching the working config in the test corpus)
   - Preserve existing `AGENTS.md` write (platforms.rs:157-159)
 
-- [ ] T107 Remove `opencode` parameter from `build_entry()` and `write_json_object_entry()` in `src/platforms.rs` — after T106, the OpenCode handler no longer calls `write_json_object_entry`. The `opencode=true` code path is dead. Update remaining callers (Claude, Cursor, Windsurf, Zed, Kiro arms) to drop the last `false` argument.
+- [x] T107 Remove `opencode` parameter from `build_entry()` and `write_json_object_entry()` in `src/platforms.rs` — after T106, the OpenCode handler no longer calls `write_json_object_entry`. The `opencode=true` code path is dead. Update remaining callers (Claude, Cursor, Windsurf, Zed, Kiro arms) to drop the last `false` argument.
 
-- [ ] T108 [P] Fix `run_init_async()` in `src/init.rs:319–335` to skip `.mcp.json` creation when `--platform opencode` is specified
+- [x] T108 [P] Fix `run_init_async()` in `src/init.rs:319–335` to skip `.mcp.json` creation when `--platform opencode` is specified
 
 ### Smoke Bug 3: Reindex Batch Embedding (SEVERITY: MEDIUM)
 
-- [ ] T109 [P] Write unit tests for batch embedding in `tests/embed_batch_tests.rs`:
+- [x] T109 [P] Write unit tests for batch embedding in `tests/embed_batch_tests.rs`:
   - Single text batch (len 1) produces same result as single `embed()` call
   - Batch of 32 texts produces 32 embeddings of correct dimension (384)
   - Empty batch returns empty Vec
   - Batch containing empty strings handles gracefully (no panic)
   - Batch containing a chunk exceeding model's max input length: `embed_batch()` returns `Err` for that chunk only, continues processing remaining chunks, logs a warning with the file path and chunk index
 
-- [ ] T110 Add `embed_batch(&[String]) -> Result<Vec<Vec<f32>>>` method to `EmbedProvider` trait in `src/embed/mod.rs`
+- [x] T110 Add `embed_batch(&[String]) -> Result<Vec<Vec<f32>>>` method to `EmbedProvider` trait in `src/embed/mod.rs`
 
-- [ ] T111 Implement `embed_batch()` in `LocalEmbedProvider` in `src/embed/local.rs` — calls `model.embed(texts_vec, None)` with the full batch of texts instead of per-text `model.embed(vec![text], None)`
+- [x] T111 Implement `embed_batch()` in `LocalEmbedProvider` in `src/embed/local.rs` — calls `model.embed(texts_vec, None)` with the full batch of texts instead of per-text `model.embed(vec![text], None)`
 
-- [ ] T112 Dispatch `embed_batch()` in `EmbedProviderEnum` in `src/embed/mod.rs`: delegate to `LocalEmbedProvider::embed_batch()` for Local; for Ollama and OpenRouter, fall back to single-text `embed()` in a loop
+- [x] T112 Dispatch `embed_batch()` in `EmbedProviderEnum` in `src/embed/mod.rs`: delegate to `LocalEmbedProvider::embed_batch()` for Local; for Ollama and OpenRouter, fall back to single-text `embed()` in a loop
 
-- [ ] T113 [P] Modify `VectorIndex::index_vault()` in `src/index.rs:201–258` to collect all chunks for a file, call `embed_batch()`, then upsert results — replacing the per-chunk `embed()` loop
+- [x] T113 [P] Modify `VectorIndex::index_vault()` in `src/index.rs:201–258` to collect all chunks for a file, call `embed_batch()`, then upsert results — replacing the per-chunk `embed()` loop
 
-- [ ] T114 [P] Modify `VectorIndex::index_file()` in `src/index.rs:125–166` to use `embed_batch()` instead of per-chunk `embed()` loop
+- [x] T114 [P] Modify `VectorIndex::index_file()` in `src/index.rs:125–166` to use `embed_batch()` instead of per-chunk `embed()` loop
 
-- [ ] T115 [P] Write performance test in `tests/reindex_perf_tests.rs`: verify `loom reindex` completes in <10 seconds for 100-file corpus. Also assert E2E test suite (T067-T083) completes in <5 minutes per spec SC-005.
+- [x] T115 [P] Write performance test in `tests/reindex_perf_tests.rs`: verify `loom reindex` completes in <10 seconds for 100-file corpus. Also assert E2E test suite (T067-T083) completes in <5 minutes per spec SC-005.
 
-- [ ] T116 [P] Make BM25 and vector indexing run in parallel in `MaintenanceManager::reindex_all()` in `src/maintenance.rs:38–105` — use `tokio::join!` to run `bm25_lock.index_vault()` and `vector_index.index_vault()` concurrently. Both are read-only on vault files and write to separate indexes (tantivy vs sqlite).
+- [x] T116 [P] Make BM25 and vector indexing run in parallel in `MaintenanceManager::reindex_all()` in `src/maintenance.rs:38–105` — use `tokio::join!` to run `bm25_lock.index_vault()` and `vector_index.index_vault()` concurrently. Both are read-only on vault files and write to separate indexes (tantivy vs sqlite).
 
 ### Quality Gate Verification
 
-- [ ] T117 Run full quality gates: `cargo fmt`, `cargo clippy -- -D warnings`, `cargo test --all-features` (all pass with zero warnings)
+- [x] T117 Run full quality gates: `cargo fmt`, `cargo clippy -- -D warnings`, `cargo test --all-features` (all pass with zero warnings)
 
 ## Dependencies
 
