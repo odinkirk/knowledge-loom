@@ -48,6 +48,7 @@ impl VectorIndex {
         }
     }
 
+    #[allow(dead_code)]
     pub async fn upsert_embedding(
         &self,
         path: &Path,
@@ -128,13 +129,11 @@ impl VectorIndex {
         content: &str,
         embed_provider: &crate::embed::EmbedProviderEnum,
     ) -> Result<(usize, usize), rusqlite::Error> {
-        self.remove_file_embeddings(path).await?;
         let chunks = crate::chunks::parse_chunks(content);
         if chunks.is_empty() {
             return Ok((0, 0));
         }
 
-        // Collect chunk texts for batch embedding
         let texts: Vec<String> = chunks.iter().map(|c| c.content.clone()).collect();
         let embeddings = match embed_provider.embed_batch(&texts).await {
             Ok(vec) => vec,
@@ -149,11 +148,36 @@ impl VectorIndex {
         };
 
         let mut successful_count: usize = 0;
+        let conn_lock = self.conn.lock().await;
+
+        // Delete old rows and insert new ones in a single transaction
+        let relative_path = path
+            .strip_prefix(&self.kb_root)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .to_string();
+        conn_lock.execute(
+            "DELETE FROM embeddings WHERE path = ?1",
+            params![relative_path],
+        )?;
+
+        conn_lock.execute_batch("BEGIN TRANSACTION")?;
         for (chunk, embedding) in chunks.iter().zip(embeddings.iter()) {
-            self.upsert_embedding(path, chunk.heading.as_deref(), &chunk.content, embedding)
-                .await?;
+            let heading = chunk
+                .heading
+                .as_deref()
+                .map(|s| s.to_string())
+                .unwrap_or_default();
+            let embedding_blob = bytemuck::cast_slice(embedding);
+            conn_lock.execute(
+                "INSERT OR REPLACE INTO embeddings (path, heading, content, embedding) VALUES (?1, ?2, ?3, ?4)",
+                params![relative_path, heading, &chunk.content, embedding_blob],
+            )?;
             successful_count += 1;
         }
+        conn_lock.execute_batch("COMMIT")?;
+        drop(conn_lock);
+
         let failed_count = chunks.len().saturating_sub(successful_count);
 
         // Log summary of indexing results
@@ -202,7 +226,6 @@ impl VectorIndex {
         Ok(results)
     }
 
-    #[allow(dead_code)]
     pub async fn index_vault(
         &self,
         vault_state: &crate::vault::VaultState,
@@ -211,64 +234,58 @@ impl VectorIndex {
         let files = vault_state.scan_files().await;
         let mut total_successful = 0;
         let mut total_failed = 0;
-        let mut files_with_failures = 0;
 
         for file_path in files {
-            if let Some(content) = vault_state.read_file(&file_path).await {
-                self.remove_file_embeddings(&file_path).await?;
-                let chunks = crate::chunks::parse_chunks(&content);
-                if chunks.is_empty() {
+            let content = match vault_state.read_file(&file_path).await {
+                Some(c) => c,
+                None => continue,
+            };
+            let chunks = crate::chunks::parse_chunks(&content);
+            if chunks.is_empty() {
+                continue;
+            }
+
+            // Per-file batch embed
+            let texts: Vec<String> = chunks.iter().map(|c| c.content.clone()).collect();
+            let embeddings = match embed_provider.embed_batch(&texts).await {
+                Ok(vec) => vec,
+                Err(e) => {
+                    eprintln!("embed_batch failed for {}: {}", file_path.display(), e);
+                    total_failed += chunks.len();
                     continue;
                 }
-                let mut file_successful = 0;
-                let mut file_failed = 0;
+            };
 
-                // Batch-embed all chunks for this file
-                let texts: Vec<String> = chunks.iter().map(|c| c.content.clone()).collect();
-                match embed_provider.embed_batch(&texts).await {
-                    Ok(embeddings) => {
-                        for (chunk, embedding) in chunks.iter().zip(embeddings.iter()) {
-                            self.upsert_embedding(
-                                &file_path,
-                                chunk.heading.as_deref(),
-                                &chunk.content,
-                                embedding,
-                            )
-                            .await?;
-                            file_successful += 1;
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!(
-                            "Failed to generate batch embedding for {}: {}. Skipping file.",
-                            file_path.display(),
-                            e
-                        );
-                        file_failed = chunks.len();
-                        files_with_failures += 1;
-                    }
-                }
-
-                total_successful += file_successful;
-                total_failed += file_failed;
-                if file_failed > 0 {
-                    files_with_failures += 1;
-                }
+            // SQLite per-file transaction
+            let conn_lock = self.conn.lock().await;
+            let relative_path = file_path
+                .strip_prefix(&self.kb_root)
+                .unwrap_or(&file_path)
+                .to_string_lossy()
+                .to_string();
+            conn_lock.execute(
+                "DELETE FROM embeddings WHERE path = ?1",
+                params![relative_path],
+            )?;
+            conn_lock.execute_batch("BEGIN TRANSACTION")?;
+            for (chunk, embedding) in chunks.iter().zip(embeddings.iter()) {
+                let heading = chunk
+                    .heading
+                    .as_deref()
+                    .map(|s| s.to_string())
+                    .unwrap_or_default();
+                let embedding_blob = bytemuck::cast_slice(embedding);
+                conn_lock.execute(
+                    "INSERT OR REPLACE INTO embeddings (path, heading, content, embedding) VALUES (?1, ?2, ?3, ?4)",
+                    params![relative_path, heading, &chunk.content, embedding_blob],
+                )?;
             }
+            conn_lock.execute_batch("COMMIT")?;
+            drop(conn_lock);
+            total_successful += chunks.len();
         }
 
-        // Log summary of indexing results
-        if total_failed > 0 {
-            eprintln!(
-                "Vault indexing completed: {} total chunks, {} successful, {} failed across {} files",
-                total_successful + total_failed,
-                total_successful,
-                total_failed,
-                files_with_failures
-            );
-        }
-
-        Ok((total_successful, total_failed, files_with_failures))
+        Ok((total_successful, total_failed, 0))
     }
 
     #[allow(dead_code)]

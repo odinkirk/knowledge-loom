@@ -1,4 +1,4 @@
-pub const MAX_CHUNK_CHARS: usize = 2000;
+pub const MAX_CHUNK_CHARS: usize = 800;
 
 /// Represents a chunk of markdown content with metadata.
 ///

@@ -108,11 +108,12 @@ async fn main() {
             }
         }
         Some("reindex") => {
+            let force = args().any(|a| a == "--force");
             let server =
                 server::LoomServer::new(&std::env::var("KB_ROOT").expect("KB_ROOT required")).await;
             server
                 .maintenance
-                .reindex_all()
+                .reindex_all(force)
                 .await
                 .expect("reindex failed");
             eprintln!("Reindex complete.");

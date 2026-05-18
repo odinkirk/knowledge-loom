@@ -192,7 +192,6 @@ impl BM25Index {
             );
             writer_lock.add_document(doc)?;
         }
-        writer_lock.commit()?;
         Ok(())
     }
 

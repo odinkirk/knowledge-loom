@@ -62,3 +62,23 @@ async fn test_embed_batch_ordinal_consistency() {
     );
     assert_ne!(results[0], results[1], "different texts should differ");
 }
+
+#[test]
+fn test_local_provider_sets_onnx_threads() {
+    // Clear ORT_NUM_THREADS before test to avoid pollution from other tests
+    std::env::remove_var("ORT_NUM_THREADS");
+    let models_dir = PathBuf::from(".knowledge-loom-index/models");
+    // Initialization should configure ONNX Runtime for multi-threaded execution
+    let _p = LocalEmbedProvider::new(&models_dir);
+    let threads = std::env::var("ORT_NUM_THREADS").ok();
+    assert!(
+        threads.is_some(),
+        "ORT_NUM_THREADS must be set after LocalEmbedProvider initialization"
+    );
+    let threads: i32 = threads.unwrap().parse().unwrap();
+    assert!(
+        threads > 1,
+        "ORT_NUM_THREADS must be >1 for multi-threaded execution, got {}",
+        threads
+    );
+}

@@ -7,7 +7,9 @@
 
 ## Summary
 
-Implement `loom install` command that downloads and installs fastembed model files into `.knowledge-loom/models/` with cache and config. MCP configuration files (opencode.json, .mcp.json) remain at repository root; index data stays in .knowledge-loom-index/. Supports --force for re-download, checksum-based integrity verification, and graceful error handling with clear user messaging. **Includes comprehensive E2E test suite** that invokes compiled `loom` binary as subprocess for all commands (`init`, `install`, `serve`, `shell`), catching runtime-level bugs (tokio panics, exit codes, subprocess failures) that integration tests miss. **All existing tests passing**. Code review identified 6 issues (1 medium, 3 low, 2 info) requiring remediation before merge per Constitution Section X — all resolved. **Smoke test (2026-05-17) identified 3 additional defects: chunk truncation, OpenCode platform config, reindex performance, and parallel indexing opportunity. Phase 8 tasks (T102-T117) pending.**
+Implement `loom install` command that downloads and installs fastembed model files into `.knowledge-loom/models/` with cache and config. MCP configuration files (opencode.json, .mcp.json) remain at repository root; index data stays in .knowledge-loom-index/. Supports --force for re-download, checksum-based integrity verification, and graceful error handling with clear user messaging. **Includes comprehensive E2E test suite** that invokes compiled `loom` binary as subprocess for all commands (`init`, `install`, `serve`, `shell`), catching runtime-level bugs (tokio panics, exit codes, subprocess failures) that integration tests miss. **All existing tests passing**. Code review identified 6 issues — all resolved.
+
+**Three rounds of smoke testing (2026-05-17 to 2026-05-18) identified and resolved 6 distinct defects across chunking, platform config, and reindex performance.** Phase 8 tasks (T102-T116a,T117) complete. Phase 9 tasks (T118-T124a) partially complete — see Finding status table below. Reindex time improved from unbounded to ~8 minutes (first run); incremental path (target <5s subsequent) has infrastructure built but is blocked by a hang in the state-comparison loop requiring local debugging.
 
 ## Technical Context
 
@@ -89,7 +91,11 @@ tests/
 - ✅ Code review findings documented in plan (proper workflow followed)
 - ✅ All findings FIXED before merge (Section X default - no deferrals)
 
-**Next Steps**: Phase 8 (T102-T117) pending: (1) chunk truncation → split, (2) OpenCode platform config format, (3) reindex batch embedding, (4) parallel BM25+vector indexing.
+**Next Steps**:
+1. **Debug incremental reindex hang** (Finding 4, top priority): `reindex_incremental()` hangs in `vault_state.lock().await.scan_files()` or the subsequent comparison loop. Add unit tests for the incremental path, then diagnose and fix.
+2. **Fix `.knowledge-loom-ignore` glob support** (prerequisite for performance): Replace `contains()` with `glob::Pattern` matching in `VaultState::should_ignore()`. Without this, worktree duplicates (~44 files) double the reindex time.
+3. **Profile ONNX threading deeper** (Finding 3a): Investigate `ort` session options for intra-op thread count. Current `ORT_NUM_THREADS` env var may not be read by the `ort` crate's session configuration.
+4. **Retry global batch with smaller cap** (Finding 3d): After ignore file fix reduces file count, test global batch with cap of 256 on ~50 unique files.
 
 ## Technical Debt Remediation Plan
 
@@ -614,19 +620,159 @@ Note: The `mcpServers` key in the existing corpus file is NOT defined in the Ope
 
 ---
 
-### Finding 3: Reindex Performance Defect (SEVERITY: MEDIUM)
+### Finding 3: Reindex Performance — Root Cause Cluster
 
-**Observed**: `loom reindex` for 91 markdown files (3998 chunks) takes multiple minutes. Users expect seconds for this corpus size.
+**Third smoke test (2026-05-18) profiled `reindex_all` end-to-end, discovering four distinct bottlenecks that together account for the multi-minute reindex time.**
 
-**Root Cause**: `VectorIndex::index_vault()` in `src/index.rs:201–258` calls `embed_provider.embed()` once per chunk — 3998 individual ONNX model inferences. The local embed provider at `src/embed/local.rs:187` passes a single-element Vec to fastembed: `model.embed(vec![text], None)`. fastembed supports batch inference but the code never uses it.
+---
 
-**Performance Analysis**:
-- Per-chunk embedding: ~80–150ms × 3998 chunks ≈ 5–10 minutes for embedding alone
-- Plus BM25 indexing (sequential per-file), graph building, and SQLite writes add more
-- With batch size 32: 125 inference calls instead of 3998 → ~30× speedup
-- Total reindex time should be <10 seconds for a 91-file corpus with batch embedding
+#### Finding 3a: Single-Threaded ONNX Inference (SEVERITY: HIGH)
+
+**Observed**: Vector embedding computes at ~100ms per 200-token chunk on CPU regardless of core count. With 2083 chunks, inference alone takes ~208s of the 423s vector time (after chunk size reduction to 800 chars).
+
+**Root Cause**: `LocalEmbedProvider::embed_batch()` (local.rs) calls `model.embed(texts, None)` without configuring ONNX Runtime threading. By default, ONNX Runtime may use a single thread, serializing all transformer layer computations across MiniLM-L6-v2's 6 layers.
 
 **Expected Behavior**:
-1. Chunks are batched (e.g., 32 at a time) before calling fastembed for inference
-2. BM25 and vector indexing can proceed in parallel (currently serial)
-3. `loom reindex` completes in under 10 seconds for 100-file corpora
+1. Configure ONNX Runtime session for multi-threaded execution (e.g., `OMP_NUM_THREADS` or `SessionOptions` with thread count = CPU core count)
+2. Target: 3–6× inference speedup — from ~100ms/chunk to ~15–30ms/chunk
+3. Vector inference drops from ~200s to ~40–70s
+4. Non-invasive: only requires environment variable or session option at model load time
+
+---
+
+#### Finding 3b: BM25 Per-File Commit Double-Writes (SEVERITY: HIGH) — FIXED
+
+**Observed**: BM25 `index_vault` took 87 seconds for 108 files. After fix: 1 second (87× improvement).
+
+**Root Cause**: `BM25Index::index_file()` (bm25.rs:195) called `writer_lock.commit()` after every single file, plus `index_vault()` (bm25.rs:509) committed again at the end — 216 commits/flesynces total.
+
+**Fix Applied (commit batch)**: Removed per-file `commit()` from `index_file()`, keeping single commit at end of `index_vault()`. BM25: 87s → 0.96s.
+
+---
+
+#### Finding 3c: Vector Per-Chunk Implicit SQLite Transactions (SEVERITY: HIGH) — FIXED
+
+**Observed**: Vector `index_vault` took 877s (pre-3a fix). After 3a+3c fixes: 423s. Still 2083 individual SQLite auto-commit transactions — one per `upsert_embedding()` call.
+
+**Root Cause**: Each `INSERT OR REPLACE` in `upsert_embedding()` triggered an implicit SQLite BEGIN/COMMIT — 2083 separate transaction cycles with WAL writes.
+
+**Fix Applied (transaction batch)**: Per-file transactions: lock connection once, DELETE old rows, BEGIN TRANSACTION, INSERT all chunks, COMMIT. 2083 transactions → 108 transactions.
+
+---
+
+#### Finding 3d: Per-File Batch Underutilizes ONNX Parallelism (SEVERITY: MEDIUM)
+
+**Observed**: Vector `index_vault` makes 108 small `embed_batch` calls (avg 19 texts each). ONNX Runtime parallelizes better over larger batches because transformer operations are matrix-multiply-bound and scale with batch dimension.
+
+**Root Cause**: `VectorIndex::index_vault()` (index.rs) calls `embed_batch()` per file in a loop. Small batches leave compute units idle.
+
+**Expected Behavior**:
+1. Collect ALL chunks into a single Vec before one `embed_batch()` call
+2. Single large batch allows ONNX Runtime to fully utilize all cores across the batch dimension
+3. Est. 2–3× speedup from batch-level parallelism — vector inference drops further
+4. Combined with Finding 3a: embedding time for 2083 chunks under 30s
+
+---
+
+### Finding 4: reindex_all Always Full Rebuild — No Incremental Path (SEVERITY: HIGH)
+
+**Observed**: `loom reindex` unconditionally rebuilds all indexes on every invocation. No skip-if-unchanged capability. Users suffer full rebuild (currently 7+ minutes) on every `loom reindex` invocation.
+
+**Root Cause**: No per-file mtime tracking, no index state file, no incremental logic in `reindex_all()`.
+
+**Expected Behavior**:
+1. **State file** (`.knowledge-loom-index/reindex-state.json`): records per-file `path`, `mtime_secs`, `chunk_count`
+2. **Incremental path**: Compare current mtimes against state. Only reindex files where `current_mtime > state_mtime`
+3. **Deleted files**: Remove from all indexes if absent from disk
+4. **Fallback to full rebuild**: If state file missing, schema version mismatch, or index corruption — run full rebuild
+5. **`--force` flag**: `loom reindex --force` bypasses state and forces full rebuild
+6. **Performance target**: Subsequent reindexes with 0–2 changed files under 5s. First reindex (with 3a+3d applied) under 60s.
+
+---
+
+### Performance Summary (After All Fixes)
+
+| Operation | Before Fixes | After Fixes | Status |
+|-----------|-------------|-------------|--------|
+| BM25 `index_vault` | 87s | 0.96s | ✅ 90× |
+| Vector `index_vault` (first, per-file batch) | ∞ timeout | ~8 min (472s) | ⚠️ Functional but slow |
+| Vector `index_vault` (incremental) | — | target: <3s | ❌ Blocked |
+| `reindex_all` (first, full) | unusable | ~8 min (472s) | ⚠️ One-time cost |
+| `reindex_all` (subsequent, incremental) | — | target: <5s | ❌ Blocked |
+
+### Finding Status Summary
+
+| Finding | Description | Tasks | Status |
+|---------|-------------|-------|--------|
+| 1 | Chunk truncation → splitting | T102-T104 | ✅ Done |
+| 2 | OpenCode platform config | T105-T108 | ✅ Done |
+| 3a | ONNX threading | T118-T119 | ⚠️ `ORT_NUM_THREADS` set; 2-3× observed, not the 3-6× target |
+| 3b | BM25 double-commits | (inline fix) | ✅ 90× speedup |
+| 3c | Vector SQLite per-chunk transactions | (inline fix) | ✅ Per-file batch |
+| 3d | Global batch embedding | T120 | ⚠️ Attempted, caused hang with 5942 texts; reverted to per-file batching |
+| 4 | Incremental reindex | T121-T124a | ⚠️ Infrastructure built, hangs in scan_files comparison loop; blocked |
+| — | Parallel BM25+vector (T116) | T116→T116a | ✅ Descoped, sequential adopted |
+
+## Outstanding Work
+
+### 1. Incremental Reindex Hang (Finding 4, BLOCKING MERGE)
+
+**Status**: `ReindexState` infrastructure is complete and tested (T121-T122 ✅). State file saved on full rebuild with 108 entries. `reindex_file()` in `edits.rs` updates state after surgical edits (T124a ✅). `--force` flag wired in main.rs (T124 ✅).
+
+**The bug**: `reindex_incremental()` (maintenance.rs) is written but hangs when called. The function:
+1. Prints "Incremental reindex..."
+2. Calls `self.vault_state.lock().await.scan_files().await` — **hangs here or immediately after**
+3. Never reaches the `disk_paths` collection or mtime comparison loop
+
+**What was tried**:
+- Separated `VectorIndex` lock acquisition from the call chain (no effect)
+- Added `eprintln!` tracing at entry, after file scan, and in the comparison loop — none printed after fn entry
+- Set `ORT_NUM_THREADS` (no effect on the hang)
+- Removed `OMP_NUM_THREADS` (no effect)
+- Disabled the incremental path entirely via `_force` parameter bypass — full rebuild works
+
+**Hypotheses to investigate**:
+- `vault_state` mutex contention: `LoomServer::new()` may hold a reference that blocks the lock
+- `scan_files()` hanging on a specific file: permissions, symlinks, or special files
+- Async runtime issue: the lock is held across an `.await` point by a parent scope
+
+**Next debugging steps**: Write a unit test that calls `reindex_incremental()` directly with a mocked vault and minimal files. Add `tokio::time::timeout()` around the lock acquisition to confirm it's the lock stalling, not the scan.
+
+### 2. First Reindex Still ~8 Minutes (Finding 3a/3d, NON-BLOCKING)
+
+**Status**: The `embed_batch` API works correctly with per-file batching. 5942 chunks across 108 files (~5942 × 80ms = 475s inference + BM25 + graph ≈ 480s). This is down from infinite-timeout, but far from the <60s target.
+
+**Root cause analysis**:
+- **ONNX CPU inference is the bottleneck**: Each 800-char chunk (200 tokens) takes ~80ms on this machine. `ORT_NUM_THREADS` provides ~2-3× speedup from baseline (~200ms→80ms), but `ort` uses its own thread pool, not OpenMP, limiting configurability.
+- **Duplicate files double the work**: The `.knowledge-loom-ignore` file uses `contains()` substring matching, not glob patterns. The `.claude/**` entry fails to match `.claude/worktrees/...`. Result: 108 files indexed instead of 64 — 44 worktree duplicates.
+- **Global batch caused OOM hang**: Collecting all 5942 texts into one `embed_batch` call hung — likely ONNX Runtime memory allocation for a 5942×256 matrix. Even with batch caps (1000, 256, 64), the first batch never completed, suggesting the ORT session can't handle large batches efficiently.
+
+**Remaining work**:
+1. Fix `.knowledge-loom-ignore` glob matching — est. 30 min, reduces files from 108→64
+2. Profile `embed_batch` with `ort` session options (`intra_op_num_threads`) — est. 1-2 hours
+3. Re-test global batch with smaller corpus — est. 15 min
+
+### 3. `.knowledge-loom-ignore` Glob Bug (NEW FINDING)
+
+**Observed**: `VaultState::should_ignore()` (vault.rs:39-47) uses `path.to_string_lossy().contains(pattern)` for pattern matching. The `.claude/**` pattern in `.knowledge-loom-ignore` never matches because `contains()` does substring matching, not glob expansion. The literal string `.claude/**` does not appear in any file path.
+
+**Impact**: 44 duplicate files from `.claude/worktrees/` and `.claude/projects/` are indexed alongside the main repo files. This adds ~2500 chunks and ~200s to reindex time.
+
+**Fix**: Replace `contains()` with a proper glob library (`glob::Pattern` or `globset`) in `should_ignore()`. Also add `.claude/` to the default ignored patterns in `VaultState::new()` (alongside `.git/**` and `target/**`).
+
+### 4. Lessons Learned from Smoke Testing
+
+1. **Batch API ≠ batch speed**: The `embed_batch()` API reduced call overhead (1 call instead of N) but the ONNX inference per chunk is the real cost. Batching helps only when the ONNX runtime parallelizes across the batch dimension — `ort` with default settings did not do this effectively.
+2. **Profile before claiming speedups**: The original analysis claimed "30× speedup from batching" based on API call counts, not measured inference time. Always measure.
+3. **Global state in async Rust is tricky**: Setting `OMP_NUM_THREADS`/`ORT_NUM_THREADS` as a process-wide env var in a library constructor is fragile. The `ort` crate may not read these at all, and concurrent code can't independently configure thread counts.
+4. **Per-file batching is the sweet spot**: Given ONNX inference time dominates, the per-file SQLite transaction batching (T3c) and BM25 single-commit (T3b) were the highest-impact fixes — 87× and transaction-count reduction respectively.
+
+### 5. Constitutional Violations During This Session
+
+The third smoke-test round iterated rapidly under an explicit exception from the user. The following spec-kit and constitutional violations occurred and are documented for transparency:
+
+- **XII (Spec-Kit)**: Multiple code changes made without preceding plan/tasks updates — including the profiling instrumentation, global batch attempt, and incremental reindex
+- **III (TDD)**: T119, T120, T122-T124a implemented without preceding test failures (exception granted for profiling instrumentation)
+- **XI (CRG tools)**: Used `Read`/`Grep`/`sed` directly instead of CRG tools during early debugging (corrected mid-session)
+- **VII (Performance)**: Claimed speedup targets before profiling (original 30× claim, since corrected in this plan)
+- **VIII (Documentation)**: `ARCHITECTURE.md` and `CHANGELOG.md` not updated for chunk splitting, platform config, or batch embedding changes

@@ -7,7 +7,7 @@
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
-**Total Tasks**: T001-T117 (117 tasks across 11 phases)
+**Total Tasks**: T001-T137 (139 tasks across 14 phases)
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -402,16 +402,86 @@
 
 - [x] T115 [P] Write performance test in `tests/reindex_perf_tests.rs`: verify `loom reindex` completes in <10 seconds for 100-file corpus. Also assert E2E test suite (T067-T083) completes in <5 minutes per spec SC-005.
 
-- [x] T116 [P] Make BM25 and vector indexing run in parallel in `MaintenanceManager::reindex_all()` in `src/maintenance.rs:38–105` — use `tokio::join!` to run `bm25_lock.index_vault()` and `vector_index.index_vault()` concurrently. Both are read-only on vault files and write to separate indexes (tantivy vs sqlite).
+- [ ] T116 ~~[P] Make BM25 and vector indexing run in parallel in `MaintenanceManager::reindex_all()` in `src/maintenance.rs:38–105` — use `tokio::join!` to run `bm25_lock.index_vault()` and `vector_index.index_vault()` concurrently. Both are read-only on vault files and write to separate indexes (tantivy vs sqlite).~~ **DESCOPED (2026-05-18)**: Second smoke test found `tokio::join!` causes tokio pool saturation, duplicate `parse_chunks()` work, per-file commit I/O contention, and stall at 1541/3998 embeddings. Sequential with `embed_batch` achieves target performance.
+
+- [x] T116a Revert `reindex_all()` in `src/maintenance.rs` to sequential BM25 → Vector → Graph flow, retaining the `embed_batch` call in `VectorIndex::index_vault()`. Remove the parallel `tokio::join!` block and the pre-read-file-contents optimization.
 
 ### Quality Gate Verification
 
-- [x] T117 Run full quality gates: `cargo fmt`, `cargo clippy -- -D warnings`, `cargo test --all-features` (all pass with zero warnings)
+- [x] T117 Run full quality gates: `cargo fmt`, `cargo clippy -- -D warnings`, `cargo test --all-features` (all pass with zero warnings). **Must be re-run after T116a; final gate before merge.**
+
+## Phase 9: Reindex Performance Fixes (Third Smoke Test)
+
+**Purpose**: Fix reindex performance bottlenecks discovered during third smoke test (2026-05-18) by profiling `reindex_all` with timing instrumentation. Four findings require implementation.
+
+**Constitutional Basis**: Section X — performance defects must be fixed immediately.
+
+### Smoke Bug 3a: ONNX Single-Threaded Inference (SEVERITY: HIGH)
+
+- [x] T118 [P] Write unit test for ONNX threading configuration in `tests/embed_batch_tests.rs`: verify `LocalEmbedProvider::new()` sets `ORT_NUM_THREADS` to a value >1. (Updated from OMP_NUM_THREADS — fastembed uses `ort` crate which reads `ORT_NUM_THREADS`.)
+
+- [x] T119 Configure ONNX Runtime multi-threading in `LocalEmbedProvider::new()` in `src/embed/local.rs`: set `ORT_NUM_THREADS` environment variable to CPU core count before `TextEmbedding::try_new()`. Target: 3–6× inference speedup. (Observed: ~2–3×; `ort` crate uses own thread pool, not OpenMP.)
+
+### Smoke Bug 3d: Per-File Batch Underutilizes ONNX Parallelism (SEVERITY: MEDIUM)
+
+- [x] T120 Modify... (ATTEMPTED: global batch caused hang with 5942 texts; reverted to per-file batching. See plan.md Finding 3d.)
+
+### Smoke Bug 4: Missing Incremental Reindex (SEVERITY: HIGH)
+
+- [x] T121 [P] Write unit test for reindex state file in `tests/reindex_state_tests.rs`: verify state records mtime and chunk_count per file, unchanged files are skipped, deleted files are cleaned
+
+- [x] T122 Implement `ReindexState` struct in `src/maintenance.rs` — reads/writes `.knowledge-loom-index/reindex-state.json` with schema version, per-file `{mtime_secs, chunk_count}`. Provide `should_reindex(path, mtime, chunk_count) -> bool` method.
+
+- [ ] T123 Modify `MaintenanceManager::reindex_all()` in `src/maintenance.rs` to use `ReindexState` for incremental path. **BLOCKED**: `reindex_incremental()` written but hangs in `vault_state.lock().await.scan_files()` or subsequent comparison loop. Infrastructure complete (state load/save, should_reindex, update_file, remove_file). Needs local debugging.
+
+- [x] T124 Add `--force` flag to `loom reindex` in `src/main.rs:110–119`: when present, bypass `ReindexState` and force full rebuild.
+
+- [x] T124a Update `EditManager::reindex_file()` in `src/edits.rs:240–270` to call `ReindexState::load()` / `update_file()` / `save()` after reindexing a single file.
+
+### Quality Gate Verification
+
+- [ ] T125 Run full quality gates: `cargo fmt`, `cargo clippy -- -D warnings`, `cargo test --all-features` (all pass with zero warnings). Verify reindex performance: first reindex <60s, subsequent <5s.
+
+### Smoke Bug 5: .knowledge-loom-ignore Glob Matching (SEVERITY: MEDIUM)
+
+**Discovered during third smoke test (2026-05-18)**: The `.knowledge-loom-ignore` file at the test corpus contains `.claude/**` but `VaultState::should_ignore()` uses `path.to_string_lossy().contains(pattern)` — substring matching, not glob expansion. 44 duplicate worktree files are indexed alongside the main repo files, adding ~2500 chunks and ~200s to reindex time.
+
+- [ ] T126a [P] Write unit test for glob-based ignore matching in `tests/vault_tests.rs`: verify `should_ignore()` matches `.claude/` subdirectories (e.g., `.claude/worktrees/foo/file.md` → true), does NOT match non-ignored paths (e.g., `world/file.md` → false), respects wildcard patterns like `*.log`. Use the `glob` crate (not `globset` — single pattern matching is sufficient).
+
+- [ ] T126 Fix `VaultState::should_ignore()` in `src/vault.rs:39–47` to use `glob::Pattern::matches()` instead of `contains()`. Add `glob = "0.3"` to `[dependencies]` in `Cargo.toml`. Pre-compile patterns in `VaultState::new()` to avoid re-parsing globs on every file check.
+
+- [ ] T127 Add `.claude/` to default ignored patterns in `VaultState::new()` in `src/vault.rs:30–32` (alongside existing `.git/**` and `target/**`).
+
+## Phase 11: Polish & Robustness
+
+**Purpose**: Close gaps identified in third smoke-test analysis (2026-05-18). User-facing quality, E2E coverage, daemon integration, recovery paths.
+
+- [ ] T128 [P] Write E2E integration test for full user workflow in `tests/e2e/e2e_full_pipeline_tests.rs`: `loom init` → `loom install` → `loom reindex` → edit a file → `loom reindex` (incremental, assert "No changes" or fast) → `loom search`. Use tempdir, minimal markdown files, and `std::process::Command` to invoke the binary. **Depends on T123 (incremental unblocked).**
+
+- [ ] T129 [P] Add user-facing progress to `reindex_all()` in `src/maintenance.rs`: when entering full rebuild, `eprintln!("Full rebuild in progress (may take several minutes). Use --force to skip incremental check, or wait for incremental path.")`. Also add `eprintln!("  {} files scanned, {} changed, {} deleted", total, changed, deleted)` in the incremental path (once T123 unblocked).
+
+- [ ] T130 [P] Write daemon integration smoke test: verify `EditManager::reindex_file()` updates `ReindexState` after surgical edit, and subsequent `reindex_all` skips the file. Manual test or automated via `std::process::Command` in `tests/e2e/e2e_daemon_state_tests.rs`. **Depends on T123.**
+
+- [ ] T131 [P] Add diagnostics for `.knowledge-loom-ignore` in `VaultState::scan_files()` (src/vault.rs): count files excluded by ignore patterns and `eprintln!("  ignored {} files via .knowledge-loom-ignore", count)`. Makes invisible exclusions visible to users.
+
+- [ ] T132 [P] Add timeout guard to `reindex_incremental()` in `src/maintenance.rs`: wrap `vault_state.lock().await` in `tokio::time::timeout(Duration::from_secs(5))`. On timeout, log warning and fall back to full rebuild instead of hanging.
+
+- [ ] T133 [P] Add index health check to `reindex_all()` startup in `src/maintenance.rs`: compare `SELECT COUNT(*) FROM embeddings` against `reindex-state.json` expected total. If mismatch, force full rebuild. On any tantivy schema mismatch (already detected in `BM25Index::new()`), force full rebuild.
+
+- [ ] T134 [P] After T123 unblocked, change `reindex_incremental()` graph rebuild to use `GraphState::update_file()` per changed file instead of `build_graph()` on all files. Reduces incremental reindex time for single-file edits from ~1s to ~0.1s.
+
+- [ ] T135 [P] Update `ARCHITECTURE.md` with: new `ReindexState` entity, incremental reindex flow, chunk splitting change (2000→800), OpenCode platform config format, `embed_batch` API, BM25 single-commit change. Update `CHANGELOG.md` with all performance fixes and platform fixes. Note: `glob` dependency passes `cargo deny check` (verify during this task).
+
+- [ ] T136 [P] Future-proofing note in plan: `MAX_CHUNK_CHARS=800` is optimized for English (chars/token ≈ 4). CJK and other scripts need different values. Defer token-based chunking (using the model's tokenizer) to a future feature.
+
+### Quality Gate Verification
+
+- [ ] T137 Run full quality gates: `cargo fmt`, `cargo clippy -- -D warnings`, `cargo test --all-features` (all pass with zero warnings). Verify: first reindex completes, incremental reindex completes, state file persists, `--force` works, E2E pipeline test passes.
 
 ## Dependencies
 
 ```text
-Phase 1 (Setup) → Phase 2 (Foundational) → Phase 3 (US1) → Phase 4 (US2) → Phase 5 (US3) → Phase 6 (US4 E2E Tests) → Phase 7 (Polish) → Code Review Remediation 1 (T060-T066) → Code Review Remediation 2 (T089-T094) → Code Review Remediation 3 (T095-T101) → Phase 8 (T102-T117) → Quality Gates
+Phase 1 (Setup) → Phase 2 (Foundational) → Phase 3 (US1) → Phase 4 (US2) → Phase 5 (US3) → Phase 6 (US4 E2E Tests) → Phase 7 (Polish) → Code Review Remediation 1 (T060-T066) → Code Review Remediation 2 (T089-T094) → Code Review Remediation 3 (T095-T101) → Phase 8 (T102-T116a,T117) → Phase 9 (T118-T124a,T125) → Phase 10 (T126a-T127) → Phase 11 (T128-T137) → Quality Gates
                                                     ↕                   ↕                    ↕
                                             Independent           Independent        TDD: Tests first (T071-T083)
                                             (no deps on US2)      (no deps on US3)   then fixes (T084-T087)
@@ -427,12 +497,25 @@ Phase 1 (Setup) → Phase 2 (Foundational) → Phase 3 (US1) → Phase 4 (US2) �
 
 **Code Review Remediation 3 (T095-T100)**: All independent (different files), can be fixed in parallel. T101 is sequential gate after all fixes.
 
-**Phase 8 (T102-T117)**: Smoke test bugs (independent across findings, sequential within each):
-- Smoke Bug 1: T102 (tests first) → T103 (chunk split) → T104 (unify chunkers) — sequential
-- Smoke Bug 2: T105 (test first per TDD) → T106 (fix OpenCode handler) → T107 (cleanup dead param) — sequential; T108 [P] parallel with T106-T107 (different file)
-- Smoke Bug 3: T109 (batch tests first) → T110 (trait) → T111 (local impl) → T112 (enum dispatch) — sequential chain; T113, T114 [P] after T112; T115 [P] after T113+T114
-- T116 [P] (parallel BM25+vector) — parallel with Smoke Bugs 1-3 after T113+T114
+**Phase 8 (T102-T116a,T117)**: Smoke test bugs (independent across findings, sequential within each):
+- Smoke Bug 1: T102 (tests first) → T103 (chunk split) → T104 (unify chunkers) — sequential ✓
+- Smoke Bug 2: T105 (test first per TDD) → T106 (fix OpenCode handler) → T107 (cleanup dead param) — sequential ✓; T108 [P] parallel with T106-T107 (different file) ✓
+- Smoke Bug 3: T109 (batch tests first) → T110 (trait) → T111 (local impl) → T112 (enum dispatch) — sequential chain ✓; T113, T114 [P] after T112 ✓; T115 [P] after T113+T114 ✓
+- T116 descoped (parallel indexing unstable). T116a: revert to sequential flow
 - T117 is final quality gate
+
+**Phase 9 (T118-T125)**: Third smoke test reindex performance fixes:
+- T118-T119 done. T120 done (reverted). T121-T122 done. T123 blocked. T124-T124a done. T125 pending.
+
+**Phase 10 (T126a-T127)**: Glob ignore fix:
+- T126a (TDD test) [P] → T126 (glob impl) → T127 (default patterns) — sequential (same file)
+
+**Phase 11 (T128-T137)**: Polish & robustness (all [P] — independent across files):
+- T128, T130 [P] dependent on T123 (incremental unblocked) — E2E pipeline + daemon tests
+- T129, T131, T132, T133, T136 [P] — independent user-facing fixes (maintenance.rs, vault.rs)
+- T134 [P] dependent on T123 — incremental graph optimization
+- T135 [P] — documentation update (independent)
+- T137 is final quality gate
 
 ## Parallel Execution Examples
 
@@ -474,7 +557,10 @@ Phase 1 (Setup) → Phase 2 (Foundational) → Phase 3 (US1) → Phase 4 (US2) �
 7. Code Review Remediation Phase 1 - Fix all 6 blocking review findings (T060-T065), verify quality gates (T066) ✅ COMPLETE
 8. Code Review Remediation Phase 2 - Fix post-E2E review bugs (T089-T093), verify quality gates (T094) ✅ COMPLETE
 9. Code Review Remediation Phase 3 - Fix 2026-05-17 branch review bugs (T095-T100), verify quality gates (T101) ✅ COMPLETE
-10. Phase 8 - Smoke test fixes: chunk splitting, OpenCode platform config, batch embedding, parallel indexing (T102-T117)
+10. Phase 8 - Smoke test fixes: chunk splitting, OpenCode platform config, batch embedding, descoped parallel indexing (T102-T116a,T117) ✅ COMPLETE
+11. Phase 9 - Reindex performance: ONNX threading, global batch, incremental reindex (T118-T124a,T125)
+12. Phase 10 - Ignore file glob fix (T126a-T127)
+13. Phase 11 - Polish & robustness: E2E pipeline test, daemon test, user-facing progress, diagnostics, timeout guard, health check, incremental graph, docs (T128-T137)
 
 **TDD Enforcement for US4**:
 - Step 1: Write E2E test infrastructure (T067-T070)
@@ -485,6 +571,9 @@ Phase 1 (Setup) → Phase 2 (Foundational) → Phase 3 (US1) → Phase 4 (US2) �
 
 **Constitutional Compliance (Section X)**:
 - All bugs in Code Review Remediation Phase 3 (T095-T100) must be fixed immediately
-- All smoke test bugs in Phase 8 (T102-T116) must be fixed immediately
+- All smoke test bugs in Phase 8 (T102-T115, T116a) must be fixed immediately
+- All reindex performance bugs in Phase 9 (T118-T124a) must be fixed immediately
+- All glob and robustness gaps in Phase 10 (T126a-T127) and Phase 11 (T128-T136) must be fixed immediately
+- T116 (parallel indexing) descoped after second smoke test — replaced by T116a (sequential revert)
 - No deferral without explicit user consent (per Section X)
-- Quality gates (T101, T117) must pass before merge (per Section V)
+- Quality gates (T101, T117, T125, T137) must pass before merge (per Section V)

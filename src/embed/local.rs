@@ -110,6 +110,13 @@ impl LocalEmbedProvider {
             eprintln!("Failed to create models directory: {e}");
         });
 
+        // Configure ONNX Runtime for multi-threaded execution
+        if std::env::var("ORT_NUM_THREADS").is_err() {
+            let n_threads = std::thread::available_parallelism()
+                .map(|n| n.get())
+                .unwrap_or(4);
+            std::env::set_var("ORT_NUM_THREADS", n_threads.to_string());
+        }
         // Initialize fastembed model
         let init_options =
             InitOptions::new(EmbeddingModel::AllMiniLML6V2).with_show_download_progress(false);
