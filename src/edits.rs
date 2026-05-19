@@ -44,7 +44,12 @@ impl EditManager {
         let files = vault_lock.scan_files().await;
         files
             .into_iter()
-            .map(|p| p.to_string_lossy().to_string())
+            .map(|p| {
+                p.strip_prefix(&self.kb_root)
+                    .unwrap_or(&p)
+                    .to_string_lossy()
+                    .to_string()
+            })
             .collect()
     }
 
@@ -87,7 +92,11 @@ impl EditManager {
                 for (line_num, line) in content.lines().enumerate() {
                     if re.is_match(line) {
                         results.push((
-                            file_path.to_string_lossy().to_string(),
+                            file_path
+                                .strip_prefix(&self.kb_root)
+                                .unwrap_or(&file_path)
+                                .to_string_lossy()
+                                .to_string(),
                             line_num + 1,
                             line.to_string(),
                         ));
@@ -98,10 +107,20 @@ impl EditManager {
         results
     }
 
+    #[allow(dead_code)]
     pub async fn read_section(
         &self,
         file_path: &Path,
         heading: &str,
+    ) -> Result<Option<String>, std::io::Error> {
+        self.read_section_with_depth(file_path, heading, 0).await
+    }
+
+    pub async fn read_section_with_depth(
+        &self,
+        file_path: &Path,
+        heading: &str,
+        depth: usize,
     ) -> Result<Option<String>, std::io::Error> {
         let vault_lock = self.vault_state.lock().await;
         if let Some(content) = vault_lock.read_file(file_path).await {
@@ -110,12 +129,15 @@ impl EditManager {
             let mut section_content = Vec::new();
             let mut heading_level = 0;
 
-            for line in lines {
+            for line in &lines {
                 if line.trim().starts_with('#') {
                     if in_section {
-                        // Check if this is a heading of same or higher level
                         let current_level = line.chars().take_while(|c| *c == '#').count();
                         if current_level <= heading_level {
+                            break;
+                        }
+                        // Depth control: stop at the first heading deeper than allowed
+                        if depth > 0 && current_level > heading_level + depth {
                             break;
                         }
                     }
@@ -124,10 +146,10 @@ impl EditManager {
                     if !in_section && heading_text == heading {
                         in_section = true;
                         heading_level = line.chars().take_while(|c| *c == '#').count();
-                        section_content.push(line);
+                        section_content.push(*line);
                     }
                 } else if in_section {
-                    section_content.push(line);
+                    section_content.push(*line);
                 }
             }
 

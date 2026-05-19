@@ -141,7 +141,7 @@ impl LoomServer {
             ToolDef {
                 name: "read_section",
                 description: "Read content under a heading",
-                schema: json!({"type":"object","properties":{"file":{"type":"string"},"heading":{"type":"string"}},"required":["file","heading"]}),
+                schema: json!({"type":"object","properties":{"file":{"type":"string"},"heading":{"type":"string"},"depth":{"type":"integer","default":0,"description":"Max heading depth (0=full tree, 1=stop at first subheading)"}},"required":["file","heading"]}),
             },
             ToolDef {
                 name: "read_lines",
@@ -317,8 +317,13 @@ impl LoomServer {
             "read_section" => {
                 let file = str_arg("file")?;
                 let heading = str_arg("heading")?;
+                let depth = args.get("depth").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
                 let path = std::path::Path::new(kb).join(&file);
-                match self.edits.read_section(&path, &heading).await {
+                match self
+                    .edits
+                    .read_section_with_depth(&path, &heading, depth)
+                    .await
+                {
                     Ok(Some(content)) => Ok(content),
                     Ok(None) => Ok("Section not found".to_string()),
                     Err(e) => Err(e.to_string()),

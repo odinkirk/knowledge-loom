@@ -142,6 +142,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    - **Fixed reindex state tracking**: Added `ReindexState` with per-file mtime+chunk_count for incremental reindex. Subsequent `loom reindex` skips unchanged files (93ms vs minutes for full rebuild).
    - **Fixed tantivy lock contention**: Removed `check_schema()` from pre-reindex health check — it opened an IndexWriter, then `index_vault()` immediately tried to open another writer, causing `LockBusy` on every run.
    - **Fixed 10 edit test failures**: `BM25Index::index_file()` missing `commit()` after Phase 8 single-commit optimization. Added `BM25Index::commit()` called from `EditManager::reindex_file()`.
+   - **Fixed search returning entire files**: `search` now returns only BM25-scored chunks, not all chunks from matched files. Vector/graph fallback returns at most top-1 chunk. `top_k` applied to total section count, not file count.
+   - **Fixed graph tools returning zero edges**: `extract_wikilinks()` now handles both `[[wikilink]]` and `[text](path.md)` formats. `.md` extension stripped to match node naming.
+   - **Fixed symlink duplicate indexing**: `scan_files()` now canonicalizes paths via `std::fs::canonicalize()` and deduplicates by canonical form.
+   - **Fixed subdirectory ignore patterns**: `.knowledge-loom-ignore` patterns like `.venv/` now match in subdirectories (`tools/.venv/`), not just KB_ROOT.
+   - **Fixed index_status reporting zeros**: `get_index_status()` now queries actual BM25 document count, vector count, and graph edge count.
+   - **Added read_section depth parameter**: Optional `depth` param (default 0 = full tree, backward compatible). `depth=1` stops at first subheading.
+   - **Relative paths in tool outputs**: `list_files` and `grep` now return paths relative to KB_ROOT, immediately reusable as input to other tools.
 
   ### Changed
    - Reduced `MAX_CHUNK_CHARS` from 2000 to 800 to fit token window

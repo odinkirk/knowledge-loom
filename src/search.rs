@@ -184,29 +184,46 @@ impl SearchEngine {
             .collect();
 
         if !paths_needing_sections.is_empty() {
+            // For files with only vector/graph scores (no BM25 hit), include a single
+            // representative chunk — the top-ranked vector chunk if available, otherwise
+            // an empty sections entry. Do NOT dump the entire file via get_chunks_for_path.
             let bm25 = self.bm25.lock().await;
             for path in paths_needing_sections {
+                // Fetch only the top-scoring chunk from BM25 (which already has per-chunk indexing).
+                // If no BM25 chunk exists for this path (e.g., purely vector hit), leave sections empty.
                 if let Ok(chunks) = bm25.get_chunks_for_path(&path).await {
-                    let sections: Vec<SectionResult> = chunks
-                        .into_iter()
-                        .map(|c| SectionResult {
-                            heading: c.heading,
-                            content: c.content,
-                            line_start: c.line_start,
-                            line_end: c.line_end,
-                            chunk_ordinal: c.chunk_ordinal,
-                            score: 0.0,
-                        })
-                        .collect();
-                    // Find the result and set sections
-                    if let Some(r) = results.iter_mut().find(|r| r.path == path) {
-                        r.sections = sections;
+                    if let Some(best) = chunks.first() {
+                        if let Some(r) = results.iter_mut().find(|r| r.path == path) {
+                            r.sections = vec![SectionResult {
+                                heading: best.heading.clone(),
+                                content: best.content.clone(),
+                                line_start: best.line_start,
+                                line_end: best.line_end,
+                                chunk_ordinal: best.chunk_ordinal,
+                                score: 0.0,
+                            }];
+                        }
                     }
                 }
             }
         }
 
         results.truncate(top_k);
+
+        // Apply top_k to total sections, not just file count
+        let mut section_count = 0;
+        for result in &mut results {
+            let remaining = top_k.saturating_sub(section_count);
+            if remaining == 0 {
+                result.sections.clear();
+            } else if result.sections.len() > remaining {
+                result.sections.truncate(remaining);
+            }
+            section_count += result.sections.len();
+        }
+        // Remove results that ended up with zero sections after capping
+        results.retain(|r| !r.sections.is_empty());
+
         results
     }
 

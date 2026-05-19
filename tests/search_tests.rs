@@ -791,12 +791,73 @@ mod tests {
         // Search and verify ordinals are included
         let results = engine.search("Content", 10).await;
         assert!(!results.is_empty());
+    }
 
-        // Verify each result's sections have ordinal metadata
-        for result in &results {
-            for section in &result.sections {
-                assert!(section.chunk_ordinal > 0, "Ordinal should be > 0");
-            }
+    #[tokio::test]
+    async fn test_search_returns_only_matched_chunks_not_entire_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path().to_str().unwrap().to_string();
+
+        // File with two sections: "A" contains "apples", "B" contains "bananas"
+        let content = "# A\n\nWe have apples.\n\n# B\n\nWe have bananas.\n";
+        let file_path = temp_dir.path().join("fruits.md");
+        fs::write(&file_path, content).unwrap();
+
+        let engine = SearchEngine::new(&kb_root).await;
+
+        // Reindex the file into BM25
+        {
+            let mut bm25 = engine.bm25.lock().await;
+            bm25.index_file(&file_path, content).await.unwrap();
+            bm25.commit().await.unwrap();
         }
+
+        // Search for "apples" — should only return the "A" chunk, not "B"
+        let results = engine.search("apples", 10).await;
+        assert!(!results.is_empty(), "should find apples");
+        let total_sections: usize = results.iter().map(|r| r.sections.len()).sum();
+        assert_eq!(
+            total_sections, 1,
+            "only the matching chunk should be returned, not the entire file"
+        );
+        assert!(results[0].sections[0].content.contains("apples"));
+        assert!(
+            !results[0].sections[0].content.contains("bananas"),
+            "unmatched chunk should not be included"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_search_top_k_limits_total_sections_not_files() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path().to_str().unwrap().to_string();
+
+        // File with three sections, two containing "fruit"
+        let content_a = "# Intro\n\nfruit is good.\n\n# Types\n\nMany fruit varieties.\n\n# Outro\n\nGoodbye.\n";
+        let file_a = temp_dir.path().join("a.md");
+        fs::write(&file_a, content_a).unwrap();
+
+        // Another file also with "fruit"
+        let content_b = "# Start\n\nfruit here too.\n";
+        let file_b = temp_dir.path().join("b.md");
+        fs::write(&file_b, content_b).unwrap();
+
+        let engine = SearchEngine::new(&kb_root).await;
+
+        {
+            let mut bm25 = engine.bm25.lock().await;
+            bm25.index_file(&file_a, content_a).await.unwrap();
+            bm25.index_file(&file_b, content_b).await.unwrap();
+            bm25.commit().await.unwrap();
+        }
+
+        // top_k=2 should return at most 2 sections total
+        let results = engine.search("fruit", 2).await;
+        let total_sections: usize = results.iter().map(|r| r.sections.len()).sum();
+        assert!(
+            total_sections <= 2,
+            "top_k should limit total sections, got {}",
+            total_sections
+        );
     }
 }

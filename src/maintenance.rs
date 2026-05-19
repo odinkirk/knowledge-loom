@@ -424,19 +424,37 @@ impl MaintenanceManager {
             "files": files.len(),
             "kb_root": self.kb_root.to_string_lossy().to_string()
         });
+        drop(vault_lock);
+
+        let bm25_lock = self.bm25_index.lock().await;
+        let bm25_docs = bm25_lock.doc_count().unwrap_or(0);
+        drop(bm25_lock);
+
         status["bm25"] = serde_json::json!({
-            "documents": 0,
+            "documents": bm25_docs,
             "index_path": self.kb_root.join(".knowledge-loom-index/tantivy").to_string_lossy().to_string()
         });
+
+        let vector_lock = self.vector_index.lock().await;
+        let vector_count = vector_lock.count_embeddings().await.unwrap_or(0);
+        drop(vector_lock);
+
         status["embeddings"] = serde_json::json!({
-            "vectors": 0,
+            "vectors": vector_count,
             "index_path": self.kb_root.join(".knowledge-loom-index/embeddings.db").to_string_lossy().to_string()
         });
+
         let graph_lock = self.graph_state.lock().await;
         let node_count = graph_lock.node_map.lock().await.len();
+        let edge_count = {
+            let g = graph_lock.graph.lock().await;
+            g.edge_count()
+        };
+        drop(graph_lock);
+
         status["graph"] = serde_json::json!({
             "nodes": node_count,
-            "edges": 0,
+            "edges": edge_count,
             "index_path": self.kb_root.join(".knowledge-loom-index/graph.bin").to_string_lossy().to_string()
         });
         Ok(status)

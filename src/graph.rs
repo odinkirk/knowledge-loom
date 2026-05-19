@@ -7,6 +7,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 static WIKILINK_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+static MDLINK_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 
 #[derive(Serialize, Deserialize, Debug)]
 struct GraphData {
@@ -201,15 +202,38 @@ impl GraphState {
     }
 
     fn extract_wikilinks(&self, content: &str) -> HashSet<String> {
-        let re = WIKILINK_RE.get_or_init(|| {
+        let mut links = HashSet::new();
+
+        // [[wikilink]] (with optional |alias)
+        let re_double = WIKILINK_RE.get_or_init(|| {
             regex::Regex::new(r"\[\[([^\]|]+)(?:\|[^\]]+)?\]\]")
                 .expect("hardcoded wikilink regex is valid")
         });
+        for cap in re_double.captures_iter(content) {
+            if let Some(m) = cap.get(1) {
+                links.insert(m.as_str().trim().to_string());
+            }
+        }
 
-        re.captures_iter(content)
-            .filter_map(|cap| cap.get(1))
-            .map(|m| m.as_str().trim().to_string())
-            .collect()
+        // Standard Markdown: [text](path.md)
+        // Ignore URLs (http://, https://)
+        let re_md = MDLINK_RE.get_or_init(|| {
+            regex::Regex::new(r"\[[^\]]*\]\(([^)\s]+\.md)\)")
+                .expect("hardcoded markdown link regex is valid")
+        });
+        for cap in re_md.captures_iter(content) {
+            if let Some(m) = cap.get(1) {
+                let target = m.as_str().trim();
+                if target.starts_with("http://") || target.starts_with("https://") {
+                    continue;
+                }
+                // Strip .md extension to match node naming convention
+                let stripped = target.strip_suffix(".md").unwrap_or(target);
+                links.insert(stripped.to_string());
+            }
+        }
+
+        links
     }
 
     fn chunk_content(&self, content: &str) -> Vec<(Option<String>, String)> {
