@@ -144,13 +144,8 @@ impl MaintenanceManager {
             }
         }
 
-        // Index health check: verify tantivy schema and embedding count
+        // Index health check: verify embedding count (non-blocking, advisory)
         {
-            let bm25 = self.bm25_index.lock().await;
-            if let Err(e) = bm25.check_schema().await {
-                eprintln!("  BM25 index unavailable ({}); will rebuild.", e);
-            }
-            drop(bm25);
             let vector = self.vector_index.lock().await;
             let _ = self.verify_embedding_count(&state, &vector).await;
             drop(vector);

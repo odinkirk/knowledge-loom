@@ -137,15 +137,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    - Removed unimplemented `search_smart` tool from MCP interface
    - **Fixed broken glob matching in .knowledge-loom-ignore**: Replaced `contains()` substring match with `glob::Pattern` and directory-prefix matching. Patterns like `.claude/**` and `*.log` now work correctly. Added `.claude/` to default ignored patterns.
    - **Fixed OpenCode platform config**: `loom init --platform opencode` now writes correct `opencode.json` with `$schema`, `mcp` key, `type: "local"`, `command` as array, `environment` as object. No longer creates unwanted `.mcp.json`.
-   - **Fixed reindex performance (90× BM25 speedup)**: Single commit at end of `index_vault()` instead of per-file commits. 87s → 1s.
+   - **Fixed reindex performance (80× BM25 speedup)**: Single commit at end of `index_vault()` instead of per-file commits. 87s → 1.1s.
    - **Fixed chunk truncation**: Sections exceeding 800 chars are now split into multiple chunks instead of being silently truncated, preserving all content for search.
-   - **Fixed reindex state tracking**: Added `ReindexState` with per-file mtime+chunk_count for incremental reindex. Subsequent `loom reindex` skips unchanged files (<5s for 1-2 changes vs minutes for full rebuild).
+   - **Fixed reindex state tracking**: Added `ReindexState` with per-file mtime+chunk_count for incremental reindex. Subsequent `loom reindex` skips unchanged files (93ms vs minutes for full rebuild).
+   - **Fixed tantivy lock contention**: Removed `check_schema()` from pre-reindex health check — it opened an IndexWriter, then `index_vault()` immediately tried to open another writer, causing `LockBusy` on every run.
+   - **Fixed 10 edit test failures**: `BM25Index::index_file()` missing `commit()` after Phase 8 single-commit optimization. Added `BM25Index::commit()` called from `EditManager::reindex_file()`.
 
   ### Changed
-   - Reduced `MAX_CHUNK_CHARS` from 2000 to 800 to fit MiniLM's 256-token window
+   - Reduced `MAX_CHUNK_CHARS` from 2000 to 800 to fit token window
    - Vector embedding now uses batch inference (`embed_batch`) instead of per-chunk `embed()` calls
    - BM25 and Vector indexes now share consistent chunk boundaries via unified `parse_chunks()`
    - OpenCode platform config: removed `opencode` boolean parameter, format is always schema-conformant
+   - **Embedding model**: Switched from `AllMiniLML6V2` to `BGESmallENV15` (384-dim) for consistent 200s full-reindex on Intel CPU (MiniLM varied 147–552s due to thermal throttling). Incremental improved: 93ms vs 117ms.
 
 ## [0.1.0] - Initial Release
 

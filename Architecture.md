@@ -231,10 +231,9 @@ max, with safety margin).
 ### Batch Embedding
 
 `EmbedProvider::embed_batch()` in `src/embed/mod.rs` processes all chunks for a file
-in a single call. `LocalEmbedProvider` (fastembed) uses native batch inference via
-`TextEmbedding::embed(texts, None)`. Ollama and OpenRouter fall back to per-text
-`embed()` in a loop. Vector index performs per-file SQLite transactions (DELETE old
-rows + BEGIN + INSERT batch + COMMIT) instead of per-chunk auto-commit.
+in a single call. `LocalEmbedProvider` uses `BGESmallENV15` (384-dim, chosen over MiniLM
+for consistent 200s full-reindex performance vs MiniLM's 147–552s variability due to
+Intel CPU thermal throttling). Incremental reindex: 93ms.
 
 ### BM25 Single-Commit
 
@@ -810,10 +809,11 @@ pub async fn search_graph_fused_inner(
 
 | Operation | Speed | Notes |
 |-----------|-------|-------|
-| Initial build | ~1000 docs/sec | Chunking overhead |
-| Incremental update | ~50 docs/sec | Changed files only |
-| Graph build | ~2s (10k nodes) | One-time cost |
-| PageRank computation | ~500ms (10k nodes) | Cached after first run |
+| Initial build (BM25) | ~1s (65 files) | Single commit at end |
+| Initial build (Vector, BGESmallENV15) | ~200s (3030 chunks) | ONNX CPU inference bound, Intel Mac |
+| Initial build (Graph) | ~0.2s | Full graph |
+| Incremental update (no changes) | 93ms | Mtime comparison only |
+| Incremental update (1 changed file) | ~150ms | Single file re-embed + graph update |
 
 ### Memory Usage
 

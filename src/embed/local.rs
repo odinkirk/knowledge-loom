@@ -8,7 +8,7 @@ use super::error::{EmbedError, Result};
 /// Local embedding provider using fastembed
 ///
 /// This provider uses the fastembed library to generate embeddings locally
-/// using the all-MiniLM-L6-v2 model (384 dimensions).
+/// using the BGE-Small-EN-v1.5 model (384 dimensions).
 ///
 /// # Examples
 ///
@@ -26,7 +26,7 @@ pub struct LocalEmbedProvider {
     #[allow(dead_code)]
     models_dir: Arc<Path>,
     cache: Arc<tokio::sync::Mutex<EmbeddingCache>>,
-    /// The dimension of the embedding vectors (384 for all-MiniLM-L6-v2)
+    /// The dimension of the embedding vectors (384 for BGE-Small-EN-v1.5)
     #[allow(dead_code)]
     dimension: usize,
 }
@@ -119,7 +119,7 @@ impl LocalEmbedProvider {
         }
         // Initialize fastembed model
         let init_options =
-            InitOptions::new(EmbeddingModel::AllMiniLML6V2).with_show_download_progress(false);
+            InitOptions::new(EmbeddingModel::BGESmallENV15).with_show_download_progress(false);
 
         let model =
             TextEmbedding::try_new(init_options).expect("Failed to initialize fastembed model");
@@ -134,7 +134,7 @@ impl LocalEmbedProvider {
 
         eprintln!("Embedding cache initialized with size: {cache_size}");
 
-        // The dimension is a constant for all-MiniLM-L6-v2
+        // The dimension is a constant for BGE-Small-EN-v1.5
         let dimension = 384;
 
         Self {
@@ -296,7 +296,7 @@ impl LocalEmbedProvider {
     ///
     /// ```ignore
     /// let dim = provider.dimension();
-    /// assert_eq!(dim, 384); // for all-MiniLM-L6-v2
+    /// assert_eq!(dim, 384); // for BGE-Small-EN-v1.5
     /// ```
     #[must_use]
     #[allow(dead_code)]
