@@ -95,4 +95,93 @@ mod tests {
         assert_eq!(chunks[0].ordinal, 1);
         assert_eq!(chunks[1].ordinal, 2);
     }
+
+    #[tokio::test]
+    async fn test_glob_ignore_subdir_matching() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        fs::write(kb_root.join(".knowledge-loom-ignore"), ".claude/**").unwrap();
+
+        fs::create_dir_all(kb_root.join(".claude/worktrees/foo")).unwrap();
+        fs::write(kb_root.join(".claude/worktrees/foo/file.md"), "# Duplicate").unwrap();
+        fs::write(kb_root.join("world.md"), "# World").unwrap();
+
+        let vault = VaultState::new(kb_root.to_str().unwrap()).await;
+        let files = vault.scan_files().await;
+
+        assert_eq!(
+            files.len(),
+            1,
+            ".claude/ subtree should be ignored via glob"
+        );
+        assert!(files[0].ends_with("world.md"));
+    }
+
+    #[tokio::test]
+    async fn test_glob_ignore_wildcard_extension() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        fs::write(kb_root.join(".knowledge-loom-ignore"), "*.log").unwrap();
+
+        fs::write(kb_root.join("build.log"), "# Build log").unwrap();
+        fs::write(kb_root.join("catalogue.md"), "# Catalogue").unwrap();
+
+        let vault = VaultState::new(kb_root.to_str().unwrap()).await;
+        assert!(vault.should_ignore(&kb_root.join("build.log")));
+        assert!(vault.should_ignore(&kb_root.join("sub/build.log")));
+        assert!(vault.should_ignore(&kb_root.join("errors.log")));
+        assert!(!vault.should_ignore(&kb_root.join("catalogue.md")));
+    }
+
+    #[tokio::test]
+    async fn test_glob_ignore_no_false_positives() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        fs::write(
+            kb_root.join(".knowledge-loom-ignore"),
+            "sub/ignored.txt\n.claude/**",
+        )
+        .unwrap();
+
+        fs::write(kb_root.join("readme.md"), "# Readme").unwrap();
+        fs::write(kb_root.join("claude.md"), "# Claude").unwrap();
+        fs::create_dir_all(kb_root.join("sub")).unwrap();
+        fs::write(kb_root.join("sub/notes.md"), "# Notes").unwrap();
+
+        let vault = VaultState::new(kb_root.to_str().unwrap()).await;
+        let files = vault.scan_files().await;
+
+        assert_eq!(
+            files.len(),
+            3,
+            "all three md files should be included (none match glob patterns)"
+        );
+        let names: Vec<&str> = files
+            .iter()
+            .map(|f| f.file_name().unwrap().to_str().unwrap())
+            .collect();
+        assert!(names.contains(&"readme.md"));
+        assert!(names.contains(&"claude.md"));
+        assert!(names.contains(&"notes.md"));
+    }
+
+    #[tokio::test]
+    async fn test_glob_ignore_blanks_and_comments() {
+        let temp_dir = TempDir::new().unwrap();
+        let kb_root = temp_dir.path();
+
+        fs::write(
+            kb_root.join(".knowledge-loom-ignore"),
+            "\n# comment\n*.log\n\n",
+        )
+        .unwrap();
+
+        let vault = VaultState::new(kb_root.to_str().unwrap()).await;
+        assert!(vault.should_ignore(&kb_root.join("build.log")));
+        assert!(!vault.should_ignore(&kb_root.join("readme.md")));
+        assert!(!vault.should_ignore(&kb_root.join("# comment")));
+    }
 }

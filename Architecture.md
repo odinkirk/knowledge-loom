@@ -190,7 +190,58 @@ graph LR
  **Concurrent Edit Handling:**
   - Edits to the same file are serialized
   - Edit requests are queued during active re-indexing
-  - Queued requests are processed sequentially after re-indexing completes
+   - Queued requests are processed sequentially after re-indexing completes
+
+### ReindexState (Incremental Reindex)
+
+The `ReindexState` struct in `src/maintenance.rs` tracks per-file mtime and chunk counts
+across reindex runs, enabling incremental reindex on subsequent `loom reindex` invocations.
+State is persisted at `.knowledge-loom-index/reindex-state.json`.
+
+```json
+{
+  "schema_version": 1,
+  "files": {
+    "path/to/file.md": {
+      "mtime_secs": 1716000000,
+      "chunk_count": 3
+    }
+  }
+}
+```
+
+**Incremental flow**:
+1. On first run or `--force`: Full rebuild, save state file
+2. On subsequent runs: Compare disk mtimes against state; only reindex changed/deleted files
+3. Fallback: If incremental fails (lock timeout, state corruption), full rebuild runs automatically
+
+**Performance**:
+- Full first reindex: BM25 ~1s, Vector ~8min (CPU-bound ONNX inference), Graph ~1s
+- Incremental: <5s for 1-2 changed files (no vector inference on unchanged files)
+
+### Chunk Splitting
+
+Large sections (exceeding `MAX_CHUNK_CHARS = 800`) are split into multiple chunks at
+whitespace boundaries rather than truncated. Each split chunk shares the same heading
+breadcrumb and receives a sequential ordinal. Both BM25 and Vector indexes use
+`parse_chunks()` from `src/chunks.rs` for consistent chunk boundaries, improving
+RRF fusion quality. The 800-char limit targets ~200 tokens for MiniLM (256 token
+max, with safety margin).
+
+### Batch Embedding
+
+`EmbedProvider::embed_batch()` in `src/embed/mod.rs` processes all chunks for a file
+in a single call. `LocalEmbedProvider` (fastembed) uses native batch inference via
+`TextEmbedding::embed(texts, None)`. Ollama and OpenRouter fall back to per-text
+`embed()` in a loop. Vector index performs per-file SQLite transactions (DELETE old
+rows + BEGIN + INSERT batch + COMMIT) instead of per-chunk auto-commit.
+
+### BM25 Single-Commit
+
+`BM25Index::index_vault()` commits exactly once at the end of the full build rather
+than after each file (which previously caused 216 fsyncs for 108 files). Result:
+BM25 reindex dropped from 87s to ~1s (90× improvement).
+
 
 ## Model Download Flow
 

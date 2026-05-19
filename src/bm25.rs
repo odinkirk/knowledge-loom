@@ -154,6 +154,18 @@ impl BM25Index {
         *is_ingesting
     }
 
+    pub async fn check_schema(&self) -> Result<(), TantivyError> {
+        match self.index.writer::<TantivyDocument>(50_000_000) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub async fn commit(&self) -> Result<(), TantivyError> {
+        let mut writer_lock = self.writer.lock().await;
+        writer_lock.commit().map(|_| ())
+    }
+
     pub async fn index_file(
         &mut self,
         path: &Path,
@@ -168,7 +180,7 @@ impl BM25Index {
         let path_term = Term::from_field_text(path_field, &path_str);
 
         let chunks = chunks::parse_chunks(content);
-        let mut writer_lock = self.writer.lock().await;
+        let writer_lock = self.writer.lock().await;
         writer_lock.delete_term(path_term);
         for chunk in chunks {
             let mut doc = TantivyDocument::new();

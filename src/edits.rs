@@ -245,6 +245,8 @@ impl EditManager {
             let mut bm25 = self.bm25_index.lock().await;
             if let Err(e) = bm25.index_file(path, content).await {
                 errors.push(format!("BM25 index update failed: {}", e));
+            } else if let Err(e) = bm25.commit().await {
+                errors.push(format!("BM25 commit failed: {}", e));
             }
         }
         // Update vector embedding index
@@ -264,7 +266,7 @@ impl EditManager {
 
         // Update ReindexState so subsequent reindex_all skips this file
         if errors.is_empty() {
-            if let Ok(mut state) = std::fs::metadata(path).and_then(|m| m.modified()) {
+            if let Ok(state) = std::fs::metadata(path).and_then(|m| m.modified()) {
                 let mtime = state
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()

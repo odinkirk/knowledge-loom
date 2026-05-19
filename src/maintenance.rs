@@ -6,6 +6,7 @@ use crate::vault::VaultState;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::Mutex;
 
 /// Per-file state for incremental reindex tracking.
@@ -78,8 +79,7 @@ impl ReindexState {
         if let Some(parent) = self.state_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        let json = serde_json::to_string_pretty(self)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+        let json = serde_json::to_string_pretty(self).map_err(std::io::Error::other)?;
         std::fs::write(&self.state_path, json)
     }
 
@@ -116,13 +116,47 @@ impl MaintenanceManager {
         }
     }
 
-    pub async fn reindex_all(&self, _force: bool) -> Result<String, String> {
+    pub async fn reindex_all(&self, force: bool) -> Result<String, String> {
         let total_start = std::time::Instant::now();
         let mut state = ReindexState::load(&self.kb_root);
 
-        // Full rebuild always runs for now; incremental state is saved for next run.
-        // TODO: Incremental path (Finding 4) — state file saved, comparison logic written,
-        // but hangs inside reindex_incremental. Debug separately.
+        // Incremental path: only if not forced and state has previously tracked files
+        if !force && !state.files.is_empty() {
+            eprintln!(
+                "{} previously tracked files in state; attempting incremental reindex...",
+                state.files.len()
+            );
+            match self.reindex_incremental(&mut state).await {
+                Ok(msg) => {
+                    eprintln!(
+                        "  [perf] TOTAL reindex_all (incremental): {:?}",
+                        total_start.elapsed()
+                    );
+                    return Ok(msg);
+                }
+                Err(e) => {
+                    eprintln!(
+                        "  Incremental reindex failed ({}); falling back to full rebuild.",
+                        e
+                    );
+                    state = ReindexState::load(&self.kb_root);
+                }
+            }
+        }
+
+        // Index health check: verify tantivy schema and embedding count
+        {
+            let bm25 = self.bm25_index.lock().await;
+            if let Err(e) = bm25.check_schema().await {
+                eprintln!("  BM25 index corrupted ({}); forcing full rebuild.", e);
+            }
+            drop(bm25);
+            let vector = self.vector_index.lock().await;
+            let _ = self.verify_embedding_count(&state, &vector).await;
+            drop(vector);
+        }
+
+        eprintln!("Full rebuild in progress (may take several minutes). Use --force to skip incremental check, or wait for incremental path.");
         eprintln!("  [perf] starting full rebuild...");
 
         let mut bm25_lock = {
@@ -145,7 +179,7 @@ impl MaintenanceManager {
             let vector = self.vector_index.lock().await;
             let vault = self.vault_state.lock().await;
             vector
-                .index_vault(&*vault, &self.embed_provider)
+                .index_vault(&vault, &self.embed_provider)
                 .await
                 .map_err(|e| format!("Vector: {}", e))?
         };
@@ -183,7 +217,11 @@ impl MaintenanceManager {
                     .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                     .map(|d| d.as_secs())
                     .unwrap_or(0);
-                state.update_file(&relative, mtime, content.lines().count());
+                state.update_file(
+                    &relative,
+                    mtime,
+                    crate::chunks::parse_chunks(&content).len(),
+                );
             }
         }
         drop(vault_lock);
@@ -192,14 +230,50 @@ impl MaintenanceManager {
         Ok("Reindex complete.".to_string())
     }
 
-    #[allow(dead_code)]
+    async fn verify_embedding_count(
+        &self,
+        state: &ReindexState,
+        vector: &VectorIndex,
+    ) -> Result<(), String> {
+        let total_expected: usize = state.files.values().map(|f| f.chunk_count).sum();
+        if total_expected > 0 {
+            match vector.count_embeddings().await {
+                Ok(actual) if actual > 0 && (actual as f64 / total_expected as f64) < 0.5 => {
+                    eprintln!(
+                        "  Index health: embedding count {} is <50% of expected {}; forcing full rebuild.",
+                        actual, total_expected
+                    );
+                }
+                Ok(actual) => {
+                    eprintln!(
+                        "  Index health ok: {} embeddings (expected {}).",
+                        actual, total_expected
+                    );
+                }
+                Err(e) => {
+                    eprintln!("  Index health check failed: {}; continuing.", e);
+                }
+            }
+        }
+        Ok(())
+    }
+
     async fn reindex_incremental(&self, state: &mut ReindexState) -> Result<String, String> {
         let start = std::time::Instant::now();
-        let mut status_lines = Vec::new();
+        let mut status_lines: Vec<String> = Vec::new();
         status_lines.push("Incremental reindex...".to_string());
-        let _files = self.vault_state.lock().await.scan_files().await;
 
-        let files = self.vault_state.lock().await.scan_files().await;
+        let files = {
+            let guard = tokio::time::timeout(Duration::from_secs(10), self.vault_state.lock())
+                .await
+                .map_err(|_| "timeout acquiring vault lock for incremental reindex".to_string())?;
+            guard.scan_files().await
+        };
+
+        eprintln!(
+            "  {} files scanned, building comparison set...",
+            files.len()
+        );
         let disk_paths: std::collections::HashSet<String> = files
             .iter()
             .map(|p| {
@@ -216,17 +290,28 @@ impl MaintenanceManager {
             .into_iter()
             .map(|s| s.to_string())
             .collect();
+        let mut removed_count = 0;
         for path in &tracked {
             if !disk_paths.contains(path.as_str()) {
                 let full = self.kb_root.join(path);
-                let mut bm25 = self.bm25_index.lock().await;
-                let _ = bm25.remove_document(&full).await;
-                drop(bm25);
-                let vector = self.vector_index.lock().await;
-                let _ = vector.remove_file_embeddings(&full).await;
-                drop(vector);
+                {
+                    let mut bm25 = self.bm25_index.lock().await;
+                    let _ = bm25.remove_document(&full).await;
+                }
+                {
+                    let vector = self.vector_index.lock().await;
+                    let _ = vector.remove_file_embeddings(&full).await;
+                }
                 state.remove_file(path);
+                removed_count += 1;
             }
+        }
+        if removed_count > 0 {
+            status_lines.push(format!(
+                "  {} deleted files removed from indexes",
+                removed_count
+            ));
+            eprintln!("  {} deleted files removed from indexes", removed_count);
         }
 
         // Find changed files
@@ -255,50 +340,84 @@ impl MaintenanceManager {
         }
         drop(vault);
 
-        if changed.is_empty() {
+        if changed.is_empty() && removed_count == 0 {
             status_lines.push("No changes detected.".to_string());
-        } else {
-            status_lines.push(format!("Reindexing {} changed files", changed.len()));
-            let mut bm25 = self.bm25_index.lock().await;
-            bm25.set_ingesting(true).await;
-            for (fp, content) in &changed {
-                bm25.index_file(fp, content)
-                    .await
-                    .map_err(|e| format!("BM25: {}", e))?;
+            eprintln!("  No changes detected.");
+            let _ = state.save();
+            status_lines.push(format!(
+                "Incremental reindex complete in {:?}",
+                start.elapsed()
+            ));
+            return Ok(status_lines.join("\n"));
+        }
+
+        status_lines.push(format!(
+            "  {} file(s) changed, {} deleted — reindexing",
+            changed.len(),
+            removed_count
+        ));
+        eprintln!(
+            "  {} file(s) changed, {} deleted — reindexing",
+            changed.len(),
+            removed_count
+        );
+
+        let mut bm25 = self.bm25_index.lock().await;
+        bm25.set_ingesting(true).await;
+        for (fp, content) in &changed {
+            bm25.index_file(fp, content)
+                .await
+                .map_err(|e| format!("BM25: {}", e))?;
+            {
                 self.vector_index
                     .lock()
                     .await
                     .index_file(fp, content, &self.embed_provider)
                     .await
                     .map_err(|e| e.to_string())?;
-                let rel = fp
-                    .strip_prefix(&self.kb_root)
-                    .unwrap_or(fp)
-                    .to_string_lossy()
-                    .to_string();
-                state.update_file(
-                    &rel,
-                    std::fs::metadata(fp)
-                        .ok()
-                        .and_then(|m| m.modified().ok())
-                        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                        .map(|d| d.as_secs())
-                        .unwrap_or(0),
-                    crate::chunks::parse_chunks(content).len(),
-                );
             }
-            bm25.set_ingesting(false).await;
-            // Rebuild graph
-            self.graph_state
-                .lock()
-                .await
-                .build_graph(&*self.vault_state.lock().await)
-                .await
-                .map_err(|e| format!("Graph: {}", e))?;
+            let rel = fp
+                .strip_prefix(&self.kb_root)
+                .unwrap_or(fp)
+                .to_string_lossy()
+                .to_string();
+            let cur_mtime = std::fs::metadata(fp)
+                .ok()
+                .and_then(|m| m.modified().ok())
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            state.update_file(&rel, cur_mtime, crate::chunks::parse_chunks(content).len());
         }
+        bm25.set_ingesting(false).await;
+        drop(bm25);
+
+        // Incremental graph update: update_file for each changed file
+        if !changed.is_empty() {
+            eprintln!("  Updating graph for {} changed files...", changed.len());
+            let graph = self.graph_state.lock().await;
+            for (fp, content) in &changed {
+                let _ = graph.update_file(fp, content).await;
+            }
+            drop(graph);
+        }
+
         let _ = state.save();
-        status_lines
-            .push(format!("Incremental reindex complete in {:?}", start.elapsed()).to_string());
+        let elapsed = start.elapsed();
+        status_lines.push(format!(
+            "  {} files scanned, {} changed, {} deleted",
+            files.len(),
+            changed.len(),
+            removed_count
+        ));
+        status_lines.push(format!("Incremental reindex complete in {:?}", elapsed));
+        eprintln!(
+            "  Incremental reindex complete in {:?} (scanned {}, changed {}, deleted {})",
+            elapsed,
+            files.len(),
+            changed.len(),
+            removed_count
+        );
         Ok(status_lines.join("\n"))
     }
 

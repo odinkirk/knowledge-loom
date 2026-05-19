@@ -769,6 +769,10 @@ Note: The `mcpServers` key in the existing corpus file is NOT defined in the Ope
 
 ### 5. Constitutional Violations During This Session
 
+### 6. Token-Based Chunking (Future)
+
+`MAX_CHUNK_CHARS = 800` is optimized for English (chars/token ≈ 4, 800 chars ≈ 200 tokens). CJK and other scripts have different character-to-token ratios (e.g., Chinese: ~2 chars/token, so 800 chars ≈ 400 tokens, exceeding MiniLM's 256-token window). Token-based chunking using the model's tokenizer (e.g., via `tokenizers` crate or HF `tokenizers`) would produce language-agnostic chunks but adds complexity and ~10MB dependency weight. Defer to a future feature.
+
 The third smoke-test round iterated rapidly under an explicit exception from the user. The following spec-kit and constitutional violations occurred and are documented for transparency:
 
 - **XII (Spec-Kit)**: Multiple code changes made without preceding plan/tasks updates — including the profiling instrumentation, global batch attempt, and incremental reindex

@@ -123,6 +123,11 @@ impl VectorIndex {
         Ok(())
     }
 
+    pub async fn count_embeddings(&self) -> SqliteResult<i64> {
+        let conn_lock = self.conn.lock().await;
+        conn_lock.query_row("SELECT COUNT(*) FROM embeddings", [], |row| row.get(0))
+    }
+
     pub async fn index_file(
         &self,
         path: &Path,

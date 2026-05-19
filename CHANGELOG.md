@@ -134,7 +134,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Clippy warnings**: Fixed by using `std::io::Error::other()` instead of `std::io::Error::new(std::io::ErrorKind::Other, ...)`
   - Removed legacy Python installer references
   - Fixed path inconsistencies between old `.loom` and new `.knowledge-loom` structure
-  - Removed unimplemented `search_smart` tool from MCP interface
+   - Removed unimplemented `search_smart` tool from MCP interface
+   - **Fixed broken glob matching in .knowledge-loom-ignore**: Replaced `contains()` substring match with `glob::Pattern` and directory-prefix matching. Patterns like `.claude/**` and `*.log` now work correctly. Added `.claude/` to default ignored patterns.
+   - **Fixed OpenCode platform config**: `loom init --platform opencode` now writes correct `opencode.json` with `$schema`, `mcp` key, `type: "local"`, `command` as array, `environment` as object. No longer creates unwanted `.mcp.json`.
+   - **Fixed reindex performance (90× BM25 speedup)**: Single commit at end of `index_vault()` instead of per-file commits. 87s → 1s.
+   - **Fixed chunk truncation**: Sections exceeding 800 chars are now split into multiple chunks instead of being silently truncated, preserving all content for search.
+   - **Fixed reindex state tracking**: Added `ReindexState` with per-file mtime+chunk_count for incremental reindex. Subsequent `loom reindex` skips unchanged files (<5s for 1-2 changes vs minutes for full rebuild).
+
+  ### Changed
+   - Reduced `MAX_CHUNK_CHARS` from 2000 to 800 to fit MiniLM's 256-token window
+   - Vector embedding now uses batch inference (`embed_batch`) instead of per-chunk `embed()` calls
+   - BM25 and Vector indexes now share consistent chunk boundaries via unified `parse_chunks()`
+   - OpenCode platform config: removed `opencode` boolean parameter, format is always schema-conformant
 
 ## [0.1.0] - Initial Release
 
