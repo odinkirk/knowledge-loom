@@ -4,6 +4,7 @@
 #[cfg(test)]
 mod init_tests {
     use knowledge_loom::init::InitManager;
+    use knowledge_loom::model::MODEL_NAME;
     use tempfile::TempDir;
 
     #[test]
@@ -88,9 +89,9 @@ mod init_tests {
         std::fs::create_dir_all(&models_dir).unwrap();
 
         // Create metadata file
-        let metadata_file = models_dir.join("all-MiniLM-L6-v2.json");
+        let metadata_file = models_dir.join(format!("{}.json", MODEL_NAME));
         let metadata = knowledge_loom::model::ModelMetadata::new(
-            "all-MiniLM-L6-v2".to_string(),
+            MODEL_NAME.to_string(),
             "1.0.0".to_string(),
             "/path/to/model.onnx".to_string(),
             1000,
@@ -109,7 +110,7 @@ mod init_tests {
         let metadata = result.unwrap();
         assert!(metadata.is_some());
         let metadata = metadata.unwrap();
-        assert_eq!(metadata.model_name, "all-MiniLM-L6-v2");
+        assert_eq!(metadata.model_name, MODEL_NAME);
     }
 
     #[test]
@@ -125,9 +126,9 @@ mod init_tests {
         let instructions = instructions.unwrap();
 
         // Verify instructions contain key information
-        assert!(instructions.contains("all-MiniLM-L6-v2"));
+        assert!(instructions.contains("bge-small-en-v1.5"));
         assert!(instructions.contains(
-            "https://huggingface.co/Qdrant/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx"
+            "https://huggingface.co/Xenova/bge-small-en-v1.5/resolve/main/onnx/model.onnx"
         ));
         assert!(instructions.contains(".knowledge-loom-index/models"));
         assert!(instructions.contains("SHA-256"));

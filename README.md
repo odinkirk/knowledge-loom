@@ -73,7 +73,7 @@ Quick overview:
 | **Storage** | Chunking strategy | 2000 char chunks with whitespace truncation | `bm25::MAX_CHUNK_CHARS` |
 | **Embedding** | Local provider | Built-in embedding support | `LocalEmbedProvider` |
 | **Embedding** | Ollama provider | Optional Ollama integration | `OllamaEmbedProvider` |
-| **Exclusions** | .loomignore support | Gitignore-style file exclusion | `VaultState` |
+| **Exclusions** | .knowledge-loom-ignore | Glob-style file exclusion | `VaultState` |
 
 ---
 
@@ -201,10 +201,11 @@ loom_rank_notes
  - Ordinals are preserved across re-indexing when chunk count doesn't change
  - Ordinals are reassigned when chunks are split or merged
 
- **Re-indexing Behavior:**
- - Edits trigger automatic file-specific re-indexing
- - Re-indexing failures trigger corpus re-ingestion (<3 seconds)
- - During re-ingestion, requests return "indexing: try again in 2 seconds"
+  **Re-indexing Behavior:**
+  - Edits trigger automatic file-specific re-indexing (BM25 + Vector + Graph)
+  - Re-indexing failures trigger full corpus re-ingestion
+  - Incremental reindex (<100ms for unchanged vaults, ~150ms for single-file changes)
+  - First full reindex: ~200s (65 files, 3030 chunks, BGESmallENV15, Intel Mac)
 
  **Index Rebuild Instructions:**
  ```bash
@@ -252,10 +253,10 @@ Knowledge Loom supports multiple embedding providers with automatic fallback:
 **Provider Priority**: OpenRouter > Ollama > Local
 
 #### Local Provider (Default)
-- **Model**: all-MiniLM-L6-v2 (384 dimensions)
-- **Performance**: <100ms per embedding
+- **Model**: BGESmallENV15 (384 dimensions), auto-downloaded by fastembed
+- **Performance**: ~65ms per chunk (800 chars, Intel Mac), ~200s full reindex (3030 chunks)
 - **Setup**: No configuration required, works out of the box
-- **Storage**: Models cached in `.knowledge-loom-index/models/`
+- **Alternate**: AllMiniLML6V2 available by changing `EmbeddingModel` in `src/embed/local.rs`
 
 #### Ollama Provider
 - **Model**: nomic-embed-text-v1.5 (768 dimensions)
@@ -324,11 +325,12 @@ Knowledge Loom supports multiple embedding providers with automatic fallback:
 | Vector search latency | ~50ms | For 10k documents (sqlite-vec) |
 | Graph analytics latency | ~100ms | For 10k nodes (cached) |
 | Unified search latency | ~150ms | For 10k documents (parallel) |
-| Indexing speed | ~1000 docs/sec | Initial build |
-| Incremental reindex | ~50 docs/sec | Changed files only |
+| Indexing speed (first, full) | ~200s (65 files) | Initial build, ONNX CPU inference bound |
+| Incremental reindex | <100ms | Mtime comparison, no changes |
+| Incremental reindex (1 file changed) | ~150ms | Single file re-embed + graph update |
 | Memory usage | ~200MB | For 10k documents |
 | Disk usage | ~500MB | For 10k documents (all indexes) |
-| Graph build time | ~2s | For 10k nodes |
+| Graph build time | ~0.2s | For 65 nodes |
 | PageRank computation | ~500ms | For 10k nodes (100 iterations) |
 
 *Note: Benchmarks run on MacBook Pro M1, 16GB RAM. Your results may vary.*
@@ -422,10 +424,11 @@ The Rust binary provides CLI commands for testing and development:
 
 ## Excluding Files
 
-Create a `.loomignore` file in your knowledge directory. It supports the same patterns
-as `.gitignore`: directory patterns (`.venv/`), file globs (`*.dist-info/`), and exact names.
+Create a `.knowledge-loom-ignore` file in your knowledge directory. It supports glob-style
+patterns: directory patterns (`.claude/`), wildcard file patterns (`*.log`) and full
+subdirectory patterns (`.claude/**`). Blank lines and `#` comments are supported.
 
-Files matching patterns in `.loomignore` will be excluded from indexing.
+Files matching patterns in `.knowledge-loom-ignore` will be excluded from indexing.
 
 ---
 
@@ -444,12 +447,17 @@ If automatic model download fails during `loom init`, you can manually download 
 1. **Download the model file**:
    ```bash
    # Using curl
-   curl -L -o .knowledge-loom-index/models/all-MiniLM-L6-v2.onnx \
-     https://huggingface.co/Qdrant/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx
+   curl -L -o .knowledge-loom-index/models/model.onnx \
+     https://huggingface.co/Xenova/bge-small-en-v1.5/resolve/main/onnx/model.onnx
 
    # Using wget
-   wget -O .knowledge-loom-index/models/all-MiniLM-L6-v2.onnx \
-     https://huggingface.co/Qdrant/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx
+   wget -O .knowledge-loom-index/models/model.onnx \
+     https://huggingface.co/Xenova/bge-small-en-v1.5/resolve/main/onnx/model.onnx
+   ```
+
+2. **Move the model** (if downloaded elsewhere):
+   ```bash
+   mv model.onnx .knowledge-loom-index/models/
    ```
 
 2. **Create the models directory** (if it doesn't exist):

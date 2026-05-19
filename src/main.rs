@@ -10,6 +10,7 @@ mod embed;
 mod graph;
 mod index;
 mod init;
+mod install;
 mod maintenance;
 mod model;
 mod platforms;
@@ -23,9 +24,36 @@ mod web;
 async fn main() {
     match args().nth(1).as_deref() {
         Some("init") => {
-            if let Err(e) = init::run_init(args().skip(1).collect()) {
+            if let Err(e) = init::run_init_async(args().skip(1).collect()).await {
                 eprintln!("knowledge-loom init failed: {e}");
                 exit(1);
+            }
+        }
+        Some("install") => {
+            let force = knowledge_loom::cli::args::parse_flag("force", Some("f"));
+            let kb_root = std::env::var("KB_ROOT")
+                .unwrap_or_else(|_| ".".to_string())
+                .into();
+            match install::run_install(kb_root, force).await {
+                Ok(summary) => {
+                    println!(
+                        "Installed {} ({:.1} MB) to {}",
+                        summary.model_version,
+                        summary.size_bytes as f64 / 1_000_000.0,
+                        summary.target_location
+                    );
+                    println!("Checksum: {}", summary.checksum);
+                }
+                Err(install::InstallError::AlreadyInstalled) => {
+                    println!(
+                        "fastembed model already installed and valid. Use --force to re-download."
+                    );
+                }
+                Err(e) => {
+                    eprintln!("ERROR: {}", e);
+                    eprintln!("Run with --force to retry: loom install --force");
+                    exit(1);
+                }
             }
         }
         Some("shell") => {
@@ -80,11 +108,12 @@ async fn main() {
             }
         }
         Some("reindex") => {
+            let force = args().any(|a| a == "--force");
             let server =
                 server::LoomServer::new(&std::env::var("KB_ROOT").expect("KB_ROOT required")).await;
             server
                 .maintenance
-                .reindex_all()
+                .reindex_all(force)
                 .await
                 .expect("reindex failed");
             eprintln!("Reindex complete.");
@@ -124,6 +153,10 @@ fn print_usage() {
     eprintln!(
         "  loom init [dir]    Initialize knowledge-loom in a directory (default: current dir)"
     );
+    eprintln!(
+        "  loom install       Download runtime data (fastembed models) to .knowledge-loom/models/"
+    );
+    eprintln!("  loom install --force  Re-download runtime data even if already installed");
     eprintln!("  loom daemon        Daemon management (start|stop|status|logs|add|remove)");
     eprintln!("  loom reindex       Reindex knowledge base (used by daemon)");
     eprintln!("  loom web [--port]  Start read-only web UI (default port 8080)");

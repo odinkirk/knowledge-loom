@@ -7,6 +7,7 @@ pub const GITIGNORE_ENTRY_INDEX: &str = ".knowledge-loom-index/";
 
 pub mod bm25;
 pub mod chunks;
+pub mod cli;
 pub mod daemon;
 pub mod download;
 pub mod edits;
@@ -14,6 +15,7 @@ pub mod embed;
 pub mod graph;
 pub mod index;
 pub mod init;
+pub mod install;
 pub mod maintenance;
 pub mod model;
 pub mod platforms;

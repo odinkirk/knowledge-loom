@@ -1,17 +1,82 @@
-use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use tokio::fs;
 use walkdir::WalkDir;
 
+struct IgnorePattern {
+    /// If Some, the path must start with this prefix (directory match).
+    dir_prefix: Option<String>,
+    /// If Some, compile glob::Pattern for filename/path matching.
+    glob_pattern: Option<glob::Pattern>,
+    /// Original text for display.
+    #[allow(dead_code)]
+    raw: String,
+}
+
+impl IgnorePattern {
+    fn from_string(raw: String) -> Self {
+        // Directory pattern: ends with "/" or "/**"
+        if raw.ends_with("/**") {
+            let prefix = raw[..raw.len() - 3].to_string();
+            return Self {
+                dir_prefix: Some(prefix),
+                glob_pattern: None,
+                raw,
+            };
+        }
+        if raw.ends_with('/') {
+            let prefix = raw[..raw.len() - 1].to_string();
+            return Self {
+                dir_prefix: Some(prefix),
+                glob_pattern: None,
+                raw,
+            };
+        }
+        // Try to compile as glob pattern
+        if let Ok(pat) = glob::Pattern::new(&raw) {
+            Self {
+                dir_prefix: None,
+                glob_pattern: Some(pat),
+                raw,
+            }
+        } else {
+            // Fallback: substring match (shouldn't happen with valid glob)
+            Self {
+                dir_prefix: None,
+                glob_pattern: None,
+                raw,
+            }
+        }
+    }
+
+    fn matches(&self, relative: &str) -> bool {
+        if let Some(ref prefix) = self.dir_prefix {
+            return relative == prefix || relative.starts_with(&format!("{}/", prefix));
+        }
+        if let Some(ref pat) = self.glob_pattern {
+            // Match against the full relative path
+            if pat.matches(relative) {
+                return true;
+            }
+            // Also try matching just the filename component
+            if let Some(name) = Path::new(relative).file_name().and_then(|n| n.to_str()) {
+                if pat.matches(name) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+}
+
 pub struct VaultState {
     pub kb_root: PathBuf,
-    pub ignored_patterns: HashSet<String>,
+    ignored_patterns: Vec<IgnorePattern>,
 }
 
 impl VaultState {
     pub async fn new(kb_root: &str) -> Self {
         let kb_root_path = PathBuf::from(kb_root);
-        let mut ignored_patterns = HashSet::new();
+        let mut ignored_patterns: Vec<IgnorePattern> = Vec::new();
 
         // Load .knowledge-loom-ignore if exists
         let loomignore_path = kb_root_path.join(".knowledge-loom-ignore");
@@ -20,15 +85,16 @@ impl VaultState {
                 for line in content.lines() {
                     let line = line.trim();
                     if !line.is_empty() && !line.starts_with('#') {
-                        ignored_patterns.insert(line.to_string());
+                        ignored_patterns.push(IgnorePattern::from_string(line.to_string()));
                     }
                 }
             }
         }
 
-        // Also respect standard gitignore patterns
-        ignored_patterns.insert(".git/**".to_string());
-        ignored_patterns.insert("target/**".to_string());
+        // Default ignored patterns
+        ignored_patterns.push(IgnorePattern::from_string(".git/**".to_string()));
+        ignored_patterns.push(IgnorePattern::from_string("target/**".to_string()));
+        ignored_patterns.push(IgnorePattern::from_string(".claude/**".to_string()));
 
         Self {
             kb_root: kb_root_path,
@@ -36,10 +102,17 @@ impl VaultState {
         }
     }
 
+    fn relative_path(&self, path: &Path) -> String {
+        path.strip_prefix(&self.kb_root)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .to_string()
+    }
+
     pub fn should_ignore(&self, path: &Path) -> bool {
-        // Check if path matches any ignored patterns
+        let relative = self.relative_path(path);
         for pattern in &self.ignored_patterns {
-            if path.to_string_lossy().contains(pattern) {
+            if pattern.matches(&relative) {
                 return true;
             }
         }
@@ -48,6 +121,7 @@ impl VaultState {
 
     pub async fn scan_files(&self) -> Vec<PathBuf> {
         let mut files = Vec::new();
+        let mut ignored_count = 0;
 
         for entry in WalkDir::new(&self.kb_root)
             .follow_links(true)
@@ -55,12 +129,20 @@ impl VaultState {
             .filter_map(|e| e.ok())
         {
             let path = entry.path();
-            if path.is_file() && !self.should_ignore(path) {
-                // Only include markdown files for now
-                if path.extension().and_then(|s| s.to_str()) == Some("md") {
+            if path.is_file() {
+                if self.should_ignore(path) {
+                    ignored_count += 1;
+                } else if path.extension().and_then(|s| s.to_str()) == Some("md") {
                     files.push(path.to_path_buf());
                 }
             }
+        }
+
+        if ignored_count > 0 {
+            eprintln!(
+                "  ignored {} files via .knowledge-loom-ignore",
+                ignored_count
+            );
         }
 
         files

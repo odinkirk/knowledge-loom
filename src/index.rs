@@ -48,6 +48,7 @@ impl VectorIndex {
         }
     }
 
+    #[allow(dead_code)]
     pub async fn upsert_embedding(
         &self,
         path: &Path,
@@ -122,35 +123,67 @@ impl VectorIndex {
         Ok(())
     }
 
+    pub async fn count_embeddings(&self) -> SqliteResult<i64> {
+        let conn_lock = self.conn.lock().await;
+        conn_lock.query_row("SELECT COUNT(*) FROM embeddings", [], |row| row.get(0))
+    }
+
     pub async fn index_file(
         &self,
         path: &Path,
         content: &str,
         embed_provider: &crate::embed::EmbedProviderEnum,
     ) -> Result<(usize, usize), rusqlite::Error> {
-        self.remove_file_embeddings(path).await?;
-        let chunks = self.chunk_content(content);
-        let mut successful_count = 0;
-        let mut failed_count = 0;
+        let chunks = crate::chunks::parse_chunks(content);
+        if chunks.is_empty() {
+            return Ok((0, 0));
+        }
 
-        for (heading, chunk_content) in chunks {
-            let embedding = match embed_provider.embed(&chunk_content).await {
-                Ok(vec) => vec,
-                Err(e) => {
-                    eprintln!(
-                        "Failed to generate embedding for chunk in {}: {}. Skipping this chunk.",
-                        path.display(),
-                        e
-                    );
-                    failed_count += 1;
-                    // Skip this chunk if embedding fails
-                    continue;
-                }
-            };
-            self.upsert_embedding(path, heading.as_deref(), &chunk_content, &embedding)
-                .await?;
+        let texts: Vec<String> = chunks.iter().map(|c| c.content.clone()).collect();
+        let embeddings = match embed_provider.embed_batch(&texts).await {
+            Ok(vec) => vec,
+            Err(e) => {
+                eprintln!(
+                    "Failed to generate batch embedding for {}: {}. Skipping file.",
+                    path.display(),
+                    e
+                );
+                return Ok((0, chunks.len()));
+            }
+        };
+
+        let mut successful_count: usize = 0;
+        let conn_lock = self.conn.lock().await;
+
+        // Delete old rows and insert new ones in a single transaction
+        let relative_path = path
+            .strip_prefix(&self.kb_root)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .to_string();
+        conn_lock.execute(
+            "DELETE FROM embeddings WHERE path = ?1",
+            params![relative_path],
+        )?;
+
+        conn_lock.execute_batch("BEGIN TRANSACTION")?;
+        for (chunk, embedding) in chunks.iter().zip(embeddings.iter()) {
+            let heading = chunk
+                .heading
+                .as_deref()
+                .map(|s| s.to_string())
+                .unwrap_or_default();
+            let embedding_blob = bytemuck::cast_slice(embedding);
+            conn_lock.execute(
+                "INSERT OR REPLACE INTO embeddings (path, heading, content, embedding) VALUES (?1, ?2, ?3, ?4)",
+                params![relative_path, heading, &chunk.content, embedding_blob],
+            )?;
             successful_count += 1;
         }
+        conn_lock.execute_batch("COMMIT")?;
+        drop(conn_lock);
+
+        let failed_count = chunks.len().saturating_sub(successful_count);
 
         // Log summary of indexing results
         if failed_count > 0 {
@@ -175,7 +208,7 @@ impl VectorIndex {
 
         let mut stmt = conn_lock.prepare(
             "
-            SELECT path, heading, content, vec_distance_cosine(embedding, ?1) as distance
+            SELECT path, heading, content, COALESCE(vec_distance_cosine(embedding, ?1), 1.0) as distance
             FROM embeddings
             ORDER BY distance
             LIMIT ?2
@@ -206,78 +239,66 @@ impl VectorIndex {
         let files = vault_state.scan_files().await;
         let mut total_successful = 0;
         let mut total_failed = 0;
-        let mut files_with_failures = 0;
 
         for file_path in files {
-            if let Some(content) = vault_state.read_file(&file_path).await {
-                self.remove_file_embeddings(&file_path).await?;
-                let chunks = self.chunk_content(&content);
-                let mut file_successful = 0;
-                let mut file_failed = 0;
-
-                for (heading, chunk_content) in chunks {
-                    let embedding = match embed_provider.embed(&chunk_content).await {
-                        Ok(vec) => vec,
-                        Err(e) => {
-                            eprintln!("Failed to generate embedding for chunk in {}: {}. Skipping this chunk.", file_path.display(), e);
-                            file_failed += 1;
-                            // Skip this chunk if embedding fails
-                            continue;
-                        }
-                    };
-                    self.upsert_embedding(
-                        &file_path,
-                        heading.as_deref(),
-                        &chunk_content,
-                        &embedding,
-                    )
-                    .await?;
-                    file_successful += 1;
-                }
-
-                total_successful += file_successful;
-                total_failed += file_failed;
-                if file_failed > 0 {
-                    files_with_failures += 1;
-                }
+            let content = match vault_state.read_file(&file_path).await {
+                Some(c) => c,
+                None => continue,
+            };
+            let chunks = crate::chunks::parse_chunks(&content);
+            if chunks.is_empty() {
+                continue;
             }
+
+            // Per-file batch embed
+            let texts: Vec<String> = chunks.iter().map(|c| c.content.clone()).collect();
+            let embeddings = match embed_provider.embed_batch(&texts).await {
+                Ok(vec) => vec,
+                Err(e) => {
+                    eprintln!("embed_batch failed for {}: {}", file_path.display(), e);
+                    total_failed += chunks.len();
+                    continue;
+                }
+            };
+
+            // SQLite per-file transaction
+            let conn_lock = self.conn.lock().await;
+            let relative_path = file_path
+                .strip_prefix(&self.kb_root)
+                .unwrap_or(&file_path)
+                .to_string_lossy()
+                .to_string();
+            conn_lock.execute(
+                "DELETE FROM embeddings WHERE path = ?1",
+                params![relative_path],
+            )?;
+            conn_lock.execute_batch("BEGIN TRANSACTION")?;
+            for (chunk, embedding) in chunks.iter().zip(embeddings.iter()) {
+                let heading = chunk
+                    .heading
+                    .as_deref()
+                    .map(|s| s.to_string())
+                    .unwrap_or_default();
+                let embedding_blob = bytemuck::cast_slice(embedding);
+                conn_lock.execute(
+                    "INSERT OR REPLACE INTO embeddings (path, heading, content, embedding) VALUES (?1, ?2, ?3, ?4)",
+                    params![relative_path, heading, &chunk.content, embedding_blob],
+                )?;
+            }
+            conn_lock.execute_batch("COMMIT")?;
+            drop(conn_lock);
+            total_successful += chunks.len();
         }
 
-        // Log summary of indexing results
-        if total_failed > 0 {
-            eprintln!(
-                "Vault indexing completed: {} total chunks, {} successful, {} failed across {} files",
-                total_successful + total_failed,
-                total_successful,
-                total_failed,
-                files_with_failures
-            );
-        }
-
-        Ok((total_successful, total_failed, files_with_failures))
+        Ok((total_successful, total_failed, 0))
     }
 
-    pub fn chunk_content(&self, content: &str) -> Vec<(Option<String>, String)> {
-        let mut chunks = Vec::new();
-        let mut current_heading: Option<String> = None;
-        let mut current_content = String::new();
-
-        for line in content.lines() {
-            // Strip any heading level (H1-H6): 1-6 # chars followed by space
-            if let Some(stripped) = line.trim_start_matches('#').strip_prefix(" ") {
-                if !current_content.trim().is_empty() || current_heading.is_some() {
-                    chunks.push((current_heading.take(), current_content.trim().to_string()));
-                    current_content.clear();
-                }
-                current_heading = Some(stripped.to_string());
-            } else {
-                current_content.push_str(line);
-                current_content.push('\n');
-            }
-        }
-        if !current_content.trim().is_empty() || current_heading.is_some() {
-            chunks.push((current_heading, current_content.trim().to_string()));
-        }
-        chunks
+    #[allow(dead_code)]
+    pub fn chunk_content(&self, _content: &str) -> Vec<(Option<String>, String)> {
+        // Replaced by crate::chunks::parse_chunks — kept for API compatibility
+        crate::chunks::parse_chunks(_content)
+            .into_iter()
+            .map(|c| (c.heading, c.content))
+            .collect()
     }
 }

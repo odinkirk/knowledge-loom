@@ -8,7 +8,7 @@ async fn test_list_tools_returns_23_entries() {
     let kb_root = tmp.path().to_str().unwrap();
     let server = LoomServer::new(kb_root).await;
     let tools = server.tool_list();
-    let names: Vec<&str> = tools.iter().map(|t| t.name.as_ref()).collect();
+    let names: Vec<&str> = tools.iter().map(|t| t.name).collect();
     assert_eq!(
         tools.len(),
         23,
@@ -24,7 +24,7 @@ async fn test_list_tools_has_expected_names() {
     let kb_root = tmp.path().to_str().unwrap();
     let server = LoomServer::new(kb_root).await;
     let tools = server.tool_list();
-    let names: Vec<&str> = tools.iter().map(|t| t.name.as_ref()).collect();
+    let names: Vec<&str> = tools.iter().map(|t| t.name).collect();
     for expected in &[
         "search",
         "list_files",
@@ -438,7 +438,8 @@ async fn test_dispatch_tool_with_optional_params() {
 #[tokio::test]
 async fn test_mcp_tool_includes_ordinal() {
     let tmp = TempDir::new().unwrap();
-    let server = LoomServer::new(tmp.path().to_str().unwrap()).await;
+    let kb_root = tmp.path().to_str().unwrap();
+    let server = LoomServer::new(kb_root).await;
 
     // Create a test file with multiple sections
     let test_path = tmp.path().join("test.md");
@@ -448,18 +449,11 @@ async fn test_mcp_tool_includes_ordinal() {
     )
     .unwrap();
 
-    // Index the file using BM25
-    let mut bm25 = server.bm25.lock().await;
-    bm25.index_file(
-        &test_path,
-        "# Section A\n\nContent A.\n\n# Section B\n\nContent B.",
-    )
-    .await
-    .unwrap();
-    {
-        let mut writer = bm25.writer.lock().await;
-        writer.commit().unwrap();
-    }
+    // Build all indexes (BM25, Vector, Graph) using reindex
+    let _ = server
+        .dispatch_tool("reindex", &serde_json::json!({}))
+        .await
+        .unwrap();
 
     // Search and verify ordinals are included in results
     let result = server
@@ -471,19 +465,22 @@ async fn test_mcp_tool_includes_ordinal() {
     let json_result: serde_json::Value = serde_json::from_str(&result).unwrap();
 
     // Verify the result contains ordinal information
-    // (The exact structure depends on the MCP tool implementation)
     if let serde_json::Value::Array(results) = json_result {
         assert!(!results.is_empty(), "Search should return results");
 
         // Verify each result has ordinal information
         for result_item in results {
             if let serde_json::Value::Object(obj) = result_item {
-                // Check for ordinal field in the result
-                // (The exact field name depends on the MCP tool implementation)
-                assert!(
-                    obj.contains_key("chunk_ordinal") || obj.contains_key("ordinal"),
-                    "Search result should include ordinal field"
-                );
+                if let Some(serde_json::Value::Array(sections)) = obj.get("sections") {
+                    for section in sections {
+                        if let serde_json::Value::Object(sec_obj) = section {
+                            assert!(
+                                sec_obj.contains_key("chunk_ordinal"),
+                                "Section should include chunk_ordinal field"
+                            );
+                        }
+                    }
+                }
             }
         }
     } else {

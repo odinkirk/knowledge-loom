@@ -4,7 +4,7 @@
 #[cfg(test)]
 mod model_tests {
     use knowledge_loom::model::{
-        DownloadState, DownloadStatus, ModelMetadata, MODEL_NAME, MODEL_VERSION,
+        DownloadState, DownloadStatus, ModelMetadata, MODEL_FILE, MODEL_NAME, MODEL_VERSION,
     };
     use tempfile::TempDir;
 
@@ -31,11 +31,11 @@ mod model_tests {
         std::fs::create_dir_all(&models_dir).unwrap();
 
         // Create model file
-        let model_file = models_dir.join("all-MiniLM-L6-v2.onnx");
+        let model_file = models_dir.join(MODEL_FILE);
         std::fs::write(&model_file, "test model data").unwrap();
 
         // Create metadata file
-        let metadata_file = models_dir.join("all-MiniLM-L6-v2.json");
+        let metadata_file = models_dir.join(format!("{}.json", MODEL_NAME));
         let mut metadata = ModelMetadata::new(
             MODEL_NAME.to_string(),
             MODEL_VERSION.to_string(),
@@ -61,11 +61,11 @@ mod model_tests {
 
         // Test model path construction
         let models_dir = kb_root.join(".knowledge-loom-index").join("models");
-        let model_file = models_dir.join("all-MiniLM-L6-v2.onnx");
+        let model_file = models_dir.join(MODEL_FILE);
 
         assert_eq!(
             model_file.file_name().unwrap().to_str().unwrap(),
-            "all-MiniLM-L6-v2.onnx"
+            MODEL_FILE
         );
     }
 
@@ -331,6 +331,7 @@ mod model_tests {
         let mut file = OpenOptions::new()
             .write(true)
             .create(true)
+            .truncate(true)
             .open(&lock_file)
             .unwrap();
 
@@ -363,6 +364,7 @@ mod model_tests {
         let mut file = OpenOptions::new()
             .write(true)
             .create(true)
+            .truncate(true)
             .open(&lock_file)
             .unwrap();
 
@@ -392,7 +394,7 @@ mod model_tests {
         std::fs::create_dir_all(&models_dir).unwrap();
 
         // Create metadata with old version
-        let metadata_file = models_dir.join("all-MiniLM-L6-v2.json");
+        let metadata_file = models_dir.join(format!("{}.json", MODEL_NAME));
         let mut metadata = ModelMetadata::new(
             MODEL_NAME.to_string(),
             "0.9.0".to_string(), // Old version
@@ -428,7 +430,7 @@ mod model_tests {
         std::fs::create_dir_all(&models_dir).unwrap();
 
         // Create metadata with old version
-        let metadata_file = models_dir.join("all-MiniLM-L6-v2.json");
+        let metadata_file = models_dir.join(format!("{}.json", MODEL_NAME));
         let mut metadata = ModelMetadata::new(
             MODEL_NAME.to_string(),
             "0.9.0".to_string(), // Old version

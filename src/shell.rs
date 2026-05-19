@@ -1,4 +1,5 @@
 // src/shell.rs
+#![allow(dead_code)]
 use std::process::Stdio;
 use tokio::process::Command;
 

@@ -1,4 +1,4 @@
-pub const MAX_CHUNK_CHARS: usize = 2000;
+pub const MAX_CHUNK_CHARS: usize = 800;
 
 /// Represents a chunk of markdown content with metadata.
 ///
@@ -37,10 +37,12 @@ pub struct Chunk {
 /// # Examples
 ///
 /// ```
+/// use knowledge_loom::chunks::truncate_at_whitespace;
 /// let content = "Hello—World"; // em dash is 3 bytes
 /// let result = truncate_at_whitespace(content, 7);
 /// assert!(result.is_char_boundary(result.len()));
 /// ```
+#[allow(dead_code)]
 pub fn truncate_at_whitespace(content: &str, max: usize) -> &str {
     if content.len() <= max {
         return content;
@@ -63,6 +65,65 @@ pub fn truncate_at_whitespace(content: &str, max: usize) -> &str {
     }
 }
 
+/// Splits section content into multiple chunks of at most `MAX_CHUNK_CHARS` each.
+///
+/// Each chunk is split at a whitespace boundary for readability. All chunks
+/// share the same heading context and are assigned sequential ordinals.
+fn push_section_chunks(
+    chunks: &mut Vec<Chunk>,
+    heading: Option<String>,
+    content: &str,
+    line_start: usize,
+    line_end: usize,
+) {
+    let mut remaining = content;
+    while !remaining.is_empty() {
+        if remaining.len() <= MAX_CHUNK_CHARS {
+            let trimmed = remaining.trim_end();
+            if !trimmed.is_empty() {
+                chunks.push(Chunk {
+                    ordinal: (chunks.len() + 1) as u64,
+                    heading: heading.clone(),
+                    content: trimmed.to_string(),
+                    line_start,
+                    line_end,
+                });
+            }
+            break;
+        }
+
+        let boundary = truncate_at_whitespace_boundary(remaining, MAX_CHUNK_CHARS);
+        let piece = remaining[..boundary].trim_end();
+        chunks.push(Chunk {
+            ordinal: (chunks.len() + 1) as u64,
+            heading: heading.clone(),
+            content: piece.to_string(),
+            line_start,
+            line_end,
+        });
+
+        // Advance past the piece plus any trailing whitespace
+        remaining = remaining[boundary..].trim_start();
+    }
+}
+
+/// Finds a safe character-boundary index within `content` at or near `max`,
+/// preferring a whitespace boundary for readability.
+fn truncate_at_whitespace_boundary(content: &str, max: usize) -> usize {
+    let safe_max = content
+        .char_indices()
+        .map(|(i, _)| i)
+        .take_while(|&i| i <= max)
+        .last()
+        .unwrap_or(content.len());
+
+    let slice = &content[..safe_max];
+    match slice.rfind(|c: char| c.is_whitespace()) {
+        Some(pos) if pos > 0 => pos + 1, // include the whitespace in this chunk
+        _ => safe_max,
+    }
+}
+
 /// Parses markdown content into chunks with heading context and ordinal assignment.
 ///
 /// This function splits markdown content into chunks of maximum size (2000 characters)
@@ -79,6 +140,7 @@ pub fn truncate_at_whitespace(content: &str, max: usize) -> &str {
 /// # Examples
 ///
 /// ```
+/// use knowledge_loom::chunks::parse_chunks;
 /// let content = "# Heading\n\nContent";
 /// let chunks = parse_chunks(content);
 /// assert_eq!(chunks[0].ordinal, 1);
@@ -131,15 +193,13 @@ pub fn parse_chunks(content: &str) -> Vec<Chunk> {
                 let section_end = if j > i + 1 { j } else { i + 1 };
 
                 if !section_content_trimmed.is_empty() {
-                    chunks.push(Chunk {
-                        // Assign sequential ordinal: current chunk count + 1 (1-based indexing)
-                        ordinal: (chunks.len() + 1) as u64,
-                        heading: Some(breadcrumb),
-                        content: truncate_at_whitespace(section_content_trimmed, MAX_CHUNK_CHARS)
-                            .to_string(),
-                        line_start: section_start,
-                        line_end: section_end,
-                    });
+                    push_section_chunks(
+                        &mut chunks,
+                        Some(breadcrumb),
+                        section_content_trimmed,
+                        section_start,
+                        section_end,
+                    );
                 }
 
                 i = j;
@@ -149,19 +209,9 @@ pub fn parse_chunks(content: &str) -> Vec<Chunk> {
         i += 1;
     }
 
-    // Headingless fallback: if no headings found, treat entire content as single chunk
+    // Headingless fallback: treat entire content as chunks split at MAX_CHUNK_CHARS
     if chunks.is_empty() {
-        let full = truncate_at_whitespace(content.trim(), MAX_CHUNK_CHARS).to_string();
-        if !full.is_empty() {
-            chunks.push(Chunk {
-                // First chunk gets ordinal 1
-                ordinal: 1,
-                heading: None,
-                content: full,
-                line_start: 1,
-                line_end: lines.len(),
-            });
-        }
+        push_section_chunks(&mut chunks, None, content.trim(), 1, lines.len());
     }
 
     chunks
@@ -235,12 +285,16 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_chunks_caps_large_section_at_2000() {
+    fn test_parse_chunks_splits_large_section() {
         let content = "# Heading\n\n".to_string() + &"A".repeat(3000);
         let chunks = parse_chunks(&content);
-        assert_eq!(chunks.len(), 1);
-        // Chunk should be <= MAX_CHUNK_CHARS
-        assert!(chunks[0].content.len() <= MAX_CHUNK_CHARS);
+        assert!(
+            chunks.len() > 1,
+            "3000 chars should produce multiple chunks"
+        );
+        for chunk in &chunks {
+            assert!(chunk.content.len() <= MAX_CHUNK_CHARS);
+        }
     }
 
     #[test]

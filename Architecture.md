@@ -174,7 +174,7 @@ graph LR
          Edits-->>User: Error with retry guidance
      end
      
-     Note over User,Tantivy: During ingestion, requests return<br/>"indexing: try again in 2 seconds"
+      Note over User,Tantivy: During ingestion, requests return<br/>"indexing in progress" error
  ```
 
  **Re-indexing Triggers:**
@@ -182,56 +182,124 @@ graph LR
  - `edit_section()` operation completes
  - `edit_lines()` operation completes
 
- **Failure Handling:**
- - On re-indexing failure: Drop indices and re-ingest entire corpus
- - Corpus re-ingestion: <3 seconds for typical vaults (10k documents)
- - During ingestion: Return "indexing: try again in 2 seconds" error
+  **Failure Handling:**
+  - On re-indexing failure: Drop indices and re-ingest entire corpus
+  - Corpus re-ingestion: ~200s for 65 files (3030 chunks); dominated by ONNX CPU inference
+  - During ingestion: BM25 sets `is_ingesting` flag; requests return "indexing in progress" error
 
  **Concurrent Edit Handling:**
   - Edits to the same file are serialized
   - Edit requests are queued during active re-indexing
-  - Queued requests are processed sequentially after re-indexing completes
+   - Queued requests are processed sequentially after re-indexing completes
 
- ## Model Download Flow
+### ReindexState (Incremental Reindex)
 
- The model download flow handles automatic download of the embedding model during initialization,
- with support for resume, retry, and manual fallback.
+The `ReindexState` struct in `src/maintenance.rs` tracks per-file mtime and chunk counts
+across reindex runs, enabling incremental reindex on subsequent `loom reindex` invocations.
+State is persisted at `.knowledge-loom-index/reindex-state.json`.
 
- ```mermaid
- graph TB
-     subgraph "Initialization"
-         A[User runs loom init] --> B[InitManager::initialize]
-         B --> C{Model valid?}
-         C -->|Yes| D[Skip download]
-         C -->|No| E[ModelManager::download_model]
-     end
+```json
+{
+  "schema_version": 1,
+  "files": {
+    "path/to/file.md": {
+      "mtime_secs": 1716000000,
+      "chunk_count": 3
+    }
+  }
+}
+```
 
-     subgraph "Download Process"
-         E --> F[DownloadManager::download_with_retry]
-         F --> G{Download success?}
-         G -->|Yes| H[ModelManager::validate_model]
-         G -->|No| I{Retries exhausted?}
-         I -->|No| J[Retry with exponential backoff]
-         J --> F
-         I -->|Yes| K[Display error with manual instructions]
-     end
+**Incremental flow**:
+1. On first run or `--force`: Full rebuild, save state file
+2. On subsequent runs: Compare disk mtimes against state; only reindex changed/deleted files
+3. Fallback: If incremental fails (lock timeout, state corruption), full rebuild runs automatically
 
-     subgraph "Validation"
-         H --> L{Checksum valid?}
-         L -->|Yes| M[Mark model as validated]
-         L -->|No| N[Delete corrupted file]
-         N --> E
-     end
+**Performance**:
+- Full first reindex: BM25 ~1s, Vector ~8min (CPU-bound ONNX inference), Graph ~1s
+- Incremental: <5s for 1-2 changed files (no vector inference on unchanged files)
 
-     subgraph "State Management"
-         E --> O[DownloadState persistence]
-         F --> P[Progress updates]
-         P --> O
-         O --> Q[File locking]
-         Q --> R[Concurrent download prevention]
-     end
+### Chunk Splitting
 
-     subgraph "Error Handling"
+Large sections (exceeding `MAX_CHUNK_CHARS = 800`) are split into multiple chunks at
+whitespace boundaries rather than truncated. Each split chunk shares the same heading
+breadcrumb and receives a sequential ordinal. Both BM25 and Vector indexes use
+`parse_chunks()` from `src/chunks.rs` for consistent chunk boundaries, improving
+RRF fusion quality. The 800-char limit targets ~200 tokens for MiniLM (256 token
+max, with safety margin).
+
+### Batch Embedding
+
+`EmbedProvider::embed_batch()` in `src/embed/mod.rs` processes all chunks for a file
+in a single call. `LocalEmbedProvider` uses `BGESmallENV15` (384-dim, chosen over MiniLM
+for consistent 200s full-reindex performance vs MiniLM's 147–552s variability due to
+Intel CPU thermal throttling). Incremental reindex: 93ms.
+
+### BM25 Single-Commit
+
+`BM25Index::index_vault()` commits exactly once at the end of the full build rather
+than after each file (which previously caused 216 fsyncs for 108 files). Result:
+BM25 reindex dropped from 87s to ~1s (90× improvement).
+
+
+## Model Download Flow
+
+The model download flow uses a consolidated download infrastructure with shared utilities.
+The `DownloadManager` class (in `src/download.rs`) provides retry logic, progress tracking,
+and error handling. Shared utilities (in `src/download/utils.rs`) provide checksum validation,
+disk space checking, and reusable download functions. The `loom install` command provides
+standalone model installation and integrity verification.
+
+```mermaid
+graph TB
+    subgraph "Initialization"
+        A[User runs loom init] --> B[InitManager::initialize]
+        B --> C{Model valid?}
+        C -->|Yes| D[Skip download]
+        C -->|No| E[ModelManager::download_model]
+    end
+
+    subgraph "Standalone Install"
+        A1[User runs loom install] --> B1[InstallManager::validate_or_download]
+        B1 --> C1{Model valid?}
+        C1 -->|Yes| D1[Report already installed]
+        C1 -->|No| E1[InstallManager::download_model]
+        B2[User runs loom install --force] --> E1
+    end
+
+    subgraph "Download Process"
+        E --> F[DownloadManager::download_with_retry]
+        F --> G{Download success?}
+        G -->|Yes| H[ModelManager::validate_model]
+        G -->|No| I{Retries exhausted?}
+        I -->|No| J[Retry with exponential backoff]
+        J --> F
+        I -->|Yes| K[Display error with manual instructions]
+    end
+
+    subgraph "Shared Utilities"
+        F --> L[download/utils.rs]
+        L --> M[calculate_checksum()]
+        L --> N[validate_checksum()]
+        L --> O[check_disk_space()]
+    end
+
+    subgraph "Validation"
+        H --> L{Checksum valid?}
+        L -->|Yes| M[Mark model as validated]
+        L -->|No| N[Delete corrupted file]
+        N --> E
+    end
+
+    subgraph "State Management"
+        E --> O[DownloadState persistence]
+        F --> P[Progress updates]
+        P --> O
+        O --> Q[File locking]
+        Q --> R[Concurrent download prevention]
+    end
+
+    subgraph "Error Handling"
          K --> S[Network errors]
          K --> T[Disk full]
          K --> U[Permission denied]
@@ -351,7 +419,7 @@ graph TB
  The vault scanner is responsible for discovering and reading Markdown files from the knowledge base.
 
  **Key Responsibilities:**
- - File discovery with `.loomignore` support
+ - File discovery with `.knowledge-loom-ignore` support
  - Markdown file filtering
  - Content reading with error handling
  - Path resolution and normalization
@@ -682,7 +750,7 @@ pub async fn search_graph_fused_inner(
  **Ingestion State Management:**
  - Tracks ingestion state to prevent stale reads during rebuild
  - Sets ingestion state before acquiring lock for rebuild
- - Returns "indexing: try again in 2 seconds" error during ingestion
+  - Returns "indexing in progress" error during ingestion
  - Clears ingestion state on success or failure
  - Prevents race conditions between re-indexing and chunk retrieval
 
@@ -694,6 +762,9 @@ pub async fn search_graph_fused_inner(
 .knowledge-loom/
 ├── bin/
 │   └── loom              # Installed binary
+├── models/
+│   ├── model.onnx        # Fastembed embedding model
+│   └── .install-state.json  # Install state (version, checksum, timestamp)
 └── loom-shell.sh         # Convenience script
 
 .knowledge-loom-index/
@@ -738,10 +809,11 @@ pub async fn search_graph_fused_inner(
 
 | Operation | Speed | Notes |
 |-----------|-------|-------|
-| Initial build | ~1000 docs/sec | Chunking overhead |
-| Incremental update | ~50 docs/sec | Changed files only |
-| Graph build | ~2s (10k nodes) | One-time cost |
-| PageRank computation | ~500ms (10k nodes) | Cached after first run |
+| Initial build (BM25) | ~1s (65 files) | Single commit at end |
+| Initial build (Vector, BGESmallENV15) | ~200s (3030 chunks) | ONNX CPU inference bound, Intel Mac |
+| Initial build (Graph) | ~0.2s | Full graph |
+| Incremental update (no changes) | 93ms | Mtime comparison only |
+| Incremental update (1 changed file) | ~150ms | Single file re-embed + graph update |
 
 ### Memory Usage
 
@@ -849,7 +921,7 @@ pub trait EmbedProvider: Send + Sync {
 ```
 
 **Built-in providers:**
-- **LocalEmbedProvider**: Built-in embeddings using fastembed (all-MiniLM-L6-v2, 384 dimensions)
+- **LocalEmbedProvider**: Built-in embeddings using fastembed (BGESmallENV15, 384 dimensions)
 - **OllamaEmbedProvider**: Ollama integration (nomic-embed-text-v1.5, 768 dimensions)
 - **OpenRouterEmbedProvider**: OpenRouter integration (openai/text-embedding-ada-002, 1536 dimensions)
 
@@ -900,7 +972,7 @@ The graph engine supports custom algorithms:
 
 ### File System Access
 
-- Respects `.loomignore` patterns
+- Respects `.knowledge-loom-ignore` patterns
 - Only processes Markdown files
 - Handles file system errors gracefully
 - No arbitrary file execution

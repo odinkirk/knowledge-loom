@@ -245,6 +245,8 @@ impl EditManager {
             let mut bm25 = self.bm25_index.lock().await;
             if let Err(e) = bm25.index_file(path, content).await {
                 errors.push(format!("BM25 index update failed: {}", e));
+            } else if let Err(e) = bm25.commit().await {
+                errors.push(format!("BM25 commit failed: {}", e));
             }
         }
         // Update vector embedding index
@@ -259,6 +261,28 @@ impl EditManager {
             let graph = self.graph_state.lock().await;
             if let Err(e) = graph.update_file(path, content).await {
                 errors.push(format!("Graph index update failed: {}", e));
+            }
+        }
+
+        // Update ReindexState so subsequent reindex_all skips this file
+        if errors.is_empty() {
+            if let Ok(state) = std::fs::metadata(path).and_then(|m| m.modified()) {
+                let mtime = state
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
+                let relative = path
+                    .strip_prefix(&self.kb_root)
+                    .unwrap_or(path)
+                    .to_string_lossy()
+                    .to_string();
+                let mut reindex_state = crate::maintenance::ReindexState::load(&self.kb_root);
+                reindex_state.update_file(
+                    &relative,
+                    mtime,
+                    crate::chunks::parse_chunks(content).len(),
+                );
+                let _ = reindex_state.save();
             }
         }
 

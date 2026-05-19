@@ -756,6 +756,7 @@ mod tests {
         );
     }
 
+    /// Test disabled: requires proper graph initialization with nodes
     #[tokio::test]
     async fn test_search_includes_ordinal() {
         let temp_dir = TempDir::new().unwrap();
@@ -768,20 +769,23 @@ mod tests {
         )
         .unwrap();
 
-        // Create search engine and index
+        // Create search engine and index all components
         let engine = SearchEngine::new(kb_root.to_str().unwrap()).await;
 
-        // Index the file using BM25
-        let mut bm25 = engine.bm25.lock().await;
-        bm25.index_file(
-            &kb_root.join("test.md"),
-            "# Section A\n\nContent A.\n\n# Section B\n\nContent B.",
-        )
-        .await
-        .unwrap();
+        // Build indexes for all components (BM25, Vector, Graph)
+        let vault = VaultState::new(kb_root.to_str().unwrap()).await;
         {
-            let mut writer = bm25.writer.lock().await;
-            writer.commit().unwrap();
+            let mut bm25 = engine.bm25.lock().await;
+            bm25.index_vault(&vault).await.unwrap();
+        }
+        {
+            let vector = engine.vector.lock().await;
+            let embed = engine.embed.clone();
+            vector.index_vault(&vault, &embed).await.unwrap();
+        }
+        {
+            let graph = engine.graph.lock().await;
+            graph.build_graph(&vault).await.unwrap();
         }
 
         // Search and verify ordinals are included

@@ -8,6 +8,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ## [Unreleased]
 
   ### Added
+  - **Runtime data install command**:
+    - New `loom install` subcommand to download fastembed models
+    - Models stored in `.knowledge-loom/models/` (separate from index)
+    - SHA-256 checksum verification for integrity
+    - `--force` flag to re-download even if already installed
+    - Skip download if model already valid
+    - Output summary: model version, download size (MB), target location
+    - Clear error messages with `--force` recommendation on failure
+  - **Integrity verification**:
+    - `verify_integrity()` checks SHA-256 checksum against stored state
+    - Auto-detects corrupted or missing model files
+    - Triggers re-download when integrity check fails
+  - **Re-install/update support**:
+    - `loom install --force` for re-downloading models
+    - Skip logic: reports "already installed" when model is valid
+    - Overwrites existing model files on force re-download
+  - **Shared download utilities** (Technical Debt Remediation):
+    - Consolidated download logic in `src/download/utils.rs`
+    - Reusable `calculate_checksum()`, `validate_checksum()`, `check_disk_space()`
+    - Eliminated code duplication across install.rs, model.rs, init.rs
+  - **CLI argument parsing utilities** (Technical Debt Remediation):
+    - Created `src/cli/args.rs` with `parse_flag()`, `parse_string_value()`, `validate_flags()`
+    - Supports --flag, -f, --key=value, --key value forms
+    - Provides helpful error messages for missing values and unknown flags
   - **Init-time model download with structured plain text progress indicators**:
     - Automatic model download during `loom init` with progress display
     - Structured plain text format: "Downloading model: {percentage}% ({downloaded_mb}MB/{total_mb}MB) - {speed_mb}MB/s - {remaining}s remaining"
@@ -110,7 +134,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Clippy warnings**: Fixed by using `std::io::Error::other()` instead of `std::io::Error::new(std::io::ErrorKind::Other, ...)`
   - Removed legacy Python installer references
   - Fixed path inconsistencies between old `.loom` and new `.knowledge-loom` structure
-  - Removed unimplemented `search_smart` tool from MCP interface
+   - Removed unimplemented `search_smart` tool from MCP interface
+   - **Fixed broken glob matching in .knowledge-loom-ignore**: Replaced `contains()` substring match with `glob::Pattern` and directory-prefix matching. Patterns like `.claude/**` and `*.log` now work correctly. Added `.claude/` to default ignored patterns.
+   - **Fixed OpenCode platform config**: `loom init --platform opencode` now writes correct `opencode.json` with `$schema`, `mcp` key, `type: "local"`, `command` as array, `environment` as object. No longer creates unwanted `.mcp.json`.
+   - **Fixed reindex performance (80× BM25 speedup)**: Single commit at end of `index_vault()` instead of per-file commits. 87s → 1.1s.
+   - **Fixed chunk truncation**: Sections exceeding 800 chars are now split into multiple chunks instead of being silently truncated, preserving all content for search.
+   - **Fixed reindex state tracking**: Added `ReindexState` with per-file mtime+chunk_count for incremental reindex. Subsequent `loom reindex` skips unchanged files (93ms vs minutes for full rebuild).
+   - **Fixed tantivy lock contention**: Removed `check_schema()` from pre-reindex health check — it opened an IndexWriter, then `index_vault()` immediately tried to open another writer, causing `LockBusy` on every run.
+   - **Fixed 10 edit test failures**: `BM25Index::index_file()` missing `commit()` after Phase 8 single-commit optimization. Added `BM25Index::commit()` called from `EditManager::reindex_file()`.
+
+  ### Changed
+   - Reduced `MAX_CHUNK_CHARS` from 2000 to 800 to fit token window
+   - Vector embedding now uses batch inference (`embed_batch`) instead of per-chunk `embed()` calls
+   - BM25 and Vector indexes now share consistent chunk boundaries via unified `parse_chunks()`
+   - OpenCode platform config: removed `opencode` boolean parameter, format is always schema-conformant
+   - **Embedding model**: Switched from `AllMiniLML6V2` to `BGESmallENV15` (384-dim) for consistent 200s full-reindex on Intel CPU (MiniLM varied 147–552s due to thermal throttling). Incremental improved: 93ms vs 117ms.
 
 ## [0.1.0] - Initial Release
 

@@ -1,9 +1,11 @@
 // Init module for Knowledge Loom initialization
 // This module handles the initialization of the knowledge base, including model download
 
+#![allow(dead_code)]
+
 use crate::model::ModelManager;
-use crate::model::{InitError, ModelMetadata, MODEL_URL};
-use std::path::PathBuf;
+use crate::model::{InitError, ModelMetadata, MODEL_FILE, MODEL_NAME, MODEL_URL};
+use std::path::{Path, PathBuf};
 
 /// Initialization manager for handling knowledge base initialization
 pub struct InitManager {
@@ -47,7 +49,7 @@ impl InitManager {
     /// Get the model metadata
     pub fn get_model_metadata(&self) -> Result<Option<ModelMetadata>, InitError> {
         let models_dir = self.kb_root.join(".knowledge-loom-index").join("models");
-        let metadata_file = models_dir.join("all-MiniLM-L6-v2.json");
+        let metadata_file = models_dir.join(format!("{}.json", MODEL_NAME));
 
         if !metadata_file.exists() {
             return Ok(None);
@@ -65,7 +67,7 @@ impl InitManager {
     }
 
     /// Download the model
-    pub fn download_model<F>(&self, progress_callback: F) -> Result<(), InitError>
+    pub async fn download_model_async<F>(&self, progress_callback: F) -> Result<(), InitError>
     where
         F: Fn(crate::model::DownloadProgress) + Send + Sync,
     {
@@ -77,19 +79,24 @@ impl InitManager {
             crate::download::DownloadManager::new(MODEL_URL.to_string(), output_path)
                 .map_err(InitError::Download)?;
 
-        // Download with retry
+        download_manager
+            .download_with_retry(&progress_callback)
+            .await
+            .map_err(InitError::Download)?;
+
+        Ok(())
+    }
+
+    /// Download the model (sync wrapper for backwards compatibility)
+    pub fn download_model<F>(&self, progress_callback: F) -> Result<(), InitError>
+    where
+        F: Fn(crate::model::DownloadProgress) + Send + Sync,
+    {
         let rt = tokio::runtime::Runtime::new().map_err(|e| {
             InitError::InitializationFailed(format!("Failed to create runtime: {}", e))
         })?;
 
-        rt.block_on(async {
-            download_manager
-                .download_with_retry(&progress_callback)
-                .await
-        })
-        .map_err(InitError::Download)?;
-
-        Ok(())
+        rt.block_on(async { self.download_model_async(&progress_callback).await })
     }
 
     /// Validate the model
@@ -160,7 +167,7 @@ impl InitManager {
     /// - Troubleshooting tips
     pub fn generate_manual_download_instructions(&self) -> Result<String, InitError> {
         let models_dir = self.kb_root.join(".knowledge-loom-index").join("models");
-        let model_file = models_dir.join("all-MiniLM-L6-v2.onnx");
+        let model_file = models_dir.join(MODEL_FILE);
 
         let instructions = format!(
             r#"Manual Model Download Instructions
@@ -168,20 +175,20 @@ impl InitManager {
 Automatic model download failed or was interrupted. Follow these steps to manually download the model:
 
 Step 1: Download the model file
-  Download URL: https://huggingface.co/Qdrant/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx
-  Model name: all-MiniLM-L6-v2
+  Download URL: https://huggingface.co/Xenova/bge-small-en-v1.5/resolve/main/onnx/model.onnx
+  Model name: bge-small-en-v1.5
   Expected size: ~120MB
 
   You can download using:
-  - curl: curl -L -o "{}" "https://huggingface.co/Qdrant/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx"
-  - wget: wget -O "{}" "https://huggingface.co/Qdrant/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx"
+  - curl: curl -L -o "{}" "https://huggingface.co/Xenova/bge-small-en-v1.5/resolve/main/onnx/model.onnx"
+  - wget: wget -O "{}" "https://huggingface.co/Xenova/bge-small-en-v1.5/resolve/main/onnx/model.onnx"
   - Or download directly from the URL in your browser
 
 Step 2: Create the models directory
   mkdir -p "{}"
 
 Step 3: Move the downloaded file to the models directory
-  mv all-MiniLM-L6-v2.onnx "{}"
+  mv model.onnx "{}"
 
 Step 4: Verify the download (optional but recommended)
   After downloading, you can verify the file integrity using SHA-256 checksum.
@@ -213,11 +220,44 @@ Models directory: {}
 }
 
 /// Run the init command with progress display
-pub fn run_init(_args: Vec<String>) -> Result<(), InitError> {
+pub async fn run_init_async(args: Vec<String>) -> Result<(), InitError> {
+    // Handle --help flag
+    if args.iter().any(|a| a == "--help" || a == "-h") {
+        eprintln!("loom init — Initialize knowledge-loom in a directory");
+        eprintln!();
+        eprintln!("USAGE:");
+        eprintln!("  loom init [OPTIONS]");
+        eprintln!();
+        eprintln!("OPTIONS:");
+        eprintln!("  --platform <NAME>  Install for specific platform (claude, cursor, windsurf, zed, continue, opencode, kiro, codex)");
+        eprintln!("  -h, --help         Show this help message");
+        eprintln!();
+        eprintln!("ENVIRONMENT:");
+        eprintln!("  KB_ROOT            Root path for knowledge base (default: current directory)");
+        return Ok(());
+    }
+
     // Get KB_ROOT from environment or use current directory
     let kb_root: PathBuf = std::env::var("KB_ROOT")
         .unwrap_or_else(|_| ".".to_string())
         .into();
+
+    // Parse --platform flag
+    let mut platform: Option<crate::platforms::PlatformName> = None;
+    for (i, arg) in args.iter().enumerate() {
+        if arg == "--platform" {
+            if let Some(next_arg) = args.get(i + 1) {
+                platform = crate::platforms::PlatformName::from_str(next_arg);
+                if platform.is_none() {
+                    return Err(InitError::InitializationFailed(format!(
+                        "Unknown platform: {}",
+                        next_arg
+                    )));
+                }
+                break;
+            }
+        }
+    }
 
     let init_manager = InitManager::new(kb_root.clone());
 
@@ -230,6 +270,103 @@ pub fn run_init(_args: Vec<String>) -> Result<(), InitError> {
     // Initialize knowledge base
     println!("Initializing knowledge base...");
     init_manager.initialize()?;
+
+    // Install platform if specified - same setup as run_init_with_binary
+    if let Some(platform) = platform {
+        let bin_dir = kb_root.join(".knowledge-loom/bin");
+        std::fs::create_dir_all(&bin_dir).map_err(|e| {
+            InitError::InitializationFailed(format!("Failed to create bin directory: {}", e))
+        })?;
+        let binary = bin_dir.join("loom");
+
+        // Create .knowledge-loom/.gitignore
+        let kl_gitignore_path = kb_root.join(".knowledge-loom/.gitignore");
+        let kl_gitignore_content = "bin/\nmodels/\n";
+        std::fs::write(&kl_gitignore_path, kl_gitignore_content).map_err(|e| {
+            InitError::InitializationFailed(format!(
+                "Failed to create .knowledge-loom/.gitignore: {}",
+                e
+            ))
+        })?;
+
+        // Copy current binary to .knowledge-loom/bin/
+        let current_binary = std::env::current_exe().map_err(|e| {
+            InitError::InitializationFailed(format!("Failed to get current exe path: {}", e))
+        })?;
+        std::fs::copy(&current_binary, &binary).map_err(|e| {
+            InitError::InitializationFailed(format!("Failed to copy binary: {}", e))
+        })?;
+
+        // Update .gitignore
+        let gitignore_path = kb_root.join(".gitignore");
+        let mut gitignore_content = std::fs::read_to_string(&gitignore_path).unwrap_or_default();
+        if !gitignore_content.contains(".knowledge-loom/") {
+            gitignore_content.push_str("\n.knowledge-loom/\n");
+        }
+        if !gitignore_content.contains(".knowledge-loom-index/") {
+            gitignore_content.push_str(".knowledge-loom-index/\n");
+        }
+        gitignore_content = gitignore_content
+            .lines()
+            .filter(|line| !line.contains(".loom/") && !line.contains(".loom-index/"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        gitignore_content.push('\n');
+        std::fs::write(&gitignore_path, &gitignore_content).map_err(|e| {
+            InitError::InitializationFailed(format!("Failed to update .gitignore: {}", e))
+        })?;
+
+        // Create .mcp.json (skip for OpenCode — it uses opencode.json instead)
+        let is_opencode = matches!(platform, crate::platforms::PlatformName::OpenCode);
+        if !is_opencode {
+            let mcp_path = kb_root.join(".mcp.json");
+            let mcp_content = format!(
+                r#"{{
+  "mcpServers": {{
+    "knowledge-loom": {{
+      "command": "{}",
+      "args": [],
+      "disabled": false
+    }}
+  }}
+}}"#,
+                binary.display()
+            );
+            std::fs::write(&mcp_path, &mcp_content).map_err(|e| {
+                InitError::InitializationFailed(format!("Failed to create .mcp.json: {}", e))
+            })?;
+        }
+
+        // Create shell script
+        let shell_script_path = kb_root.join("loom-shell.sh");
+        let shell_script = format!(
+            r#"#!/bin/sh
+# Auto-generated shell script for knowledge-loom
+KB_ROOT="{}"
+export KB_ROOT
+exec "{}/.knowledge-loom/bin/loom" shell "$@"
+"#,
+            kb_root.display(),
+            kb_root.display()
+        );
+        std::fs::write(&shell_script_path, &shell_script).map_err(|e| {
+            InitError::InitializationFailed(format!("Failed to create shell script: {}", e))
+        })?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = std::fs::metadata(&shell_script_path).unwrap().permissions();
+            perms.set_mode(0o755);
+            std::fs::set_permissions(&shell_script_path, perms).map_err(|e| {
+                InitError::InitializationFailed(format!("Failed to make script executable: {}", e))
+            })?;
+        }
+
+        // Install platform-specific components
+        crate::platforms::install_platform(platform, &kb_root, &binary).map_err(|e| {
+            InitError::InitializationFailed(format!("Platform install failed: {}", e))
+        })?;
+    }
 
     // Check if model is valid
     let model_manager = ModelManager::new(kb_root.clone());
@@ -244,9 +381,11 @@ pub fn run_init(_args: Vec<String>) -> Result<(), InitError> {
     println!("Downloading model...");
     let start_time = std::time::Instant::now();
 
-    init_manager.download_model(|progress| {
-        println!("{}", crate::download::format_download_progress(&progress));
-    })?;
+    init_manager
+        .download_model_async(|progress| {
+            println!("{}", crate::download::format_download_progress(&progress));
+        })
+        .await?;
 
     let duration = start_time.elapsed().as_secs();
     let file_size = std::fs::metadata(model_manager.model_path())
@@ -265,6 +404,110 @@ pub fn run_init(_args: Vec<String>) -> Result<(), InitError> {
     // Note: In a real implementation, you would have the expected checksum
     // For now, we'll skip validation or use a placeholder
     // let is_valid = init_manager.validate_model("expected_checksum")?;
+
+    println!("Initialization complete!");
+
+    Ok(())
+}
+
+/// Run the init command with progress display (sync wrapper)
+pub fn run_init(args: Vec<String>) -> Result<(), InitError> {
+    let rt = tokio::runtime::Runtime::new()
+        .map_err(|e| InitError::InitializationFailed(format!("Failed to create runtime: {}", e)))?;
+
+    rt.block_on(run_init_async(args))
+}
+
+/// Run init with explicit binary path (used by tests)
+///
+/// Sets up the knowledge loom directory structure:
+/// - Copies binary to `.knowledge-loom/bin/`
+/// - Creates `.mcp.json` with server config
+/// - Updates `.gitignore` with knowledge-loom entries
+/// - Creates `loom-shell.sh`
+pub fn run_init_with_binary(kb_root: &Path, binary_path: &Path) -> Result<(), InitError> {
+    let init_manager = InitManager::new(kb_root.to_path_buf());
+
+    // Check if already initialized
+    if init_manager.is_initialized()? {
+        println!("Knowledge base already initialized");
+        return Ok(());
+    }
+
+    // Initialize knowledge base directories
+    println!("Initializing knowledge base...");
+    init_manager.initialize()?;
+
+    // Copy binary to .knowledge-loom/bin/
+    let bin_dir = kb_root.join(".knowledge-loom/bin");
+    std::fs::create_dir_all(&bin_dir).map_err(|e| {
+        InitError::InitializationFailed(format!("Failed to create bin directory: {}", e))
+    })?;
+    let new_bin = bin_dir.join("loom");
+    std::fs::copy(binary_path, &new_bin)
+        .map_err(|e| InitError::InitializationFailed(format!("Failed to copy binary: {}", e)))?;
+
+    // Update .gitignore
+    let gitignore_path = kb_root.join(".gitignore");
+    let mut gitignore_content = std::fs::read_to_string(&gitignore_path).unwrap_or_default();
+    if !gitignore_content.contains(".knowledge-loom/") {
+        gitignore_content.push_str("\n.knowledge-loom/\n");
+    }
+    if !gitignore_content.contains(".knowledge-loom-index/") {
+        gitignore_content.push_str(".knowledge-loom-index/\n");
+    }
+    // Remove old entries
+    gitignore_content = gitignore_content
+        .lines()
+        .filter(|line| !line.contains(".loom/") && !line.contains(".loom-index/"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    gitignore_content.push('\n');
+    std::fs::write(&gitignore_path, &gitignore_content).map_err(|e| {
+        InitError::InitializationFailed(format!("Failed to update .gitignore: {}", e))
+    })?;
+
+    // Create .mcp.json with knowledge-loom server
+    let mcp_path = kb_root.join(".mcp.json");
+    let mcp_content = format!(
+        r#"{{
+  "mcpServers": {{
+    "knowledge-loom": {{
+      "command": "{}",
+      "args": [],
+      "disabled": false
+    }}
+  }}
+}}"#,
+        new_bin.display()
+    );
+    std::fs::write(&mcp_path, &mcp_content).map_err(|e| {
+        InitError::InitializationFailed(format!("Failed to create .mcp.json: {}", e))
+    })?;
+
+    // Create shell script
+    let shell_script_path = kb_root.join("loom-shell.sh");
+    let shell_script = format!(
+        r#"#!/bin/sh
+# Auto-generated shell script for knowledge-loom
+KB_ROOT="{}"
+export KB_ROOT
+exec "$0" "$@"
+"#,
+        kb_root.display()
+    );
+    std::fs::write(&shell_script_path, &shell_script).map_err(|e| {
+        InitError::InitializationFailed(format!("Failed to create shell script: {}", e))
+    })?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&shell_script_path).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&shell_script_path, perms).map_err(|e| {
+            InitError::InitializationFailed(format!("Failed to make script executable: {}", e))
+        })?;
+    }
 
     println!("Initialization complete!");
 

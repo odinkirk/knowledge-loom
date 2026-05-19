@@ -356,6 +356,7 @@ async fn behavioral_error_handling_filesystem_permissions() {
 
     // Restore permissions for cleanup
     let mut perms = fs::metadata(&file_path).unwrap().permissions();
+    #[allow(clippy::permissions_set_readonly_false)]
     perms.set_readonly(false);
     fs::set_permissions(&file_path, perms).unwrap();
 }

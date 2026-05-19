@@ -1,6 +1,10 @@
 // Download module for Knowledge Loom model download
 // This module handles HTTP download with retry logic, progress tracking, and checksum validation
 
+#![allow(dead_code)]
+
+pub mod utils;
+
 use crate::model::{DownloadError, DownloadProgress};
 use reqwest::Client;
 use std::io::Write;
@@ -95,6 +99,9 @@ pub fn format_download_error(error: &DownloadError) -> String {
         DownloadError::Timeout(msg) => format!("Timeout: {}", msg),
         DownloadError::Io(e) => format!("IO error: {}", e),
         DownloadError::Reqwest(e) => format!("HTTP client error: {}", e),
+        DownloadError::ChecksumMismatch { expected, actual } => {
+            format!("Checksum mismatch: expected {}, got {}", expected, actual)
+        }
     };
 
     // Add manual download instructions for critical errors
@@ -126,8 +133,8 @@ pub fn format_download_error(error: &DownloadError) -> String {
 fn get_manual_download_instructions_summary() -> String {
     "Manual download is available as a fallback:\n\
      \n\
-     1. Download the model from: https://huggingface.co/Qdrant/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx\n\
-     2. Place it in: .knowledge-loom-index/models/all-MiniLM-L6-v2.onnx\n\
+     1. Download the model from: https://huggingface.co/Xenova/bge-small-en-v1.5/resolve/main/onnx/model.onnx\n\
+     2. Place it in: .knowledge-loom-index/models/model.onnx\n\
      3. Run 'loom init' again to complete initialization".to_string()
 }
 
@@ -152,6 +159,7 @@ pub fn acquire_lock(lock_path: &PathBuf) -> Result<std::fs::File, DownloadError>
     let file = std::fs::OpenOptions::new()
         .write(true)
         .create(true)
+        .truncate(true)
         .open(lock_path)
         .map_err(DownloadError::Io)?;
 
@@ -217,7 +225,7 @@ pub fn release_lock(file: std::fs::File, lock_path: &PathBuf) -> Result<(), Down
         .map_err(|e| DownloadError::Network(format!("Failed to release lock: {}", e)))?;
 
     // Delete the lock file after releasing the lock
-    std::fs::remove_file(lock_path).map_err(|e| DownloadError::Io(e))?;
+    std::fs::remove_file(lock_path).map_err(DownloadError::Io)?;
 
     Ok(())
 }
@@ -434,7 +442,7 @@ impl DownloadManager {
         // Check available disk space before starting download
         // This prevents partial file corruption if disk fills during download
         if total_bytes > 0 {
-            check_disk_space(&self.output_path, total_bytes)?;
+            crate::download::utils::check_disk_space(&self.output_path, total_bytes)?;
         }
 
         // Initialize download tracking
@@ -640,67 +648,4 @@ pub fn calculate_checksum(output_path: &PathBuf) -> Result<String, DownloadError
     }
 
     Ok(format!("{:x}", hasher.finalize()))
-}
-
-/// Check available disk space before download
-///
-/// This function checks if there is sufficient disk space available for the download.
-/// It uses platform-specific APIs to get available disk space.
-///
-/// # Arguments
-///
-/// * `output_path` - The path where the file will be downloaded
-/// * `required_bytes` - The number of bytes required for the download
-///
-/// # Returns
-///
-/// * `Ok(())` - If there is sufficient disk space
-/// * `Err(DownloadError)` - If there is insufficient disk space or the check fails
-#[cfg(unix)]
-fn check_disk_space(output_path: &PathBuf, required_bytes: u64) -> Result<(), DownloadError> {
-    use nix::sys::statvfs::statvfs;
-
-    // Get the directory where the file will be downloaded
-    let dir = if let Some(parent) = output_path.parent() {
-        parent.to_path_buf()
-    } else {
-        std::env::current_dir().map_err(|e| DownloadError::Io(e))?
-    };
-
-    // Get filesystem statistics
-    let stat = statvfs(&dir)
-        .map_err(|e| DownloadError::Network(format!("Failed to get disk space: {}", e)))?;
-
-    let available_bytes = stat.blocks_available() as u64 * stat.block_size() as u64;
-
-    // Add 10% buffer for safety
-    let required_with_buffer = required_bytes * 11 / 10;
-
-    if available_bytes < required_with_buffer {
-        return Err(DownloadError::Network(format!(
-            "Insufficient disk space: {} bytes required (with 10% buffer), {} bytes available",
-            required_with_buffer, available_bytes
-        )));
-    }
-
-    Ok(())
-}
-
-/// Check available disk space before download (Windows stub)
-///
-/// On Windows, we skip the disk space check for now since we don't have
-/// Windows-specific dependencies. The download will fail with a disk full
-/// error if space is insufficient.
-#[cfg(windows)]
-fn check_disk_space(_output_path: &PathBuf, _required_bytes: u64) -> Result<(), DownloadError> {
-    // Skip disk space check on Windows for now
-    // The download will fail with a disk full error if space is insufficient
-    Ok(())
-}
-
-/// Check available disk space before download (fallback for other platforms)
-#[cfg(not(any(unix, windows)))]
-fn check_disk_space(_output_path: &PathBuf, _required_bytes: u64) -> Result<(), DownloadError> {
-    // Skip disk space check on other platforms for now
-    Ok(())
 }

@@ -35,7 +35,7 @@ mod local_tests {
     fn test_local_dimension() {
         let models_dir = PathBuf::from(".knowledge-loom-index/models");
         let provider = LocalEmbedProvider::new(&models_dir);
-        // Verify dimension is 384 for all-MiniLM-L6-v2 model
+        // Verify dimension is 384 for bge-small-en-v1.5 model
         assert_eq!(provider.dimension(), 384);
     }
 
@@ -631,7 +631,6 @@ mod provider_enum_tests {
     fn test_provider_priority_chain() {
         // Test that provider priority works correctly
         // OpenRouter > Ollama > Local
-        let models_dir = PathBuf::from(".knowledge-loom-index/models");
 
         // Test local provider (default)
         std::env::remove_var("OLLAMA_URL");
@@ -661,7 +660,6 @@ mod provider_enum_tests {
     fn test_provider_fallback_logic() {
         // Test that fallback logic works correctly
         // This tests the EmbedProviderEnum::new method which handles provider selection
-        let models_dir = PathBuf::from(".knowledge-loom-index/models");
 
         // Test with no environment variables (should use local)
         std::env::remove_var("OLLAMA_URL");
@@ -696,7 +694,6 @@ mod provider_enum_tests {
     fn test_provider_warning_logging() {
         // Test that provider selection logs appropriate warnings
         // This is a basic test to ensure logging doesn't panic
-        let models_dir = PathBuf::from(".knowledge-loom-index/models");
 
         // Test local provider logging
         std::env::remove_var("OLLAMA_URL");
@@ -722,7 +719,6 @@ mod provider_enum_tests {
 #[cfg(test)]
 mod integration_tests {
     use super::*;
-    use knowledge_loom::embed::EmbedProviderEnum;
     use std::path::PathBuf;
 
     #[tokio::test]
@@ -799,7 +795,7 @@ mod integration_tests {
     #[tokio::test]
     async fn test_http_client_memory_usage() {
         // Test Ollama client memory usage
-        let ollama = OllamaEmbedProvider::new("http://localhost:11434".to_string());
+        let _ollama = OllamaEmbedProvider::new("http://localhost:11434".to_string());
         let initial_memory = get_memory_usage();
 
         // Create multiple clients

@@ -81,9 +81,8 @@ fn bench_embedding_consistency(c: &mut Criterion) {
 
     c.bench_function("embedding_consistency", |b| {
         b.iter(|| {
-            let text = text.clone();
-            let embedding1 = rt.block_on(async { provider.embed(black_box(&text)).await.unwrap() });
-            let embedding2 = rt.block_on(async { provider.embed(black_box(&text)).await.unwrap() });
+            let embedding1 = rt.block_on(async { provider.embed(black_box(text)).await.unwrap() });
+            let embedding2 = rt.block_on(async { provider.embed(black_box(text)).await.unwrap() });
             // Verify consistency
             assert_eq!(embedding1, embedding2, "Embeddings should be consistent");
         })
@@ -103,8 +102,7 @@ fn bench_batch_embedding(c: &mut Criterion) {
     c.bench_function("batch_embedding_100", |b| {
         b.iter(|| {
             for text in &texts {
-                let text = text.clone();
-                black_box(rt.block_on(async { provider.embed(black_box(&text)).await }));
+                let _ = rt.block_on(async { provider.embed(text).await });
             }
         })
     });

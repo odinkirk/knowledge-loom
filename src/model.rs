@@ -1,6 +1,8 @@
 // Model module for Knowledge Loom model management
 // This module handles model validation, metadata, and state management
 
+#![allow(dead_code)]
+
 use anyhow::Context;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -8,17 +10,17 @@ use std::path::PathBuf;
 use thiserror::Error;
 
 /// Model name constant
-pub const MODEL_NAME: &str = "all-MiniLM-L6-v2";
+pub const MODEL_NAME: &str = "bge-small-en-v1.5";
 
 /// Model version constant
 pub const MODEL_VERSION: &str = "1.0.0";
 
 /// Model download URL constant
 pub const MODEL_URL: &str =
-    "https://huggingface.co/qdrant/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx";
+    "https://huggingface.co/Xenova/bge-small-en-v1.5/resolve/main/onnx/model.onnx";
 
 /// Model file name constant
-pub const MODEL_FILE: &str = "all-MiniLM-L6-v2.onnx";
+pub const MODEL_FILE: &str = "model.onnx";
 
 /// Download state file name constant
 pub const STATE_FILE: &str = "download-state.json";
@@ -80,6 +82,9 @@ pub enum DownloadError {
 
     #[error("Reqwest error: {0}")]
     Reqwest(#[from] reqwest::Error),
+
+    #[error("Checksum mismatch: expected {expected}, got {actual}")]
+    ChecksumMismatch { expected: String, actual: String },
 }
 
 /// Error types for initialization operations
@@ -532,7 +537,7 @@ impl ModelManager {
             self.set_model_metadata(&metadata)?;
         } else {
             // Create new metadata with validation status
-            let file_size = std::fs::metadata(&self.model_path())
+            let file_size = std::fs::metadata(self.model_path())
                 .context("Failed to get model file size")?
                 .len();
             let metadata = ModelMetadata::new(
@@ -663,31 +668,31 @@ pub fn format_error_with_instructions<E: std::fmt::Display>(
 /// Returns formatted manual download instructions.
 fn format_manual_download_instructions(kb_root: &std::path::Path) -> String {
     let models_dir = kb_root.join(".knowledge-loom-index").join("models");
-    let model_file = models_dir.join("all-MiniLM-L6-v2.onnx");
+    let model_file = models_dir.join(MODEL_FILE);
 
     format!(
         "Manual Model Download Instructions:\n\
          \n\
          Step 1: Download the model file\n\
-           Download URL: https://huggingface.co/Qdrant/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx\n\
-           Model name: all-MiniLM-L6-v2\n\
+           Download URL: {url}\n\
+           Model name: {name}\n\
            Expected size: ~120MB\n\
          \n\
            You can download using:\n\
-           - curl: curl -L -o \"{}\" \"https://huggingface.co/Qdrant/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx\"\n\
-           - wget: wget -O \"{}\" \"https://huggingface.co/Qdrant/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx\"\n\
+           - curl: curl -L -o \"{file}\" \"{url}\"\n\
+           - wget: wget -O \"{file}\" \"{url}\"\n\
          \n\
          Step 2: Create the models directory\n\
-           mkdir -p \"{}\"\n\
+           mkdir -p \"{dir}\"\n\
          \n\
          Step 3: Move the downloaded file to the models directory\n\
-           mv all-MiniLM-L6-v2.onnx \"{}\"\n\
+           mv {name} \"{dir}\"\n\
          \n\
          Step 4: Run initialization again\n\
-           Run 'loom init' again to complete the initialization process.",
-        model_file.display(),
-        model_file.display(),
-        models_dir.display(),
-        model_file.display()
+            Run 'loom init' again to complete the initialization process.",
+        url = MODEL_URL,
+        name = MODEL_NAME,
+        file = model_file.display(),
+        dir = models_dir.display()
     )
 }
