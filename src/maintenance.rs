@@ -148,7 +148,7 @@ impl MaintenanceManager {
         {
             let bm25 = self.bm25_index.lock().await;
             if let Err(e) = bm25.check_schema().await {
-                eprintln!("  BM25 index corrupted ({}); forcing full rebuild.", e);
+                eprintln!("  BM25 index unavailable ({}); will rebuild.", e);
             }
             drop(bm25);
             let vector = self.vector_index.lock().await;
