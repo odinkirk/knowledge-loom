@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use tokio::fs;
 use walkdir::WalkDir;
@@ -50,7 +51,18 @@ impl IgnorePattern {
 
     fn matches(&self, relative: &str) -> bool {
         if let Some(ref prefix) = self.dir_prefix {
-            return relative == prefix || relative.starts_with(&format!("{}/", prefix));
+            if relative == prefix || relative.starts_with(&format!("{}/", prefix)) {
+                return true;
+            }
+            // Also check if any path component matches the prefix (subdirectory patterns)
+            for component in std::path::Path::new(relative).components() {
+                if let Some(s) = component.as_os_str().to_str() {
+                    if s == prefix {
+                        return true;
+                    }
+                }
+            }
+            return false;
         }
         if let Some(ref pat) = self.glob_pattern {
             // Match against the full relative path
@@ -58,7 +70,10 @@ impl IgnorePattern {
                 return true;
             }
             // Also try matching just the filename component
-            if let Some(name) = Path::new(relative).file_name().and_then(|n| n.to_str()) {
+            if let Some(name) = std::path::Path::new(relative)
+                .file_name()
+                .and_then(|n| n.to_str())
+            {
                 if pat.matches(name) {
                     return true;
                 }
@@ -121,6 +136,7 @@ impl VaultState {
 
     pub async fn scan_files(&self) -> Vec<PathBuf> {
         let mut files = Vec::new();
+        let mut seen_canonical: HashSet<PathBuf> = HashSet::new();
         let mut ignored_count = 0;
 
         for entry in WalkDir::new(&self.kb_root)
@@ -133,7 +149,12 @@ impl VaultState {
                 if self.should_ignore(path) {
                     ignored_count += 1;
                 } else if path.extension().and_then(|s| s.to_str()) == Some("md") {
-                    files.push(path.to_path_buf());
+                    // Canonicalize to dedup symlinks
+                    let canonical =
+                        std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+                    if seen_canonical.insert(canonical) {
+                        files.push(path.to_path_buf());
+                    }
                 }
             }
         }

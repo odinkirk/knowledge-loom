@@ -159,6 +159,12 @@ impl BM25Index {
         writer_lock.commit().map(|_| ())
     }
 
+    pub fn doc_count(&self) -> Result<u64, TantivyError> {
+        let reader = self.index.reader()?;
+        let searcher = reader.searcher();
+        Ok(searcher.num_docs())
+    }
+
     pub async fn index_file(
         &mut self,
         path: &Path,

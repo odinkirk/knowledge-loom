@@ -241,6 +241,41 @@ Intel CPU thermal throttling). Incremental reindex: 93ms.
 than after each file (which previously caused 216 fsyncs for 108 files). Result:
 BM25 reindex dropped from 87s to ~1s (90× improvement).
 
+### Search Result Filtering
+
+`SearchEngine::search()` in `src/search.rs` collects only BM25-scored chunks into the
+`sections_map`, not every chunk from matched files. The vector/graph fallback that formerly
+called `get_chunks_for_path()` (dumping entire files) now returns at most the top-1 chunk.
+`top_k` is applied to total section count across all results, not file count.
+
+### Graph Link Extraction
+
+`GraphState::extract_wikilinks()` in `src/graph.rs` handles both `[[wikilink]]` (with
+optional `|alias`) and standard Markdown `[text](path.md)` link formats. External HTTP
+links are ignored. Extracted targets have `.md` extension stripped to match node naming.
+
+### Symlink Dedup & Subdirectory Ignore
+
+`VaultState::scan_files()` canonicalizes each path via `std::fs::canonicalize()` and
+tracks seen canonical paths to avoid indexing symlinks twice. `IgnorePattern::matches()`
+checks path components for directory-prefix patterns, so `.venv/` matches `tools/.venv/`.
+
+### index_status Live Counts
+
+`get_index_status()` in `src/maintenance.rs` queries actual counts: `searcher.num_docs()`
+for BM25 documents, `count_embeddings()` for vector count, and `graph.edge_count()` for
+graph edges — replacing hardcoded zeros.
+
+### read_section Depth
+
+`read_section` accepts an optional `depth` parameter (default 0 = full tree, backward
+compatible). `depth=1` stops at the first subheading.
+
+### Relative Paths
+
+`list_files` and `grep` return paths relative to `KB_ROOT`, immediately reusable as input
+to other tools without manual prefix stripping.
+
 
 ## Model Download Flow
 
