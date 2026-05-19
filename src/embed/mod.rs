@@ -76,7 +76,7 @@ pub trait EmbedProvider: Send + Sync {
     ///
     /// ```ignore
     /// let dim = provider.dimension();
-    /// assert_eq!(dim, 384); // for all-MiniLM-L6-v2
+    /// assert_eq!(dim, 384); // for bge-small-en-v1.5
     /// ```
     fn dimension(&self) -> usize;
 }

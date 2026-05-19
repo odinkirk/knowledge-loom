@@ -133,8 +133,8 @@ pub fn format_download_error(error: &DownloadError) -> String {
 fn get_manual_download_instructions_summary() -> String {
     "Manual download is available as a fallback:\n\
      \n\
-     1. Download the model from: https://huggingface.co/Qdrant/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx\n\
-     2. Place it in: .knowledge-loom-index/models/all-MiniLM-L6-v2.onnx\n\
+     1. Download the model from: https://huggingface.co/Xenova/bge-small-en-v1.5/resolve/main/onnx/model.onnx\n\
+     2. Place it in: .knowledge-loom-index/models/model.onnx\n\
      3. Run 'loom init' again to complete initialization".to_string()
 }
 

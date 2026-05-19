@@ -35,7 +35,7 @@ mod local_tests {
     fn test_local_dimension() {
         let models_dir = PathBuf::from(".knowledge-loom-index/models");
         let provider = LocalEmbedProvider::new(&models_dir);
-        // Verify dimension is 384 for all-MiniLM-L6-v2 model
+        // Verify dimension is 384 for bge-small-en-v1.5 model
         assert_eq!(provider.dimension(), 384);
     }
 

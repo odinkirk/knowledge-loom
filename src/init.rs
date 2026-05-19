@@ -4,7 +4,7 @@
 #![allow(dead_code)]
 
 use crate::model::ModelManager;
-use crate::model::{InitError, ModelMetadata, MODEL_URL};
+use crate::model::{InitError, ModelMetadata, MODEL_FILE, MODEL_NAME, MODEL_URL};
 use std::path::{Path, PathBuf};
 
 /// Initialization manager for handling knowledge base initialization
@@ -49,7 +49,7 @@ impl InitManager {
     /// Get the model metadata
     pub fn get_model_metadata(&self) -> Result<Option<ModelMetadata>, InitError> {
         let models_dir = self.kb_root.join(".knowledge-loom-index").join("models");
-        let metadata_file = models_dir.join("all-MiniLM-L6-v2.json");
+        let metadata_file = models_dir.join(format!("{}.json", MODEL_NAME));
 
         if !metadata_file.exists() {
             return Ok(None);
@@ -167,7 +167,7 @@ impl InitManager {
     /// - Troubleshooting tips
     pub fn generate_manual_download_instructions(&self) -> Result<String, InitError> {
         let models_dir = self.kb_root.join(".knowledge-loom-index").join("models");
-        let model_file = models_dir.join("all-MiniLM-L6-v2.onnx");
+        let model_file = models_dir.join(MODEL_FILE);
 
         let instructions = format!(
             r#"Manual Model Download Instructions
@@ -175,20 +175,20 @@ impl InitManager {
 Automatic model download failed or was interrupted. Follow these steps to manually download the model:
 
 Step 1: Download the model file
-  Download URL: https://huggingface.co/Qdrant/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx
-  Model name: all-MiniLM-L6-v2
+  Download URL: https://huggingface.co/Xenova/bge-small-en-v1.5/resolve/main/onnx/model.onnx
+  Model name: bge-small-en-v1.5
   Expected size: ~120MB
 
   You can download using:
-  - curl: curl -L -o "{}" "https://huggingface.co/Qdrant/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx"
-  - wget: wget -O "{}" "https://huggingface.co/Qdrant/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx"
+  - curl: curl -L -o "{}" "https://huggingface.co/Xenova/bge-small-en-v1.5/resolve/main/onnx/model.onnx"
+  - wget: wget -O "{}" "https://huggingface.co/Xenova/bge-small-en-v1.5/resolve/main/onnx/model.onnx"
   - Or download directly from the URL in your browser
 
 Step 2: Create the models directory
   mkdir -p "{}"
 
 Step 3: Move the downloaded file to the models directory
-  mv all-MiniLM-L6-v2.onnx "{}"
+  mv model.onnx "{}"
 
 Step 4: Verify the download (optional but recommended)
   After downloading, you can verify the file integrity using SHA-256 checksum.

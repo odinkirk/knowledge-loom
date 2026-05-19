@@ -1329,7 +1329,7 @@ async fn integration_download_state_persistence() {
 
     // Create download state
     let state = knowledge_loom::model::DownloadState::new(
-        "all-MiniLM-L6-v2".to_string(),
+        knowledge_loom::model::MODEL_NAME.to_string(),
         "1.0.0".to_string(),
         100_000_000,
     );
@@ -1343,7 +1343,7 @@ async fn integration_download_state_persistence() {
     let loaded_state: knowledge_loom::model::DownloadState =
         serde_json::from_str(&loaded_json).unwrap();
 
-    assert_eq!(loaded_state.model_name, "all-MiniLM-L6-v2");
+    assert_eq!(loaded_state.model_name, knowledge_loom::model::MODEL_NAME);
     assert_eq!(loaded_state.model_version, "1.0.0");
     assert_eq!(loaded_state.total_bytes, 100_000_000);
 }
@@ -1531,9 +1531,9 @@ fn integration_manual_download_instructions_display() {
     assert!(instructions.contains("Step 3"));
 
     // Verify instructions contain model information
-    assert!(instructions.contains("all-MiniLM-L6-v2"));
+    assert!(instructions.contains("bge-small-en-v1.5"));
     assert!(instructions
-        .contains("https://huggingface.co/Qdrant/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx"));
+        .contains("https://huggingface.co/Xenova/bge-small-en-v1.5/resolve/main/onnx/model.onnx"));
 
     // Verify instructions contain path information
     let kb_root_str = kb_root.to_string_lossy();

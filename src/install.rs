@@ -11,7 +11,7 @@ use std::path::PathBuf;
 pub const MODEL_DIR: &str = ".knowledge-loom/models";
 pub const STATE_FILE: &str = ".knowledge-loom/models/.install-state.json";
 pub const MODEL_URL: &str =
-    "https://huggingface.co/Qdrant/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx";
+    "https://huggingface.co/Xenova/bge-small-en-v1.5/resolve/main/onnx/model.onnx";
 pub const EXPECTED_CHECKSUM: &str =
     "bbd7b466f6d58e646fdc2bd5fd67b2f5e93c0b687011bd4548c420f7bd46f0c5";
 
@@ -112,7 +112,7 @@ impl InstallManager {
 
         // Save state
         let state = InstallState {
-            model_version: "all-MiniLM-L6-v2".to_string(),
+            model_version: "bge-small-en-v1.5".to_string(),
             download_timestamp: chrono::Utc::now().to_rfc3339(),
             checksum: checksum_hex.clone(),
             size_bytes: bytes.len() as u64,

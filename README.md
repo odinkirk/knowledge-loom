@@ -73,7 +73,7 @@ Quick overview:
 | **Storage** | Chunking strategy | 2000 char chunks with whitespace truncation | `bm25::MAX_CHUNK_CHARS` |
 | **Embedding** | Local provider | Built-in embedding support | `LocalEmbedProvider` |
 | **Embedding** | Ollama provider | Optional Ollama integration | `OllamaEmbedProvider` |
-| **Exclusions** | .loomignore support | Gitignore-style file exclusion | `VaultState` |
+| **Exclusions** | .knowledge-loom-ignore | Glob-style file exclusion | `VaultState` |
 
 ---
 
@@ -424,10 +424,11 @@ The Rust binary provides CLI commands for testing and development:
 
 ## Excluding Files
 
-Create a `.loomignore` file in your knowledge directory. It supports the same patterns
-as `.gitignore`: directory patterns (`.venv/`), file globs (`*.dist-info/`), and exact names.
+Create a `.knowledge-loom-ignore` file in your knowledge directory. It supports glob-style
+patterns: directory patterns (`.claude/`), wildcard file patterns (`*.log`) and full
+subdirectory patterns (`.claude/**`). Blank lines and `#` comments are supported.
 
-Files matching patterns in `.loomignore` will be excluded from indexing.
+Files matching patterns in `.knowledge-loom-ignore` will be excluded from indexing.
 
 ---
 
@@ -446,12 +447,17 @@ If automatic model download fails during `loom init`, you can manually download 
 1. **Download the model file**:
    ```bash
    # Using curl
-   curl -L -o .knowledge-loom-index/models/all-MiniLM-L6-v2.onnx \
-     https://huggingface.co/Qdrant/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx
+   curl -L -o .knowledge-loom-index/models/model.onnx \
+     https://huggingface.co/Xenova/bge-small-en-v1.5/resolve/main/onnx/model.onnx
 
    # Using wget
-   wget -O .knowledge-loom-index/models/all-MiniLM-L6-v2.onnx \
-     https://huggingface.co/Qdrant/all-MiniLM-L6-v2-onnx/resolve/main/model.onnx
+   wget -O .knowledge-loom-index/models/model.onnx \
+     https://huggingface.co/Xenova/bge-small-en-v1.5/resolve/main/onnx/model.onnx
+   ```
+
+2. **Move the model** (if downloaded elsewhere):
+   ```bash
+   mv model.onnx .knowledge-loom-index/models/
    ```
 
 2. **Create the models directory** (if it doesn't exist):

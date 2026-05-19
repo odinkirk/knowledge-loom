@@ -174,7 +174,7 @@ graph LR
          Edits-->>User: Error with retry guidance
      end
      
-     Note over User,Tantivy: During ingestion, requests return<br/>"indexing: try again in 2 seconds"
+      Note over User,Tantivy: During ingestion, requests return<br/>"indexing in progress" error
  ```
 
  **Re-indexing Triggers:**
@@ -182,10 +182,10 @@ graph LR
  - `edit_section()` operation completes
  - `edit_lines()` operation completes
 
- **Failure Handling:**
- - On re-indexing failure: Drop indices and re-ingest entire corpus
- - Corpus re-ingestion: <3 seconds for typical vaults (10k documents)
- - During ingestion: Return "indexing: try again in 2 seconds" error
+  **Failure Handling:**
+  - On re-indexing failure: Drop indices and re-ingest entire corpus
+  - Corpus re-ingestion: ~200s for 65 files (3030 chunks); dominated by ONNX CPU inference
+  - During ingestion: BM25 sets `is_ingesting` flag; requests return "indexing in progress" error
 
  **Concurrent Edit Handling:**
   - Edits to the same file are serialized
@@ -419,7 +419,7 @@ graph TB
  The vault scanner is responsible for discovering and reading Markdown files from the knowledge base.
 
  **Key Responsibilities:**
- - File discovery with `.loomignore` support
+ - File discovery with `.knowledge-loom-ignore` support
  - Markdown file filtering
  - Content reading with error handling
  - Path resolution and normalization
@@ -750,7 +750,7 @@ pub async fn search_graph_fused_inner(
  **Ingestion State Management:**
  - Tracks ingestion state to prevent stale reads during rebuild
  - Sets ingestion state before acquiring lock for rebuild
- - Returns "indexing: try again in 2 seconds" error during ingestion
+  - Returns "indexing in progress" error during ingestion
  - Clears ingestion state on success or failure
  - Prevents race conditions between re-indexing and chunk retrieval
 
@@ -921,7 +921,7 @@ pub trait EmbedProvider: Send + Sync {
 ```
 
 **Built-in providers:**
-- **LocalEmbedProvider**: Built-in embeddings using fastembed (all-MiniLM-L6-v2, 384 dimensions)
+- **LocalEmbedProvider**: Built-in embeddings using fastembed (BGESmallENV15, 384 dimensions)
 - **OllamaEmbedProvider**: Ollama integration (nomic-embed-text-v1.5, 768 dimensions)
 - **OpenRouterEmbedProvider**: OpenRouter integration (openai/text-embedding-ada-002, 1536 dimensions)
 
@@ -972,7 +972,7 @@ The graph engine supports custom algorithms:
 
 ### File System Access
 
-- Respects `.loomignore` patterns
+- Respects `.knowledge-loom-ignore` patterns
 - Only processes Markdown files
 - Handles file system errors gracefully
 - No arbitrary file execution
