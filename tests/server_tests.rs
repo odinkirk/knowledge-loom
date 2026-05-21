@@ -191,6 +191,31 @@ async fn test_dispatch_tool_grep_with_pattern() {
 }
 
 #[tokio::test]
+async fn test_dispatch_tool_grep_with_limit_and_file_filter() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_str().unwrap();
+    std::fs::create_dir_all(tmp.path().join("logs")).unwrap();
+    std::fs::write(
+        tmp.path().join("notes.md"),
+        "# Notes\nTODO: refactor\nok line\n",
+    )
+    .unwrap();
+    std::fs::write(tmp.path().join("logs/errors.log"), "TODO: fix bug\n").unwrap();
+    let server = LoomServer::new(root).await;
+
+    let result = server
+        .dispatch_tool(
+            "grep",
+            &serde_json::json!({"pattern": "TODO", "file_filter": "logs", "limit": 1}),
+        )
+        .await;
+    assert!(result.is_ok());
+    let body = result.unwrap();
+    assert!(body.contains(r#""truncated":false"#) || body.contains(r#""truncated":true"#));
+    assert!(body.contains(r#""total_matches""#));
+}
+
+#[tokio::test]
 async fn test_dispatch_tool_read_section() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path().to_str().unwrap();

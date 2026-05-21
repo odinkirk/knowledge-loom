@@ -1,3 +1,4 @@
+use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -8,6 +9,22 @@ pub struct SectionPreview {
     pub line_end: usize,
     pub current: String,
     pub proposed: String,
+}
+
+/// A single line match from a grep operation.
+#[derive(Debug, Serialize)]
+pub struct GrepMatch {
+    pub file: String,
+    pub line_number: usize,
+    pub line_text: String,
+}
+
+/// Complete response from a grep operation with truncation metadata.
+#[derive(Debug, Serialize)]
+pub struct GrepResponse {
+    pub matches: Vec<GrepMatch>,
+    pub truncated: bool,
+    pub total_matches: usize,
 }
 
 #[allow(dead_code)]
@@ -78,33 +95,71 @@ impl EditManager {
         }
     }
 
-    pub async fn grep(&self, pattern: &str) -> Vec<(String, usize, String)> {
+    /// Regex search across all vault files with optional file filtering and result capping.
+    ///
+    /// - `pattern`: A regex pattern to match against each line.
+    /// - `file_filter`: If provided and non-empty, only files whose relative path contains
+    ///   the filter string are searched.
+    /// - `limit`: Maximum matches to return. `0` means no limit.
+    ///
+    /// Returns a `GrepResponse` with matches, truncation flag, and total match count.
+    pub async fn grep(
+        &self,
+        pattern: &str,
+        file_filter: Option<&str>,
+        limit: usize,
+    ) -> GrepResponse {
         let re = match regex::Regex::new(pattern) {
             Ok(r) => r,
-            Err(_) => return Vec::new(),
+            Err(_) => {
+                return GrepResponse {
+                    matches: vec![],
+                    truncated: false,
+                    total_matches: 0,
+                }
+            }
         };
         let vault_lock = self.vault_state.lock().await;
         let files = vault_lock.scan_files().await;
-        let mut results = Vec::new();
+        let mut matches = Vec::new();
+        let mut total_matches: usize = 0;
 
         for file_path in files {
+            let file_rel = file_path
+                .strip_prefix(&self.kb_root)
+                .unwrap_or(&file_path)
+                .to_string_lossy()
+                .to_string();
+
+            // Apply file filter if provided
+            if let Some(filter) = file_filter {
+                if !filter.is_empty() && !file_rel.contains(filter) {
+                    continue;
+                }
+            }
+
             if let Some(content) = vault_lock.read_file(&file_path).await {
                 for (line_num, line) in content.lines().enumerate() {
                     if re.is_match(line) {
-                        results.push((
-                            file_path
-                                .strip_prefix(&self.kb_root)
-                                .unwrap_or(&file_path)
-                                .to_string_lossy()
-                                .to_string(),
-                            line_num + 1,
-                            line.to_string(),
-                        ));
+                        total_matches += 1;
+                        if limit == 0 || matches.len() < limit {
+                            matches.push(GrepMatch {
+                                file: file_rel.clone(),
+                                line_number: line_num + 1,
+                                line_text: line.to_string(),
+                            });
+                        }
                     }
                 }
             }
         }
-        results
+
+        let truncated = total_matches > matches.len();
+        GrepResponse {
+            matches,
+            truncated,
+            total_matches,
+        }
     }
 
     #[allow(dead_code)]

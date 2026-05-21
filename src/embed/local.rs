@@ -261,7 +261,7 @@ impl LocalEmbedProvider {
 
             // Store in cache and map results
             let mut cache = self.cache.lock().await;
-            for (idx, embedding) in uncached_indices.iter().zip(embeddings.into_iter()) {
+            for (idx, embedding) in uncached_indices.iter().zip(embeddings) {
                 use std::collections::hash_map::DefaultHasher;
                 use std::hash::{Hash, Hasher};
                 let mut hasher = DefaultHasher::new();

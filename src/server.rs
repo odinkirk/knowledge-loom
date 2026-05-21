@@ -136,7 +136,7 @@ impl LoomServer {
             ToolDef {
                 name: "grep",
                 description: "Regex search, optional file filter",
-                schema: json!({"type":"object","properties":{"pattern":{"type":"string"},"file_filter":{"type":"string"}},"required":["pattern"]}),
+                schema: json!({"type":"object","properties":{"pattern":{"type":"string"},"file_filter":{"type":"string"},"limit":{"type":"integer","default":200,"description":"Max results (0 = no limit)"}},"required":["pattern"]}),
             },
             ToolDef {
                 name: "read_section",
@@ -311,8 +311,14 @@ impl LoomServer {
             }
             "grep" => {
                 let pattern = str_arg("pattern")?;
-                let results = self.edits.grep(&pattern).await;
-                Ok(serde_json::to_string(&results).unwrap_or_default())
+                let file_filter = args.get("file_filter").and_then(|v| v.as_str());
+                let limit = args
+                    .get("limit")
+                    .and_then(|v| v.as_u64())
+                    .map(|v| v as usize)
+                    .unwrap_or(200);
+                let response = self.edits.grep(&pattern, file_filter, limit).await;
+                Ok(serde_json::to_string(&response).unwrap_or_default())
             }
             "read_section" => {
                 let file = str_arg("file")?;
