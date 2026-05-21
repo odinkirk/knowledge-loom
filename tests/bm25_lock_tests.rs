@@ -67,6 +67,11 @@ async fn test_bm25_new_does_not_delete_live_lock() {
     idx.index_file(tmp.path().join("a.md").as_path(), "# A\ncontent")
         .await
         .expect("first index");
+    // Commit to make searchable
+    {
+        let mut writer = idx.writer.lock().await;
+        writer.commit().unwrap();
+    }
     drop(idx); // writer lock released
 
     // Second index — should open cleanly without lock deletion

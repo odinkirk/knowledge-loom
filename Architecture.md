@@ -313,24 +313,24 @@ graph TB
     end
 
     subgraph "Shared Utilities"
-        F --> L[download/utils.rs]
-        L --> M[calculate_checksum()]
-        L --> N[validate_checksum()]
-        L --> O[check_disk_space()]
+        F --> L1[download/utils.rs]
+        L1 --> M1[calculate_checksum()]
+        L1 --> N1[validate_checksum()]
+        L1 --> O1[check_disk_space()]
     end
 
     subgraph "Validation"
-        H --> L{Checksum valid?}
-        L -->|Yes| M[Mark model as validated]
-        L -->|No| N[Delete corrupted file]
-        N --> E
+        H --> L2{Checksum valid?}
+        L2 -->|Yes| M2[Mark model as validated]
+        L2 -->|No| N2[Delete corrupted file]
+        N2 --> E
     end
 
     subgraph "State Management"
-        E --> O[DownloadState persistence]
+        E --> O2[DownloadState persistence]
         F --> P[Progress updates]
-        P --> O
-        O --> Q[File locking]
+        P --> O2
+        O2 --> Q[File locking]
         Q --> R[Concurrent download prevention]
     end
 

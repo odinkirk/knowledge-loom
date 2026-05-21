@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   ## [Unreleased]
 
+  ### Changed
+  - **Grep tool improvements**:
+    - Added default result limit of 200 matches to prevent response flooding
+    - Implemented optional `limit` parameter (0 = no limit)
+    - Implemented `file_filter` parameter for substring filtering on file paths
+    - Response now includes `truncated` flag and `total_matches` count
+    - Results use relative paths consistent with other MCP tools
+
   ### Added
   - **Runtime data install command**:
     - New `loom install` subcommand to download fastembed models

@@ -442,11 +442,11 @@ mod tests {
         let em = make_edit_manager_for_test(tmp.path().to_str().unwrap()).await;
 
         // Only lines starting with "foo"
-        let results = em.grep("^foo").await;
+        let response = em.grep("^foo", None, 200).await;
         assert_eq!(
-            results.len(),
+            response.matches.len(),
             2,
-            "expected 'foo bar' and 'foo123', got {results:?}"
+            "expected 'foo bar' and 'foo123', got {response:?}"
         );
     }
 
@@ -456,8 +456,12 @@ mod tests {
         std::fs::write(tmp.path().join("note.md"), "foo bar\nbaz qux\nfoo123").unwrap();
         let em = make_edit_manager_for_test(tmp.path().to_str().unwrap()).await;
 
-        let results = em.grep(r"\d+").await;
-        assert_eq!(results.len(), 1, "expected only 'foo123', got {results:?}");
+        let response = em.grep(r"\d+", None, 200).await;
+        assert_eq!(
+            response.matches.len(),
+            1,
+            "expected only 'foo123', got {response:?}"
+        );
     }
 
     #[tokio::test]
@@ -467,8 +471,205 @@ mod tests {
         let em = make_edit_manager_for_test(tmp.path().to_str().unwrap()).await;
 
         // Invalid regex — should not panic, should return empty
-        let results = em.grep("[invalid").await;
-        assert!(results.is_empty(), "invalid regex should return empty vec");
+        let response = em.grep("[invalid", None, 200).await;
+        assert!(
+            response.matches.is_empty(),
+            "invalid regex should return empty vec"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_grep_empty_pattern_returns_empty() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("note.md"), "line one\nline two\nline three").unwrap();
+        let em = make_edit_manager_for_test(tmp.path().to_str().unwrap()).await;
+
+        let response = em.grep("", None, 200).await;
+        assert!(
+            response.matches.is_empty(),
+            "empty pattern should return empty results, not match every line"
+        );
+        assert!(!response.truncated);
+        assert_eq!(response.total_matches, 0);
+    }
+
+    // ── User Story 1: Scoped Grep Results (limit + truncation) ──
+
+    #[tokio::test]
+    async fn test_grep_default_limit_caps_results() {
+        let tmp = tempfile::tempdir().unwrap();
+        // 3 files × 100 matching lines = 300 total matches
+        for f in &["a.md", "b.md", "c.md"] {
+            let content: String = (0..100).map(|_| "note\n").collect();
+            std::fs::write(tmp.path().join(f), content).unwrap();
+        }
+        let em = make_edit_manager_for_test(tmp.path().to_str().unwrap()).await;
+
+        let response = em.grep("note", None, 200).await;
+        assert!(
+            response.matches.len() <= 200,
+            "default limit should cap at 200, got {}",
+            response.matches.len()
+        );
+        assert!(
+            response.truncated,
+            "should be truncated with 300 total matches"
+        );
+        assert_eq!(
+            response.total_matches, 300,
+            "total_matches should count all lines"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_grep_explicit_limit_20() {
+        let tmp = tempfile::tempdir().unwrap();
+        // 5 files × 20 matching lines = 100 total matches
+        for f in &["a.md", "b.md", "c.md", "d.md", "e.md"] {
+            let content: String = (0..20).map(|_| "hello world\n").collect();
+            std::fs::write(tmp.path().join(f), content).unwrap();
+        }
+        let em = make_edit_manager_for_test(tmp.path().to_str().unwrap()).await;
+
+        let response = em.grep("hello", None, 20).await;
+        assert_eq!(
+            response.matches.len(),
+            20,
+            "limit=20 should return exactly 20 matches"
+        );
+        assert!(
+            response.truncated,
+            "should be truncated with 100 total matches"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_grep_limit_zero_returns_all() {
+        let tmp = tempfile::tempdir().unwrap();
+        let content: String = (0..50).map(|_| "match\n").collect();
+        std::fs::write(tmp.path().join("a.md"), content).unwrap();
+        let em = make_edit_manager_for_test(tmp.path().to_str().unwrap()).await;
+
+        let response = em.grep("match", None, 0).await;
+        assert_eq!(
+            response.matches.len(),
+            50,
+            "limit=0 should return all matches"
+        );
+        assert!(
+            !response.truncated,
+            "should not be truncated when all returned"
+        );
+        assert_eq!(response.total_matches, 50);
+    }
+
+    #[tokio::test]
+    async fn test_grep_no_matches_returns_empty_metadata() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("a.md"), "# Header\nno match here\n").unwrap();
+        let em = make_edit_manager_for_test(tmp.path().to_str().unwrap()).await;
+
+        let response = em.grep("nonexistent", None, 200).await;
+        assert!(response.matches.is_empty());
+        assert!(!response.truncated, "no matches means not truncated");
+        assert_eq!(response.total_matches, 0);
+    }
+
+    // ── User Story 2: File Filter Narrowing ──
+
+    #[tokio::test]
+    async fn test_grep_file_filter_restricts_to_matching_files() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(tmp.path().join("a")).unwrap();
+        std::fs::create_dir_all(tmp.path().join("b")).unwrap();
+        std::fs::create_dir_all(tmp.path().join("c")).unwrap();
+        std::fs::write(tmp.path().join("a/notes.md"), "TODO: fix this\nok\n").unwrap();
+        std::fs::write(tmp.path().join("b/notes.md"), "TODO: also here\nok\n").unwrap();
+        std::fs::write(tmp.path().join("c/other.md"), "TODO: not this one\n").unwrap();
+        let em = make_edit_manager_for_test(tmp.path().to_str().unwrap()).await;
+
+        let response = em.grep("TODO", Some("notes"), 200).await;
+        assert_eq!(
+            response.matches.len(),
+            2,
+            "only files containing 'notes' in path"
+        );
+        for m in &response.matches {
+            assert!(
+                m.file.contains("notes"),
+                "result file should contain 'notes': {}",
+                m.file
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_grep_file_filter_no_matching_files() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("a.md"), "hello world\n").unwrap();
+        let em = make_edit_manager_for_test(tmp.path().to_str().unwrap()).await;
+
+        let response = em.grep("hello", Some("nonexistent"), 200).await;
+        assert!(response.matches.is_empty(), "no files match filter");
+        assert_eq!(response.total_matches, 0);
+    }
+
+    #[tokio::test]
+    async fn test_grep_empty_file_filter_behaves_like_none() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("a.md"), "hello world\n").unwrap();
+        std::fs::write(tmp.path().join("b.md"), "hello there\n").unwrap();
+        let em = make_edit_manager_for_test(tmp.path().to_str().unwrap()).await;
+
+        let response = em.grep("hello", Some(""), 200).await;
+        assert_eq!(
+            response.matches.len(),
+            2,
+            "empty filter should search all files"
+        );
+    }
+
+    // ── User Story 3: Consistent Result Formatting (relative paths) ──
+
+    #[tokio::test]
+    async fn test_grep_returns_relative_paths() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(tmp.path().join("sub")).unwrap();
+        std::fs::write(tmp.path().join("sub/note.md"), "# Title\ntarget line\n").unwrap();
+        let em = make_edit_manager_for_test(tmp.path().to_str().unwrap()).await;
+
+        let response = em.grep("target", None, 200).await;
+        assert_eq!(response.matches.len(), 1);
+        let file = &response.matches[0].file;
+        assert_eq!(
+            file, "sub/note.md",
+            "path should be relative, got: {}",
+            file
+        );
+        assert!(
+            !file.starts_with("/"),
+            "path must not be absolute: {}",
+            file
+        );
+    }
+
+    #[tokio::test]
+    async fn test_grep_paths_match_list_files_format() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("alpha.md"), "# Alpha\nfind me\n").unwrap();
+        std::fs::write(tmp.path().join("beta.md"), "# Beta\nnothing\n").unwrap();
+        let em = make_edit_manager_for_test(tmp.path().to_str().unwrap()).await;
+
+        let grep_response = em.grep("find me", None, 200).await;
+        let list_files = em.list_files().await;
+
+        let grep_path = &grep_response.matches[0].file;
+        assert!(
+            list_files.contains(grep_path),
+            "grep result file '{}' should appear in list_files output: {:?}",
+            grep_path,
+            list_files
+        );
     }
 
     #[tokio::test]
