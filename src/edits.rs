@@ -109,6 +109,13 @@ impl EditManager {
         file_filter: Option<&str>,
         limit: usize,
     ) -> GrepResponse {
+        if pattern.is_empty() {
+            return GrepResponse {
+                matches: vec![],
+                truncated: false,
+                total_matches: 0,
+            };
+        }
         let re = match regex::Regex::new(pattern) {
             Ok(r) => r,
             Err(_) => {

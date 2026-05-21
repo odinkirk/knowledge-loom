@@ -478,6 +478,21 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn test_grep_empty_pattern_returns_empty() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("note.md"), "line one\nline two\nline three").unwrap();
+        let em = make_edit_manager_for_test(tmp.path().to_str().unwrap()).await;
+
+        let response = em.grep("", None, 200).await;
+        assert!(
+            response.matches.is_empty(),
+            "empty pattern should return empty results, not match every line"
+        );
+        assert!(!response.truncated);
+        assert_eq!(response.total_matches, 0);
+    }
+
     // ── User Story 1: Scoped Grep Results (limit + truncation) ──
 
     #[tokio::test]
