@@ -136,7 +136,6 @@ impl TurbovecIndex {
         }
 
         // Check for legacy sqlite-vec database to migrate
-        #[cfg(feature = "migration")]
         {
             let legacy_db = index_dir.join("embeddings.db");
             if legacy_db.exists() {
@@ -176,7 +175,6 @@ impl TurbovecIndex {
         }
     }
 
-    #[cfg(feature = "migration")]
     fn migrate_from_sqlite_inner(
         kb_root: &Path,
         index: &mut IdMapIndex,
@@ -622,7 +620,6 @@ impl TurbovecIndex {
         Ok(())
     }
 
-    #[cfg(feature = "migration")]
     pub async fn migrate_from_sqlite(&self) -> Result<usize, TurbovecError> {
         let mut index = self.index.lock().await;
         let mut metadata = self.metadata.lock().await;
