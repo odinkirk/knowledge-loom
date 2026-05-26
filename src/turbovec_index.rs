@@ -620,6 +620,7 @@ impl TurbovecIndex {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub async fn migrate_from_sqlite(&self) -> Result<usize, TurbovecError> {
         let mut index = self.index.lock().await;
         let mut metadata = self.metadata.lock().await;

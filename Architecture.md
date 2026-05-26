@@ -836,42 +836,47 @@ pub async fn search_graph_fused_inner(
 
 ### Search Latency
 
-| Operation | Latency (10k docs) | Scaling |
-|-----------|-------------------|---------|
-| BM25 search | ~10ms | Linear |
-| Vector search | ~50ms | Linear |
-| Graph search | ~100ms (cached) | O(V+E) |
-| Graph-fused search | ~60ms | Linear |
-| Unified search | ~150ms | Parallel |
+Benchmarked on Apple M3, 500 files → 1,000 chunks, 384-dim, 4-bit turboquant, release build.
+
+| Operation | Latency (1k chunks) | Notes |
+|-----------|---------------------|-------|
+| Pure turbovec ANN search | **~135µs** (0.14ms) | 1000 samples, p50; SIMD-accelerated dot-product scoring |
+| Embedding generation (query) | ~10ms | Local ONNX BGESmallENV15, per-query cost |
+| Full unified RRF search | **~13ms** (p50), ~26ms (p95) | BM25 + vector + graph + graph-fused in parallel; dominated by embedding generation and BM25 section assembly |
+
+Turbovec itself is negligible overhead — the vector search is **~100x faster** than the full RRF pipeline. Scaling to 10k chunks is linear per turbovec's SIMD kernel design.
 
 ### Indexing Performance
 
 | Operation | Speed | Notes |
 |-----------|-------|-------|
-| Initial build (BM25) | ~1s (65 files) | Single commit at end |
-| Initial build (Vector, BGESmallENV15) | ~200s (3030 chunks) | ONNX CPU inference bound, Intel Mac |
-| Initial build (Graph) | ~0.2s | Full graph |
-| Incremental update (no changes) | 93ms | Mtime comparison only |
+| Vector indexing (turbovec) | 324 chunks/sec | ONNX CPU inference bound on Apple M3 |
+| Vector encode (turbovec quantization) | ~0.1ms/chunk | 4-bit Lloyd-Max quantization, negligible vs embedding |
+| BM25 initial build | ~1s (65 files) | Single commit at end |
+| Graph build | ~0.2s | Full graph |
+| Incremental update (no changes) | ~93ms | Mtime comparison only |
 | Incremental update (1 changed file) | ~150ms | Single file re-embed + graph update |
 
 ### Memory Usage
 
-| Component | Memory (10k docs) | Scaling |
-|-----------|------------------|---------|
-| BM25 index | ~50MB | Linear |
-| Vector store | ~100MB | Linear |
-| Graph cache | ~30MB | Linear |
-| Runtime overhead | ~20MB | Constant |
-| **Total** | **~200MB** | **Linear** |
+| Component | Memory (10k chunks, 384-dim) | Notes |
+|-----------|------------------------------|-------|
+| turbovec index (in-memory) | **~3.8MB** (4-bit) vs ~30MB (float32) | 8x vector compression; SIMD-blocked codes + scales |
+| turbovec metadata | ~2.3MB | ChunkMetadata HashMap (path, heading, content per chunk) |
+| BM25 index | ~50MB | Tantivy inverted index |
+| Graph cache | ~30MB | Petgraph in-memory |
+| Runtime overhead | ~20MB | Tokio, ONNX runtime |
+| **Total** | **~106MB** | **~47% reduction from prior ~200MB** |
 
 ### Disk Usage
 
-| Component | Disk (10k docs) | Scaling |
-|-----------|----------------|---------|
-| BM25 index | ~150MB | Linear |
-| Vector store | ~300MB | Linear |
-| Graph cache | ~50MB | Linear |
-| **Total** | **~500MB** | **Linear** |
+| Component | Disk (10k chunks, 384-dim) | Notes |
+|-----------|----------------------------|-------|
+| turbovec.tvim | **~2.0MB** (4-bit) vs ~30MB (raw float32) | 16x theoretical max; measured 3.5x with metadata |
+| turbovec_meta.bin | ~2.3MB | Bincode-serialized chunk metadata |
+| BM25 index | ~150MB | Tantivy on disk |
+| Graph cache | ~50MB | Bincode-serialized |
+| **Total** | **~204MB** | **~59% reduction from prior ~500MB** |
 
 ## Concurrency Model
 
