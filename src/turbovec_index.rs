@@ -678,18 +678,21 @@ impl TurbovecIndex {
         let index_lock = self.index.lock().await;
         let meta_lock = self.metadata.lock().await;
 
-        let index_path_str =
-            self.index_path
-                .to_str()
-                .ok_or_else(|| TurbovecError::CorruptIndex {
-                    path: self.index_path.clone(),
-                })?;
+        // Write to temp files then atomically rename to avoid corrupting
+        // existing files on crash mid-write.
+        let index_tmp = self.index_path.with_extension("tvim.tmp");
+        let meta_tmp = self.meta_path.with_extension("bin.tmp");
+        let config_tmp = self.config_path.with_extension("bin.tmp");
+
+        let index_path_str = index_tmp.to_str().ok_or_else(|| TurbovecError::CorruptIndex {
+            path: index_tmp.clone(),
+        })?;
         index_lock
             .write(index_path_str)
             .map_err(|e| TurbovecError::Io(std::io::Error::other(e)))?;
 
         let meta_bytes = bincode::serialize(&*meta_lock)?;
-        std::fs::write(&self.meta_path, &meta_bytes)?;
+        std::fs::write(&meta_tmp, &meta_bytes)?;
 
         let config = IndexConfig {
             dim: self.dim,
@@ -698,7 +701,16 @@ impl TurbovecIndex {
             chunk_count: meta_lock.len() as u64,
         };
         let config_bytes = bincode::serialize(&config)?;
-        std::fs::write(&self.config_path, &config_bytes)?;
+        std::fs::write(&config_tmp, &config_bytes)?;
+
+        // Atomic rename: either old files stay, or new files land — no partial state
+        std::fs::rename(&index_tmp, &self.index_path)?;
+        std::fs::rename(&meta_tmp, &self.meta_path)?;
+        std::fs::rename(&config_tmp, &self.config_path)?;
+
+        let _ = std::fs::remove_file(&index_tmp);
+        let _ = std::fs::remove_file(&meta_tmp);
+        let _ = std::fs::remove_file(&config_tmp);
 
         eprintln!("Saved turbovec index: {} chunks", meta_lock.len());
         Ok(())
