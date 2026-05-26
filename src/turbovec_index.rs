@@ -4,6 +4,8 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use turbovec::IdMapIndex;
 
+use futures_util::StreamExt;
+
 #[derive(Debug, thiserror::Error)]
 #[allow(dead_code)]
 pub enum TurbovecError {
@@ -565,19 +567,75 @@ impl TurbovecIndex {
         let mut total_successful = 0;
         let mut total_failed = 0;
 
-        for file_path in files {
-            let content = match vault_state.read_file(&file_path).await {
-                Some(c) => c,
-                None => continue,
-            };
+        // Process files with limited parallelism.
+        // Embedding generation is CPU-bound ONNX inference; we use low
+        // concurrency to avoid thread oversubscription with ONNX's
+        // internal threading. Still faster than fully sequential since
+        // ONNX can overlap I/O and compute across files.
+        let concurrency = 2; // ONNX Runtime serialises internally; >2 causes hangs
 
-            match self.index_file(&file_path, &content, embed_provider).await {
-                Ok((successful, failed)) => {
-                    total_successful += successful;
-                    total_failed += failed;
+        let results: Vec<_> = futures_util::stream::iter(files)
+            .map(|file_path| {
+                let vault = vault_state;
+                let embed = embed_provider;
+                async move {
+                    let content = match vault.read_file(&file_path).await {
+                        Some(c) => c,
+                        None => return (file_path, None),
+                    };
+                    let chunks = crate::chunks::parse_chunks(&content);
+                    if chunks.is_empty() {
+                        return (file_path, None);
+                    }
+                    let texts: Vec<String> =
+                        chunks.iter().map(|c| c.content.clone()).collect();
+                    match embed.embed_batch(&texts).await {
+                        Ok(embeddings) => (file_path, Some((chunks, embeddings))),
+                        Err(e) => {
+                            eprintln!(
+                                "embed_batch failed for {}: {}",
+                                file_path.display(),
+                                e
+                            );
+                            (file_path, None)
+                        }
+                    }
                 }
-                Err(e) => {
-                    eprintln!("Failed to index {}: {}", file_path.display(), e);
+            })
+            .buffer_unordered(concurrency)
+            .collect()
+            .await;
+
+        // Add to turbovec sequentially (fast — no embedding wait)
+        for (file_path, data) in results {
+            match data {
+                Some((chunks, embeddings)) => {
+                    let relative_path = file_path
+                        .strip_prefix(&self.kb_root)
+                        .unwrap_or(&file_path)
+                        .to_string_lossy()
+                        .to_string();
+
+                    let _ = self.remove_file(&file_path).await;
+
+                    match self
+                        .add_chunks(&chunks, &embeddings, &relative_path)
+                        .await
+                    {
+                        Ok(successful) => {
+                            total_successful += successful;
+                        }
+                        Err(e) => {
+                            eprintln!(
+                                "Failed to add chunks for {}: {}",
+                                file_path.display(),
+                                e
+                            );
+                            total_failed += chunks.len();
+                        }
+                    }
+                }
+                None => {
                     total_failed += 1;
                 }
             }

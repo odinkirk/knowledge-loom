@@ -836,47 +836,55 @@ pub async fn search_graph_fused_inner(
 
 ### Search Latency
 
-Benchmarked on Apple M3, 500 files → 1,000 chunks, 384-dim, 4-bit turboquant, release build.
+Benchmarked on Apple M3, release build, live vault (136 files, 4MB, 2,802 chunks, 384-dim, 4-bit turboquant).
 
-| Operation | Latency (1k chunks) | Notes |
-|-----------|---------------------|-------|
+| Operation | Latency | Notes |
+|-----------|---------|-------|
 | Pure turbovec ANN search | **~135µs** (0.14ms) | 1000 samples, p50; SIMD-accelerated dot-product scoring |
 | Embedding generation (query) | ~10ms | Local ONNX BGESmallENV15, per-query cost |
 | Full unified RRF search | **~13ms** (p50), ~26ms (p95) | BM25 + vector + graph + graph-fused in parallel; dominated by embedding generation and BM25 section assembly |
 
-Turbovec itself is negligible overhead — the vector search is **~100x faster** than the full RRF pipeline. Scaling to 10k chunks is linear per turbovec's SIMD kernel design.
+Turbovec itself is negligible overhead — the vector search is **~100x faster** than the full RRF pipeline.
 
 ### Indexing Performance
 
+Benchmarked on Apple M3, live vault with real-world files (2-line notes to 426KB reference exports).
+
 | Operation | Speed | Notes |
 |-----------|-------|-------|
-| Vector indexing (turbovec) | 324 chunks/sec | ONNX CPU inference bound on Apple M3 |
-| Vector encode (turbovec quantization) | ~0.1ms/chunk | 4-bit Lloyd-Max quantization, negligible vs embedding |
-| BM25 initial build | ~1s (65 files) | Single commit at end |
-| Graph build | ~0.2s | Full graph |
+| Full reindex (total) | 159s (2,802 chunks) | BM25 1.2s + Vector 157s + Graph 0.12s |
+| Vector indexing rate | ~18 chunks/sec | ONNX CPU inference bound; 2-way parallel (higher concurrency causes ONNX thread contention) |
+| BM25 indexing | ~1.2s (47 files) | Single commit at end |
+| Graph build | ~0.12s | Full graph |
 | Incremental update (no changes) | ~93ms | Mtime comparison only |
 | Incremental update (1 changed file) | ~150ms | Single file re-embed + graph update |
 
+**Bottleneck**: Embedding generation dominates (99% of vector indexing time). turbovec's quantization and add is ~0.1ms/chunk, negligible. ONNX Runtime's internal threading limits useful parallelism to ~2 concurrent inference calls.
+
 ### Memory Usage
 
-| Component | Memory (10k chunks, 384-dim) | Notes |
-|-----------|------------------------------|-------|
-| turbovec index (in-memory) | **~3.8MB** (4-bit) vs ~30MB (float32) | 8x vector compression; SIMD-blocked codes + scales |
-| turbovec metadata | ~2.3MB | ChunkMetadata HashMap (path, heading, content per chunk) |
+Measured on live vault (2,802 chunks, 384-dim, 4-bit).
+
+| Component | Memory | Notes |
+|-----------|--------|-------|
+| turbovec index (in-memory) | **~1.3MB** | 4-bit compressed codes + scales (vs ~10.8MB raw float32 = 8x) |
+| turbovec metadata | ~2.1MB | ChunkMetadata HashMap (path, heading, content per chunk) |
 | BM25 index | ~50MB | Tantivy inverted index |
 | Graph cache | ~30MB | Petgraph in-memory |
 | Runtime overhead | ~20MB | Tokio, ONNX runtime |
-| **Total** | **~106MB** | **~47% reduction from prior ~200MB** |
+| **Total** | **~103MB** | |
 
 ### Disk Usage
 
-| Component | Disk (10k chunks, 384-dim) | Notes |
-|-----------|----------------------------|-------|
-| turbovec.tvim | **~2.0MB** (4-bit) vs ~30MB (raw float32) | 16x theoretical max; measured 3.5x with metadata |
-| turbovec_meta.bin | ~2.3MB | Bincode-serialized chunk metadata |
+Measured on live vault (2,802 chunks, 384-dim, 4-bit).
+
+| Component | Disk | Notes |
+|-----------|------|-------|
+| turbovec.tvim | **558KB** | 4-bit compressed vectors (2802 × 384 × 4 / 8 = 538KB theoretical) |
+| turbovec_meta.bin | 2.1MB | Bincode-serialized chunk metadata |
 | BM25 index | ~150MB | Tantivy on disk |
 | Graph cache | ~50MB | Bincode-serialized |
-| **Total** | **~204MB** | **~59% reduction from prior ~500MB** |
+| **Total** | **~203MB** | |
 
 ## Concurrency Model
 
