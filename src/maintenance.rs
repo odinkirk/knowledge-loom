@@ -162,10 +162,21 @@ impl MaintenanceManager {
 
         eprintln!("  [perf] BM25 index_vault starting...");
         let bm25_start = std::time::Instant::now();
-        bm25_lock
+        if let Err(e) = bm25_lock
             .index_vault(&*self.vault_state.lock().await)
             .await
-            .map_err(|e| format!("BM25: {}", e))?;
+        {
+            eprintln!(
+                "  BM25 index_vault failed ({}); wiping corrupt index and retrying...",
+                e
+            );
+            let tantivy_dir = self.kb_root.join(".knowledge-loom-index/tantivy");
+            let _ = std::fs::remove_dir_all(&tantivy_dir);
+            bm25_lock
+                .index_vault(&*self.vault_state.lock().await)
+                .await
+                .map_err(|e| format!("BM25 retry failed: {}", e))?;
+        }
         eprintln!("  [perf] BM25 index_vault: {:?}", bm25_start.elapsed());
 
         eprintln!("  [perf] Vector index_vault starting...");
@@ -173,10 +184,35 @@ impl MaintenanceManager {
         let (successful, _, _) = {
             let vector = self.vector_index.lock().await;
             let vault = self.vault_state.lock().await;
-            vector
-                .index_vault(&vault, &self.embed_provider)
-                .await
-                .map_err(|e| format!("Vector: {}", e))?
+            let result = vector.index_vault(&vault, &self.embed_provider).await;
+            match result {
+                Ok(r) => r,
+                Err(e) => {
+                    eprintln!(
+                        "  Vector index_vault failed ({}); wiping corrupt index and retrying...",
+                        e
+                    );
+                    // Wipe turbovec files but preserve models dir
+                    let tvim = self
+                        .kb_root
+                        .join(".knowledge-loom-index/turbovec.tvim");
+                    let meta = self
+                        .kb_root
+                        .join(".knowledge-loom-index/turbovec_meta.bin");
+                    let config = self
+                        .kb_root
+                        .join(".knowledge-loom-index/turbovec_config.bin");
+                    let _ = std::fs::remove_file(&tvim);
+                    let _ = std::fs::remove_file(&meta);
+                    let _ = std::fs::remove_file(&config);
+                    drop(vector);
+                    let vector = self.vector_index.lock().await;
+                    vector
+                        .index_vault(&vault, &self.embed_provider)
+                        .await
+                        .map_err(|e| format!("Vector retry failed: {}", e))?
+                }
+            }
         };
         eprintln!(
             "  [perf] Vector index_vault: {:?} ({} chunks)",
