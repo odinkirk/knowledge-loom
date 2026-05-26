@@ -1,5 +1,15 @@
 # Knowledge Loom Agent Guide
 
+## Commit Consent (HARD STOP — NON-NEGOTIABLE)
+
+**BEFORE you run `git commit`** — no matter the context, no matter how obvious — you MUST pause and ask:
+
+> Shall I commit these changes? (yes/no)
+
+Do not proceed without an explicit "yes", "commit", "proceed", or "y".
+Do not use `ALLOW_COMMIT=1` unless the user has just explicitly consented.
+Do not infer consent from prior consent or from the user saying "push" or "go ahead."
+
 ## Critical Setup
 - **Never use git worktrees** - KB_ROOT is hardcoded to main repo root, making worktrees invisible to MCP tools
 - **Always set KB_ROOT** - Required for all loom tools (defaults to current directory if unset)
