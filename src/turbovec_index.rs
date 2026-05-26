@@ -352,7 +352,7 @@ impl TurbovecIndex {
             });
         }
 
-        if let Some(emb) = embeddings.first() {
+        for emb in embeddings.iter() {
             if emb.len() != self.dim {
                 return Err(TurbovecError::DimensionMismatch {
                     index_dim: self.dim,
@@ -406,10 +406,10 @@ impl TurbovecIndex {
         let mut results: Vec<(String, Option<String>, String, f32)> =
             Vec::with_capacity(effective_k);
 
-        for i in 0..effective_k {
+        for i in 0..ids.len().min(effective_k) {
             let id = ids[i];
             if let Some(meta) = meta_lock.get(&id) {
-                let score = scores[i];
+                let score = if i < scores.len() { scores[i] } else { 0.0 };
                 let similarity = (score + 1.0) / 2.0;
                 results.push((
                     meta.path.clone(),
@@ -448,8 +448,23 @@ impl TurbovecIndex {
             return Ok(Vec::new());
         }
 
+        // Filter out IDs not in metadata to prevent turbovec panicking on
+        // unknown allowlist entries
+        let meta_check = self.metadata.lock().await;
+        let valid_ids: Vec<u64> = allowed_ids
+            .iter()
+            .filter(|id| meta_check.contains_key(id))
+            .copied()
+            .collect();
+        drop(meta_check);
+
+        if valid_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let effective_k = effective_k.min(valid_ids.len());
         let (scores, ids) =
-            index_lock.search_with_allowlist(query_embedding, effective_k, Some(allowed_ids));
+            index_lock.search_with_allowlist(query_embedding, effective_k, Some(&valid_ids));
         drop(index_lock);
 
         let meta_lock = self.metadata.lock().await;
@@ -481,8 +496,10 @@ impl TurbovecIndex {
             .to_string_lossy()
             .to_string();
 
-        let mut meta_lock = self.metadata.lock().await;
+        // Acquire index lock first to match ordering in save/search/add_chunks,
+        // preventing deadlock with concurrent save() calls.
         let mut index_lock = self.index.lock().await;
+        let mut meta_lock = self.metadata.lock().await;
 
         let ids_to_remove: Vec<u64> = meta_lock
             .iter()
@@ -496,17 +513,26 @@ impl TurbovecIndex {
             index_lock.remove(*id);
         }
 
-        if count > 0 {
-            drop(meta_lock);
-            drop(index_lock);
-            let _ = self.save().await;
-        }
-
         Ok(count)
     }
 
     pub async fn count(&self) -> usize {
         self.metadata.lock().await.len()
+    }
+
+    /// Get all chunk IDs associated with a note (by path stem or full path).
+    pub async fn chunk_ids_for_note(&self, note_name: &str) -> Vec<u64> {
+        let meta = self.metadata.lock().await;
+        meta.iter()
+            .filter(|(_, m)| {
+                let stem = m
+                    .path
+                    .strip_suffix(".md")
+                    .unwrap_or(&m.path);
+                stem == note_name || m.path == note_name
+            })
+            .map(|(&id, _)| id)
+            .collect()
     }
 
     pub async fn index_file(

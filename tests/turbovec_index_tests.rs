@@ -438,7 +438,7 @@ async fn test_search_filtered_with_allowlist() {
 }
 
 #[tokio::test]
-async fn test_search_filtered_unknown_id() {
+async fn test_search_filtered_unknown_id_filtered() {
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path().to_str().unwrap();
     let dim = 8;
@@ -455,15 +455,12 @@ async fn test_search_filtered_unknown_id() {
     index.add_chunks(&chunks, &embeddings, "test.md").await.unwrap();
 
     let query: Vec<f32> = vec![1.0; dim];
-    // Allowlist with an ID not in the index — turbovec panics on unknown IDs
-    // Our wrapper should handle this gracefully
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(index.search_filtered(&query, 10, &[99999]))
-    }));
-    // turbovec panics on unknown allowlist IDs — this is expected behavior
-    // Our search_filtered wrapper passes IDs through directly
-    assert!(result.is_err(), "Unknown allowlist ID should cause an error");
+    // Unknown IDs should be silently filtered, not crash
+    let results = index.search_filtered(&query, 10, &[99999]).await.unwrap();
+    assert!(
+        results.is_empty(),
+        "Unknown allowlist IDs should be filtered, returning empty results"
+    );
 }
 
 #[tokio::test]

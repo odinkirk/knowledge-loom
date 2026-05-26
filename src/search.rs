@@ -257,37 +257,32 @@ impl SearchEngine {
         pagerank: &HashMap<String, f64>,
         top_k: usize,
     ) -> Result<Vec<String>, String> {
-        self.search_graph_fused_inner_with_context(query_vec, pagerank, top_k, None)
-            .await
-    }
-
-    pub async fn search_graph_fused_inner_with_context(
-        &self,
-        query_vec: &[f32],
-        pagerank: &HashMap<String, f64>,
-        top_k: usize,
-        context_note: Option<&str>,
-    ) -> Result<Vec<String>, String> {
-        // Resolve graph neighbors for context-aware filtering
-        let allowed_ids: Option<Vec<u64>> = if let Some(note) = context_note {
+        // Resolve graph neighbors into chunk IDs for filtered search
+        let allowed_ids: Option<Vec<u64>> = {
             let graph = self.graph.lock().await;
-            let neighbors = graph.search_graph(note).await;
-            if !neighbors.is_empty() {
-                // Map neighbor note names to possible chunk IDs
-                // For now, we approximate: the neighbor note names don't directly map to
-                // turbovec chunk IDs without a lookup table. We fall back to full search
-                // and let PageRank re-ranking handle the graph boost.
-                drop(graph);
-                None
+            // Walk all graph nodes and collect their chunk IDs for graph-scoped search
+            let all_notes: Vec<String> = {
+                let node_map = graph.node_map.lock().await;
+                node_map.keys().cloned().collect()
+            };
+            if !all_notes.is_empty() {
+                let vector = self.vector.lock().await;
+                let mut ids = Vec::new();
+                for note in &all_notes {
+                    ids.extend(vector.chunk_ids_for_note(note).await);
+                }
+                drop(vector);
+                if !ids.is_empty() {
+                    Some(ids)
+                } else {
+                    None
+                }
             } else {
-                drop(graph);
                 None
             }
-        } else {
-            None
         };
 
-        // Vector similarity search (vector lock only — no embed or graph lock)
+        // Vector similarity search — filtered if graph scope exists, otherwise full
         let similar: Vec<(String, Option<String>, String, f32)> = {
             let vector = self.vector.lock().await;
             if let Some(ref ids) = allowed_ids {
