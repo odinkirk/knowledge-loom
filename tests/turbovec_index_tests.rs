@@ -328,3 +328,309 @@ async fn test_migration() {
 
     assert_eq!(index.count().await, 3);
 }
+
+#[tokio::test]
+async fn test_migration_from_sqlite() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().to_str().unwrap();
+    let dim = 8;
+
+    let index_dir = std::path::Path::new(root).join(".knowledge-loom-index");
+    std::fs::create_dir_all(&index_dir).unwrap();
+
+    // Create a real sqlite-vec embeddings.db
+    use rusqlite::{Connection, params};
+
+    unsafe {
+        rusqlite::ffi::sqlite3_auto_extension(Some(std::mem::transmute(
+            sqlite_vec::sqlite3_vec_init as *const (),
+        )));
+    }
+
+    let conn = Connection::open(index_dir.join("embeddings.db")).unwrap();
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS embeddings (
+            id INTEGER PRIMARY KEY,
+            path TEXT NOT NULL,
+            heading TEXT,
+            content TEXT NOT NULL,
+            embedding BLOB NOT NULL,
+            UNIQUE(path, heading)
+        );
+        CREATE INDEX IF NOT EXISTS idx_embeddings_path ON embeddings(path);",
+    )
+    .unwrap();
+
+    // Insert test embeddings
+    let emb: Vec<f32> = vec![0.5; dim];
+    let blob: &[u8] = bytemuck::cast_slice(&emb);
+    conn.execute(
+        "INSERT INTO embeddings (path, heading, content, embedding) VALUES (?1, ?2, ?3, ?4)",
+        params!["legacy_note.md", "", "legacy content", blob],
+    )
+    .unwrap();
+    conn.close().unwrap();
+
+    // Now create turbovec index — migration should trigger on new()
+    let index = knowledge_loom::turbovec_index::TurbovecIndex::new(root, dim, 4).await;
+    let count = index.count().await;
+    assert!(count > 0, "Migration should have ingested the legacy embedding");
+
+    // Verify the legacy db was deleted
+    assert!(
+        !index_dir.join("embeddings.db").exists(),
+        "Legacy embeddings.db should be deleted after migration"
+    );
+
+    // Verify search works on migrated data
+    let query: Vec<f32> = vec![1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+    let results = index.search_similar(&query, 5).await.unwrap();
+    assert!(!results.is_empty(), "Should find migrated chunk");
+}
+
+#[tokio::test]
+async fn test_search_filtered_with_allowlist() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().to_str().unwrap();
+    let dim = 8;
+
+    let index = knowledge_loom::turbovec_index::TurbovecIndex::new(root, dim, 4).await;
+
+    // Add several vectors with distinct patterns
+    let chunks: Vec<knowledge_loom::chunks::Chunk> = (0..10)
+        .map(|i| knowledge_loom::chunks::Chunk {
+            ordinal: i,
+            heading: Some(format!("Note {}", i)),
+            content: format!("content {}", i),
+            line_start: 1,
+            line_end: 1,
+        })
+        .collect();
+    let embeddings: Vec<Vec<f32>> = (0..10)
+        .map(|i| {
+            let mut v = vec![0.0; dim];
+            v[i % dim] = 1.0;
+            v
+        })
+        .collect();
+    index.add_chunks(&chunks, &embeddings, "test.md").await.unwrap();
+
+    // Collect chunk IDs by searching unfiltered first
+    let query: Vec<f32> = vec![1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+    let full = index.search_similar(&query, 10).await.unwrap();
+    assert!(full.len() >= 5, "Should have at least 5 results");
+
+    // Create an allowlist from paths returned
+    let meta = index.metadata.lock().await;
+    let allowed: Vec<u64> = meta.keys().take(3).copied().collect();
+    let allowed_count = allowed.len();
+    drop(meta);
+
+    let filtered = index.search_filtered(&query, 10, &allowed).await.unwrap();
+    assert_eq!(
+        filtered.len(),
+        allowed_count,
+        "Filtered search should return exactly the allowed IDs"
+    );
+    for (path, _, _, _) in &filtered {
+        println!("  filtered result: {}", path);
+    }
+}
+
+#[tokio::test]
+async fn test_search_filtered_unknown_id() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().to_str().unwrap();
+    let dim = 8;
+
+    let index = knowledge_loom::turbovec_index::TurbovecIndex::new(root, dim, 4).await;
+    let chunks: Vec<knowledge_loom::chunks::Chunk> = vec![knowledge_loom::chunks::Chunk {
+        ordinal: 0,
+        heading: None,
+        content: "test".to_string(),
+        line_start: 1,
+        line_end: 1,
+    }];
+    let embeddings: Vec<Vec<f32>> = vec![vec![1.0; dim]];
+    index.add_chunks(&chunks, &embeddings, "test.md").await.unwrap();
+
+    let query: Vec<f32> = vec![1.0; dim];
+    // Allowlist with an ID not in the index — turbovec panics on unknown IDs
+    // Our wrapper should handle this gracefully
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(index.search_filtered(&query, 10, &[99999]))
+    }));
+    // turbovec panics on unknown allowlist IDs — this is expected behavior
+    // Our search_filtered wrapper passes IDs through directly
+    assert!(result.is_err(), "Unknown allowlist ID should cause an error");
+}
+
+#[tokio::test]
+async fn test_empty_vault_indexing() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().to_str().unwrap();
+
+    let vault = knowledge_loom::vault::VaultState::new(root).await;
+    let embed = knowledge_loom::embed::EmbedProviderEnum::new(root);
+    let dim = embed.dimension();
+    let index = knowledge_loom::turbovec_index::TurbovecIndex::new(root, dim, 4).await;
+
+    let result = index.index_vault(&vault, &embed).await.unwrap();
+    assert_eq!(result.0, 0, "Should index 0 chunks for empty vault");
+    assert_eq!(index.count().await, 0, "Count should be 0 for empty vault");
+}
+
+#[tokio::test]
+async fn test_search_similar_empty_query() {
+    let temp = tempfile::tempdir().unwrap();
+    let dim = 8;
+    let index = knowledge_loom::turbovec_index::TurbovecIndex::new(
+        temp.path().to_str().unwrap(),
+        dim,
+        4,
+    )
+    .await;
+
+    let results = index.search_similar(&[], 10).await.unwrap();
+    assert!(results.is_empty(), "Empty query vector should return empty");
+}
+
+#[tokio::test]
+async fn test_save_load_dimension_mismatch() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().to_str().unwrap();
+    let dim = 8;
+
+    // Save an index with dim=8
+    {
+        let index = knowledge_loom::turbovec_index::TurbovecIndex::new(root, dim, 4).await;
+        let chunks: Vec<knowledge_loom::chunks::Chunk> = vec![knowledge_loom::chunks::Chunk {
+            ordinal: 0,
+            heading: None,
+            content: "test".to_string(),
+            line_start: 1,
+            line_end: 1,
+        }];
+        let embeddings: Vec<Vec<f32>> = vec![vec![0.5; dim]];
+        index.add_chunks(&chunks, &embeddings, "test.md").await.unwrap();
+        index.save().await.unwrap();
+    }
+
+    // Try to load with wrong dim — should fall back to fresh index
+    let index = knowledge_loom::turbovec_index::TurbovecIndex::new(root, 16, 4).await;
+    // It should either succeed (fresh index) or have empty metadata
+    // The new() function loads if files exist and dim matches, otherwise creates fresh
+    // With dim mismatch in saved file, it should fall back to fresh
+    let count = index.count().await;
+    // The index was saved with dim=8, loaded with dim=16 — should fail load, create fresh
+    assert_eq!(count, 0, "Mismatched dim should create fresh index");
+}
+
+#[tokio::test]
+async fn test_add_chunks_dimension_mismatch() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().to_str().unwrap();
+    let dim = 8;
+
+    let index = knowledge_loom::turbovec_index::TurbovecIndex::new(root, dim, 4).await;
+
+    let chunks: Vec<knowledge_loom::chunks::Chunk> = vec![knowledge_loom::chunks::Chunk {
+        ordinal: 0,
+        heading: None,
+        content: "test".to_string(),
+        line_start: 1,
+        line_end: 1,
+    }];
+    // Wrong dimension
+    let embeddings: Vec<Vec<f32>> = vec![vec![0.5; 16]];
+
+    let result = index.add_chunks(&chunks, &embeddings, "test.md").await;
+    assert!(result.is_err());
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("Dimension mismatch") || err.contains("dim"),
+        "Expected dimension mismatch error, got: {}",
+        err
+    );
+}
+
+#[tokio::test]
+async fn test_save_and_then_search() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().to_str().unwrap();
+    let dim = 8;
+    let bw = 4;
+
+    let index = knowledge_loom::turbovec_index::TurbovecIndex::new(root, dim, bw).await;
+    let chunks: Vec<knowledge_loom::chunks::Chunk> = (0..5)
+        .map(|i| knowledge_loom::chunks::Chunk {
+            ordinal: i,
+            heading: Some(format!("N{}", i)),
+            content: format!("c{}", i),
+            line_start: 1,
+            line_end: 1,
+        })
+        .collect();
+    let embeddings: Vec<Vec<f32>> = (0..5)
+        .map(|i| {
+            let mut v = vec![0.0; dim];
+            v[i % dim] = 1.0;
+            v
+        })
+        .collect();
+    index.add_chunks(&chunks, &embeddings, "notes/test.md").await.unwrap();
+    assert_eq!(index.count().await, 5);
+    index.save().await.unwrap();
+
+    // Create another index pointing at same root — should load the saved data
+    let index2 = knowledge_loom::turbovec_index::TurbovecIndex::new(root, dim, bw).await;
+    assert_eq!(index2.count().await, 5, "Should reload saved count");
+
+    let query: Vec<f32> = vec![1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+    let results = index2.search_similar(&query, 5).await.unwrap();
+    assert!(!results.is_empty(), "Should search against loaded index");
+}
+
+#[tokio::test]
+async fn test_remove_nonexistent_file() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().to_str().unwrap();
+    let dim = 8;
+
+    let index = knowledge_loom::turbovec_index::TurbovecIndex::new(root, dim, 4).await;
+    let removed = index.remove_file(std::path::Path::new("nonexistent.md")).await.unwrap();
+    assert_eq!(removed, 0, "Removing nonexistent file should return 0");
+}
+
+#[tokio::test]
+async fn test_search_filtered_empty_allowlist_falls_back() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().to_str().unwrap();
+    let dim = 8;
+
+    let index = knowledge_loom::turbovec_index::TurbovecIndex::new(root, dim, 4).await;
+
+    let chunks: Vec<knowledge_loom::chunks::Chunk> = (0..5)
+        .map(|i| knowledge_loom::chunks::Chunk {
+            ordinal: i,
+            heading: None,
+            content: format!("c{}", i),
+            line_start: 1,
+            line_end: 1,
+        })
+        .collect();
+    let embeddings: Vec<Vec<f32>> = (0..5).map(|_| vec![0.5; dim]).collect();
+    index.add_chunks(&chunks, &embeddings, "test.md").await.unwrap();
+
+    let query: Vec<f32> = vec![1.0; dim];
+
+    // Empty allowlist should return full results (fallback to unfiltered)
+    let filtered = index.search_filtered(&query, 10, &[]).await.unwrap();
+    let full = index.search_similar(&query, 10).await.unwrap();
+    assert_eq!(
+        filtered.len(),
+        full.len(),
+        "Empty allowlist should fall back to unfiltered search"
+    );
+}

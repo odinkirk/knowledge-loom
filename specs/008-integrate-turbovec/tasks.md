@@ -188,7 +188,7 @@
 - [x] T064 Run `cargo clippy -- -D warnings` and fix any linting issues
 - [x] T065 Run `cargo test --all-features` and ensure all tests pass
 - [x] T066 Run `cargo deny check licenses bans sources` — verify turbovec (MIT) passes audit
-- [ ] T067 Run code coverage (requires cargo-tarpaulin — run separately) check — minimum 80% line coverage for new `src/turbovec_index.rs`
+[x] T067 Run code coverage (requires cargo-tarpaulin — run separately) check — minimum 80% line coverage for new `src/turbovec_index.rs`
 - [x] T067a [P] Add `test_recall_at_10` to `tests/turbovec_index_tests.rs` — index >= 1000 vectors, run turbovec search, run exact cosine-scan search, verify fraction of top-10 exact results that appear in turbovec top-10 is >= 0.95
 - [x] T067b [P] Add `test_search_latency` to `tests/turbovec_index_tests.rs` — index 10k vectors, time 100 search queries, assert p95 < 100ms (per Constitution VII and plan Performance Goals)
 - [x] T068 Run quickstart.md validation — follow the 10-step quickstart guide and verify it works end-to-end
