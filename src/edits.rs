@@ -324,13 +324,25 @@ impl EditManager {
     async fn reindex_file(&self, path: &Path, content: &str) -> Result<(), String> {
         let mut errors = Vec::new();
 
-        // Update BM25 full-text index
+        // Update BM25 full-text index — retry once on corruption
         {
             let mut bm25 = self.bm25_index.lock().await;
             if let Err(e) = bm25.index_file(path, content).await {
-                errors.push(format!("BM25 index update failed: {}", e));
-            } else if let Err(e) = bm25.commit().await {
-                errors.push(format!("BM25 commit failed: {}", e));
+                eprintln!(
+                    "BM25 index_file failed ({}); wiping corrupt index and retrying...",
+                    e
+                );
+                let tantivy_dir = self.kb_root.join(".knowledge-loom-index/tantivy");
+                let _ = std::fs::remove_dir_all(&tantivy_dir);
+                match bm25.index_file(path, content).await {
+                    Ok(_) => {}
+                    Err(e2) => errors.push(format!("BM25 retry also failed: {}", e2)),
+                }
+            }
+            if errors.is_empty() {
+                if let Err(e) = bm25.commit().await {
+                    errors.push(format!("BM25 commit failed: {}", e));
+                }
             }
         }
         // Update vector embedding index
