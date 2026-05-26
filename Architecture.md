@@ -27,7 +27,7 @@ graph TB
     
     subgraph "Storage Layer"
         L --> O[Tantivy Index]
-        M --> P[SQLite + sqlite-vec]
+        M --> P[turbovec ANN Index]
         N --> Q[Petgraph Cache]
     end
     
@@ -263,7 +263,7 @@ checks path components for directory-prefix patterns, so `.venv/` matches `tools
 ### index_status Live Counts
 
 `get_index_status()` in `src/maintenance.rs` queries actual counts: `searcher.num_docs()`
-for BM25 documents, `count_embeddings()` for vector count, and `graph.edge_count()` for
+for BM25 documents, `count()` for vector count, and `graph.edge_count()` for
 graph edges — replacing hardcoded zeros.
 
 ### read_section Depth
@@ -432,7 +432,7 @@ graph TB
     
     subgraph "Storage Backends"
         F --> J[Tantivy Index]
-        G --> K[SQLite + sqlite-vec]
+        G --> K[turbovec ANN Index]
         H --> L[Binary Graph Cache]
     end
     
@@ -551,32 +551,32 @@ pub fn truncate_at_whitespace(content: &str, max: usize) -> &str {
 - Line numbers preserved for surgical editing
 - Chunks stored with metadata for precise retrieval
 
-### Vector Store (`index.rs`)
+### Vector Store (`turbovec_index.rs`)
 
-The vector store provides semantic similarity search using sqlite-vec.
+The vector store provides approximate nearest neighbor (ANN) search using turbovec's `IdMapIndex`, implementing Google Research's TurboQuant algorithm.
 
 **Key Responsibilities:**
-- sqlite-vec for semantic similarity
-- Heading-based chunking
-- Cosine distance search
-- Embedding upsert and removal
+- turbovec `IdMapIndex` for ANN search with stable uint64 external IDs
+- 4-bit quantization (8x memory compression) with configurable `LOOM_TURBOVEC_BIT_WIDTH`
+- SIMD-accelerated search (NEON on ARM, AVX-512BW on x86)
+- Heading-based chunking with FNV-1a deterministic chunk IDs
+- Dot-product similarity search with filtered `allowlist` for graph-aware scoping
+- Embedding add, update (delete+re-add), and removal
 
-**Storage Schema:**
-```sql
-CREATE TABLE IF NOT EXISTS embeddings (
-    id INTEGER PRIMARY KEY,
-    path TEXT NOT NULL,
-    heading TEXT,
-    content TEXT NOT NULL,
-    embedding BLOB NOT NULL,
-    UNIQUE(path, heading)
-);
+**Storage Layout:**
+```
+.knowledge-loom-index/
+├── turbovec.tvim        # Compressed vector index (IdMapIndex .tvim format)
+├── turbovec_meta.bin    # Chunk metadata (bincode-serialized HashMap)
+└── turbovec_config.bin  # Index configuration (dim, bit_width, version)
 ```
 
+**Migration:** Legacy sqlite-vec `embeddings.db` is auto-migrated on first startup (via `migration` feature flag).
+
 **Search Algorithm:**
-- Uses cosine distance via sqlite-vec
-- Returns top-k most similar chunks
-- Distance converted to similarity: `similarity = 1.0 - distance`
+- Uses turbovec's dot-product ANN search with 4-bit TurboQuant compression
+- Returns top-k most similar chunks with similarity scores (normalized dot product)
+- Filtered search via `allowlist` constrains results to specific chunk IDs
 
 ### Graph Engine (`graph.rs`)
 
@@ -803,9 +803,11 @@ pub async fn search_graph_fused_inner(
 └── loom-shell.sh         # Convenience script
 
 .knowledge-loom-index/
-├── bm25/                 # Tantivy index
-├── embeddings.db         # SQLite + sqlite-vec
-└── graph.bin             # Serialized petgraph
+├── tantivy/               # BM25 Tantivy index
+├── turbovec.tvim          # Compressed vector index (turbovec IdMapIndex)
+├── turbovec_meta.bin      # Chunk metadata (bincode-serialized)
+├── turbovec_config.bin    # Index configuration (dim, bit_width, version)
+└── graph.bin              # Serialized petgraph
 ```
 
 ### Index Formats
@@ -816,11 +818,13 @@ pub async fn search_graph_fused_inner(
 - BM25 scoring with term frequency and document frequency
 - Supports phrase queries and boolean operators
 
-**Vector Store (SQLite + sqlite-vec):**
-- Table: embeddings (id, path, heading, content, embedding)
-- BLOB field for f32 embedding vectors
-- Indexed on path for fast lookup
-- sqlite-vec extension for cosine distance
+**Vector Store (turbovec ANN Index):**
+- File: turbovec.tvim (compressed vectors) + turbovec_meta.bin (chunk metadata)
+- 4-bit TurboQuant quantization (8x memory compression vs float32)
+- IdMapIndex for stable uint64 external IDs
+- FNV-1a deterministic chunk ID generation
+- SIMD-accelerated search kernels (NEON/AVX-512BW/AVX2)
+- Filtered search via allowlist for graph-aware queries
 
 **Graph Cache (Binary):**
 - Serialized petgraph DiGraph

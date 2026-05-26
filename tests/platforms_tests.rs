@@ -1,4 +1,5 @@
 use knowledge_loom::platforms::{install_platform, PlatformName};
+use serial_test::serial;
 use std::fs;
 use tempfile::TempDir;
 
@@ -107,6 +108,7 @@ fn test_install_preserves_existing_mcp_servers() {
 }
 
 #[test]
+#[serial]
 fn test_run_init_with_platform_claude() {
     let tmp = TempDir::new().unwrap();
     let bin = tmp.path().join("loom");

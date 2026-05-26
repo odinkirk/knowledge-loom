@@ -33,7 +33,7 @@ pub struct EditManager {
     pub vault_state: Arc<Mutex<crate::vault::VaultState>>,
     pub bm25_index: Arc<Mutex<crate::bm25::BM25Index>>,
     pub embed_provider: Arc<crate::embed::EmbedProviderEnum>,
-    pub vector_index: Arc<Mutex<crate::index::VectorIndex>>,
+    pub vector_index: Arc<Mutex<crate::turbovec_index::TurbovecIndex>>,
     pub graph_state: Arc<Mutex<crate::graph::GraphState>>,
 }
 
@@ -43,7 +43,7 @@ impl EditManager {
         vault_state: Arc<Mutex<crate::vault::VaultState>>,
         bm25_index: Arc<Mutex<crate::bm25::BM25Index>>,
         embed_provider: Arc<crate::embed::EmbedProviderEnum>,
-        vector_index: Arc<Mutex<crate::index::VectorIndex>>,
+        vector_index: Arc<Mutex<crate::turbovec_index::TurbovecIndex>>,
         graph_state: Arc<Mutex<crate::graph::GraphState>>,
     ) -> Self {
         Self {
@@ -600,7 +600,10 @@ mod tests {
         let vault = Arc::new(Mutex::new(crate::vault::VaultState::new(&root).await));
         let bm25 = Arc::new(Mutex::new(crate::bm25::BM25Index::new(&root).await));
         let embed = Arc::new(crate::embed::EmbedProviderEnum::new(&root));
-        let vector = Arc::new(Mutex::new(crate::index::VectorIndex::new(&root).await));
+        let dim = embed.dimension();
+        let vector = Arc::new(Mutex::new(
+            crate::turbovec_index::TurbovecIndex::new(&root, dim, 4).await,
+        ));
         let graph = Arc::new(Mutex::new(crate::graph::GraphState::new(&root).await));
         let em = EditManager::new(root, vault.clone(), bm25, embed, vector, graph);
         let file_path = tmp.path().join("note.md");

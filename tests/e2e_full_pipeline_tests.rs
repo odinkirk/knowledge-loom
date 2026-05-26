@@ -92,6 +92,30 @@ fn test_full_pipeline_init_install_reindex_incremental() {
     assert!(beta_mtime > 0, "beta.md mtime should be recorded");
     assert!(alpha_mtime > 0, "alpha.md mtime should be recorded");
 
+    // 9a. Verify turbovec index files exist after reindex
+    let tvim = kb_root.join(".knowledge-loom-index/turbovec.tvim");
+    let meta = kb_root.join(".knowledge-loom-index/turbovec_meta.bin");
+    let config = kb_root.join(".knowledge-loom-index/turbovec_config.bin");
+    assert!(tvim.exists(), "turbovec.tvim should exist after reindex");
+    assert!(meta.exists(), "turbovec_meta.bin should exist after reindex");
+    assert!(
+        config.exists(),
+        "turbovec_config.bin should exist after reindex"
+    );
+
+    // sqlite-vec embeddings.db should NOT exist
+    let legacy = kb_root.join(".knowledge-loom-index/embeddings.db");
+    assert!(
+        !legacy.exists(),
+        "Legacy embeddings.db should not exist — turbovec replaced sqlite-vec"
+    );
+
+    // Verify turbovec index files have non-zero size
+    let tvim_size = fs::metadata(&tvim).unwrap().len();
+    let meta_size = fs::metadata(&meta).unwrap().len();
+    assert!(tvim_size > 0, "turbovec.tvim should not be empty");
+    assert!(meta_size > 0, "turbovec_meta.bin should not be empty");
+
     // 10. Fourth reindex: should report no changes again
     let output = run_loom_cmd(&["reindex"], kb_root);
     assert_exit_code(&output, 0);

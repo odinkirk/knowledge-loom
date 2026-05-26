@@ -4,8 +4,8 @@ mod tests {
     use knowledge_loom::edits::EditManager;
     use knowledge_loom::embed::EmbedProviderEnum;
     use knowledge_loom::graph::GraphState;
-    use knowledge_loom::index::VectorIndex;
     use knowledge_loom::search::SearchEngine;
+    use knowledge_loom::turbovec_index::TurbovecIndex;
     use knowledge_loom::vault::VaultState;
     use std::fs;
     use std::sync::Arc;
@@ -16,7 +16,7 @@ mod tests {
         let vault = Arc::new(Mutex::new(VaultState::new(kb_root).await));
         let bm25 = Arc::new(Mutex::new(BM25Index::new(kb_root).await));
         let embed = Arc::new(EmbedProviderEnum::new(kb_root));
-        let vector = Arc::new(Mutex::new(VectorIndex::new(kb_root).await));
+        let vector = Arc::new(Mutex::new(TurbovecIndex::new(kb_root, 384, 4).await));
         let graph = Arc::new(Mutex::new(GraphState::new(kb_root).await));
         EditManager::new(kb_root.to_string(), vault, bm25, embed, vector, graph)
     }
@@ -30,7 +30,10 @@ mod tests {
 
         // Verify components were created
         assert!(kb_root.join(".knowledge-loom-index/tantivy").exists());
-        assert!(kb_root.join(".knowledge-loom-index/embeddings.db").exists());
+        assert!(
+            kb_root.join(".knowledge-loom-index").exists(),
+            "Index directory should exist after SearchEngine::new()"
+        );
     }
 
     #[tokio::test]
@@ -399,7 +402,7 @@ mod tests {
         // Create mock components
         let bm25 = Arc::new(Mutex::new(BM25Index::new(kb_root.to_str().unwrap()).await));
         let vector = Arc::new(Mutex::new(
-            VectorIndex::new(kb_root.to_str().unwrap()).await,
+            TurbovecIndex::new(kb_root.to_str().unwrap(), 384, 4).await,
         ));
         let embed: Arc<EmbedProviderEnum> =
             Arc::new(EmbedProviderEnum::new(kb_root.to_str().unwrap()));
@@ -681,7 +684,7 @@ mod tests {
         std::fs::write(dir.path().join("alpha.md"), "# Alpha\nalpha content").unwrap();
 
         let bm25 = Arc::new(Mutex::new(BM25Index::new(kb_root).await));
-        let vector = Arc::new(Mutex::new(VectorIndex::new(kb_root).await));
+        let vector = Arc::new(Mutex::new(TurbovecIndex::new(kb_root, 384, 4).await));
         let embed = Arc::new(EmbedProviderEnum::new(kb_root));
         let graph = Arc::new(Mutex::new(GraphState::new(kb_root).await));
         let engine = SearchEngine::from_components(bm25, vector, embed, graph);
@@ -702,7 +705,7 @@ mod tests {
     async fn test_index_vault_removes_stale_sections() {
         let dir = tempfile::tempdir().unwrap();
         let kb_root = dir.path().to_str().unwrap();
-        let index = VectorIndex::new(kb_root).await;
+        let index = TurbovecIndex::new(kb_root, 384, 4).await;
         let embed = EmbedProviderEnum::new(kb_root);
         let vault = VaultState::new(kb_root).await;
 

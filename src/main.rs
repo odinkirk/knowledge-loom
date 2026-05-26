@@ -8,7 +8,6 @@ mod download;
 mod edits;
 mod embed;
 mod graph;
-mod index;
 mod init;
 mod install;
 mod maintenance;
@@ -17,6 +16,7 @@ mod platforms;
 mod search;
 mod server;
 mod shell;
+mod turbovec_index;
 mod vault;
 mod web;
 
