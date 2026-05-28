@@ -27,6 +27,14 @@ pub struct GrepResponse {
     pub total_matches: usize,
 }
 
+/// Normalize Unicode dashes (em-dash U+2014, en-dash U+2013) to ASCII '-'
+/// for heading comparison, since MCP transport may alter Unicode punctuation.
+fn normalize_dashes(s: &str) -> String {
+    s.replace('\u{2014}', "-")
+        .replace('\u{2013}', "-")
+        .replace('\u{2015}', "-")
+}
+
 #[allow(dead_code)]
 pub struct EditManager {
     pub kb_root: PathBuf,
@@ -430,7 +438,11 @@ impl EditManager {
 
                     if !inserted && line.trim().starts_with('#') {
                         let heading_text = line.trim_start_matches('#').trim();
-                        if heading_text == heading {
+                        // Normalize em-dash (U+2014) and en-dash (U+2013) to ASCII dash
+                        // for comparison, since MCP transport may alter Unicode characters
+                        let normalized_heading = normalize_dashes(heading_text);
+                        let normalized_input = normalize_dashes(heading.trim_start_matches('#').trim());
+                        if normalized_heading == normalized_input {
                             // Insert content after this heading
                             for content_line in content.lines() {
                                 new_lines.push(content_line);
@@ -968,5 +980,30 @@ mod tests {
             .await
             .unwrap();
         assert!(!chunks.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_insert_after_heading_strips_hash_from_input() {
+        let tmp = tempfile::tempdir().unwrap();
+        let content = "# The Unspoken World — TTRPG Sourcebook\n\nSome content.\n";
+        let (em, path) = make_edit_manager(&tmp, content).await;
+
+        // Heading with no # prefix should match
+        em.insert_after_heading(
+            &path,
+            "The Unspoken World — TTRPG Sourcebook",
+            "New line.",
+        )
+        .await
+        .expect("Should match heading without # prefix");
+
+        // Heading WITH # prefix should also match (this was the bug)
+        em.insert_after_heading(
+            &path,
+            "# The Unspoken World — TTRPG Sourcebook",
+            "Another line.",
+        )
+        .await
+        .expect("Should also match heading with # prefix");
     }
 }
