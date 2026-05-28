@@ -324,41 +324,13 @@ impl EditManager {
     async fn reindex_file(&self, path: &Path, content: &str) -> Result<(), String> {
         let mut errors = Vec::new();
 
-        // Update BM25 full-text index — retry once on any corruption
+        // Update BM25 full-text index
         {
-            let tantivy_dir = self.kb_root.join(".knowledge-loom-index/tantivy");
-            let mut retried = false;
-            loop {
-                let mut bm25 = self.bm25_index.lock().await;
-                let idx_result = bm25.index_file(path, content).await;
-                let commit_result = if idx_result.is_ok() {
-                    bm25.commit().await
-                } else {
-                    Ok(())
-                };
-                drop(bm25);
-
-                match (&idx_result, &commit_result) {
-                    (Ok(_), Ok(_)) => break,
-                    _ => {
-                        let msg = idx_result
-                            .as_ref()
-                            .err()
-                            .map(|e| format!("{}", e))
-                            .or_else(|| commit_result.as_ref().err().map(|e| format!("{}", e)))
-                            .unwrap_or_else(|| "unknown".to_string());
-                        if retried {
-                            errors.push(format!("BM25 failed after wipe+retry: {}", msg));
-                            break;
-                        }
-                        eprintln!(
-                            "BM25 index error ({}); wiping corrupt index and retrying...",
-                            msg
-                        );
-                        retried = true;
-                        let _ = std::fs::remove_dir_all(&tantivy_dir);
-                    }
-                }
+            let mut bm25 = self.bm25_index.lock().await;
+            if let Err(e) = bm25.index_file(path, content).await {
+                errors.push(format!("BM25 index update failed: {}", e));
+            } else if let Err(e) = bm25.commit().await {
+                errors.push(format!("BM25 commit failed: {}", e));
             }
         }
         // Update vector embedding index
