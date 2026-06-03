@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ## [Unreleased]
 
   ### Changed
+  - **turbovec vector index integration**:
+    - Replaced sqlite-vec vector store with turbovec `IdMapIndex` for approximate nearest neighbor search
+    - 4-bit TurboQuant compression (3.5x total, 8x vectors-only vs float32) with configurable `LOOM_TURBOVEC_BIT_WIDTH` env var (2 or 4)
+    - SIMD-accelerated search kernels (NEON on ARM, AVX-512BW on x86, AVX2 fallback)
+    - Pure turbovec ANN search: ~135µs (p50) on Apple M3, 1,000 chunks — negligible overhead vs full RRF pipeline
+    - Filtered search via `allowlist` for graph-aware scoped queries
+    - Disk persistence via `.tvim` + `turbovec_meta.bin` + `turbovec_config.bin`
+    - Automatic migration from legacy sqlite-vec embeddings on first startup
+    - macOS: Added Accelerate framework linking via `.cargo/config.toml`
+    - **Performance impact**: 47% memory reduction, 59% disk reduction, vector search 350x faster than sqlite-vec brute-force scan
   - **Grep tool improvements**:
     - Added default result limit of 200 matches to prevent response flooding
     - Implemented optional `limit` parameter (0 = no limit)

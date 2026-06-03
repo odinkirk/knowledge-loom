@@ -1,7 +1,7 @@
 use crate::bm25::BM25Index;
 use crate::embed::EmbedProviderEnum;
 use crate::graph::GraphState;
-use crate::index::VectorIndex;
+use crate::turbovec_index::TurbovecIndex;
 use crate::vault::VaultState;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -93,7 +93,7 @@ pub struct MaintenanceManager {
     pub vault_state: Arc<Mutex<VaultState>>,
     pub bm25_index: Arc<Mutex<BM25Index>>,
     pub embed_provider: Arc<EmbedProviderEnum>,
-    pub vector_index: Arc<Mutex<VectorIndex>>,
+    pub vector_index: Arc<Mutex<TurbovecIndex>>,
     pub graph_state: Arc<Mutex<GraphState>>,
 }
 
@@ -103,7 +103,7 @@ impl MaintenanceManager {
         vault_state: Arc<Mutex<VaultState>>,
         bm25_index: Arc<Mutex<BM25Index>>,
         embed_provider: Arc<EmbedProviderEnum>,
-        vector_index: Arc<Mutex<VectorIndex>>,
+        vector_index: Arc<Mutex<TurbovecIndex>>,
         graph_state: Arc<Mutex<GraphState>>,
     ) -> Self {
         Self {
@@ -162,10 +162,21 @@ impl MaintenanceManager {
 
         eprintln!("  [perf] BM25 index_vault starting...");
         let bm25_start = std::time::Instant::now();
-        bm25_lock
+        if let Err(e) = bm25_lock
             .index_vault(&*self.vault_state.lock().await)
             .await
-            .map_err(|e| format!("BM25: {}", e))?;
+        {
+            eprintln!(
+                "  BM25 index_vault failed ({}); wiping corrupt index and retrying...",
+                e
+            );
+            let tantivy_dir = self.kb_root.join(".knowledge-loom-index/tantivy");
+            let _ = std::fs::remove_dir_all(&tantivy_dir);
+            bm25_lock
+                .index_vault(&*self.vault_state.lock().await)
+                .await
+                .map_err(|e| format!("BM25 retry failed: {}", e))?;
+        }
         eprintln!("  [perf] BM25 index_vault: {:?}", bm25_start.elapsed());
 
         eprintln!("  [perf] Vector index_vault starting...");
@@ -173,10 +184,35 @@ impl MaintenanceManager {
         let (successful, _, _) = {
             let vector = self.vector_index.lock().await;
             let vault = self.vault_state.lock().await;
-            vector
-                .index_vault(&vault, &self.embed_provider)
-                .await
-                .map_err(|e| format!("Vector: {}", e))?
+            let result = vector.index_vault(&vault, &self.embed_provider).await;
+            match result {
+                Ok(r) => r,
+                Err(e) => {
+                    eprintln!(
+                        "  Vector index_vault failed ({}); wiping corrupt index and retrying...",
+                        e
+                    );
+                    // Wipe turbovec files but preserve models dir
+                    let tvim = self
+                        .kb_root
+                        .join(".knowledge-loom-index/turbovec.tvim");
+                    let meta = self
+                        .kb_root
+                        .join(".knowledge-loom-index/turbovec_meta.bin");
+                    let config = self
+                        .kb_root
+                        .join(".knowledge-loom-index/turbovec_config.bin");
+                    let _ = std::fs::remove_file(&tvim);
+                    let _ = std::fs::remove_file(&meta);
+                    let _ = std::fs::remove_file(&config);
+                    drop(vector);
+                    let vector = self.vector_index.lock().await;
+                    vector
+                        .index_vault(&vault, &self.embed_provider)
+                        .await
+                        .map_err(|e| format!("Vector retry failed: {}", e))?
+                }
+            }
         };
         eprintln!(
             "  [perf] Vector index_vault: {:?} ({} chunks)",
@@ -228,26 +264,21 @@ impl MaintenanceManager {
     async fn verify_embedding_count(
         &self,
         state: &ReindexState,
-        vector: &VectorIndex,
+        vector: &TurbovecIndex,
     ) -> Result<(), String> {
         let total_expected: usize = state.files.values().map(|f| f.chunk_count).sum();
         if total_expected > 0 {
-            match vector.count_embeddings().await {
-                Ok(actual) if actual > 0 && (actual as f64 / total_expected as f64) < 0.5 => {
-                    eprintln!(
-                        "  Index health: embedding count {} is <50% of expected {}; forcing full rebuild.",
-                        actual, total_expected
-                    );
-                }
-                Ok(actual) => {
-                    eprintln!(
-                        "  Index health ok: {} embeddings (expected {}).",
-                        actual, total_expected
-                    );
-                }
-                Err(e) => {
-                    eprintln!("  Index health check failed: {}; continuing.", e);
-                }
+            let actual = vector.count().await;
+            if actual > 0 && (actual as f64 / total_expected as f64) < 0.5 {
+                eprintln!(
+                    "  Index health: embedding count {} is <50% of expected {}; forcing full rebuild.",
+                    actual, total_expected
+                );
+            } else {
+                eprintln!(
+                    "  Index health ok: {} embeddings (expected {}).",
+                    actual, total_expected
+                );
             }
         }
         Ok(())
@@ -295,7 +326,7 @@ impl MaintenanceManager {
                 }
                 {
                     let vector = self.vector_index.lock().await;
-                    let _ = vector.remove_file_embeddings(&full).await;
+                    let _ = vector.remove_file(&full).await;
                 }
                 state.remove_file(path);
                 removed_count += 1;
@@ -436,12 +467,12 @@ impl MaintenanceManager {
         });
 
         let vector_lock = self.vector_index.lock().await;
-        let vector_count = vector_lock.count_embeddings().await.unwrap_or(0);
+        let vector_count = vector_lock.count().await;
         drop(vector_lock);
 
         status["embeddings"] = serde_json::json!({
             "vectors": vector_count,
-            "index_path": self.kb_root.join(".knowledge-loom-index/embeddings.db").to_string_lossy().to_string()
+            "index_path": self.kb_root.join(".knowledge-loom-index/turbovec.tvim").to_string_lossy().to_string()
         });
 
         let graph_lock = self.graph_state.lock().await;

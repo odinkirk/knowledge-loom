@@ -17,9 +17,9 @@ use crate::bm25::BM25Index;
 use crate::edits::EditManager;
 use crate::embed::EmbedProviderEnum;
 use crate::graph::GraphState;
-use crate::index::VectorIndex;
 use crate::maintenance::MaintenanceManager;
 use crate::search::SearchEngine;
+use crate::turbovec_index::TurbovecIndex;
 use crate::vault::VaultState;
 
 #[allow(dead_code)]
@@ -28,7 +28,7 @@ pub struct LoomServer {
     pub vault: Arc<Mutex<VaultState>>,
     pub bm25: Arc<Mutex<BM25Index>>,
     pub embed: Arc<EmbedProviderEnum>,
-    pub vector: Arc<Mutex<VectorIndex>>,
+    pub vector: Arc<Mutex<TurbovecIndex>>,
     pub graph: Arc<Mutex<GraphState>>,
     pub edits: Arc<EditManager>,
     pub maintenance: Arc<MaintenanceManager>,
@@ -46,7 +46,11 @@ impl LoomServer {
         let vault = Arc::new(Mutex::new(VaultState::new(kb_root).await));
         let bm25 = Arc::new(Mutex::new(BM25Index::new(kb_root).await));
         let embed = Arc::new(EmbedProviderEnum::new(kb_root));
-        let vector = Arc::new(Mutex::new(VectorIndex::new(kb_root).await));
+        let dim = embed.dimension();
+        let bit_width = crate::turbovec_index::default_bit_width();
+        let vector = Arc::new(Mutex::new(
+            TurbovecIndex::new(kb_root, dim, bit_width).await,
+        ));
         let graph = Arc::new(Mutex::new(GraphState::new(kb_root).await));
 
         let search_engine = SearchEngine::from_components(

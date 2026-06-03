@@ -1,11 +1,11 @@
 use knowledge_loom::embed::EmbedProviderEnum;
-use knowledge_loom::index::VectorIndex;
+use knowledge_loom::turbovec_index::TurbovecIndex;
 
 #[tokio::test]
 async fn test_index_file_replaces_old_chunks() {
     let dir = tempfile::tempdir().unwrap();
     let kb_root = dir.path().to_str().unwrap();
-    let index = VectorIndex::new(kb_root).await;
+    let index = TurbovecIndex::new(kb_root, 384, 4).await;
     let embed = EmbedProviderEnum::new(kb_root);
     let path = dir.path().join("note.md");
 
@@ -37,10 +37,10 @@ async fn test_index_file_replaces_old_chunks() {
 }
 
 #[tokio::test]
-async fn test_remove_file_embeddings_clears_path() {
+async fn test_remove_file_clears_path() {
     let dir = tempfile::tempdir().unwrap();
     let kb_root = dir.path().to_str().unwrap();
-    let index = VectorIndex::new(kb_root).await;
+    let index = TurbovecIndex::new(kb_root, 384, 4).await;
     let embed = EmbedProviderEnum::new(kb_root);
     let path = dir.path().join("target.md");
 
@@ -50,7 +50,7 @@ async fn test_remove_file_embeddings_clears_path() {
         .await
         .unwrap();
 
-    index.remove_file_embeddings(&path).await.unwrap();
+    index.remove_file(&path).await.unwrap();
 
     let query_vec = embed.embed("some content").await.unwrap();
     let results = index.search_similar(&query_vec, 20).await.unwrap();
@@ -151,7 +151,7 @@ async fn test_search_includes_graph_fused_results() {
     .unwrap();
 
     let embed = Arc::new(EmbedProviderEnum::new(kb_root));
-    let vector = Arc::new(Mutex::new(VectorIndex::new(kb_root).await));
+    let vector = Arc::new(Mutex::new(TurbovecIndex::new(kb_root, 384, 4).await));
 
     {
         let v = vector.lock().await;
@@ -192,7 +192,7 @@ async fn test_graph_fused_empty_vector_index_returns_no_fused_results() {
 
     let engine = SearchEngine::from_components(
         Arc::new(Mutex::new(BM25Index::new(kb_root).await)),
-        Arc::new(Mutex::new(VectorIndex::new(kb_root).await)),
+        Arc::new(Mutex::new(TurbovecIndex::new(kb_root, 384, 4).await)),
         Arc::new(EmbedProviderEnum::new(kb_root)),
         Arc::new(Mutex::new(GraphState::new(kb_root).await)),
     );
@@ -208,7 +208,7 @@ async fn test_graph_fused_pagerank_key_alignment() {
     let mut pagerank: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
     pagerank.insert("important_note".to_string(), 0.9);
 
-    // VectorIndex returns paths with .md suffix.
+    // TurbovecIndex returns paths with .md suffix.
     let vector_path = "important_note.md";
     let pr_key = vector_path.strip_suffix(".md").unwrap_or(vector_path);
 
@@ -233,7 +233,7 @@ async fn test_graph_fused_inner_reranks_by_pagerank() {
     let kb_root = dir.path().to_str().unwrap();
 
     let embed = Arc::new(EmbedProviderEnum::new(kb_root));
-    let vector = Arc::new(Mutex::new(VectorIndex::new(kb_root).await));
+    let vector = Arc::new(Mutex::new(TurbovecIndex::new(kb_root, 384, 4).await));
 
     // Index two docs with the same content so vector similarity is comparable
     {
@@ -300,7 +300,7 @@ async fn test_index_vault_removes_stale_embeddings() {
     // when a file is modified between calls.
     let dir = tempfile::tempdir().unwrap();
     let kb_root = dir.path().to_str().unwrap();
-    let index = VectorIndex::new(kb_root).await;
+    let index = TurbovecIndex::new(kb_root, 384, 4).await;
     let embed = EmbedProviderEnum::new(kb_root);
     let vault = VaultState::new(kb_root).await;
 

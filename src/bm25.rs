@@ -121,6 +121,48 @@ impl BM25Index {
         // Always derive schema from the actual index so field IDs are correct
         let schema = index.schema();
 
+        // Startup consistency check: if .managed.json references files missing from
+        // disk (corrupt segment from crashed commit), wipe and start fresh.
+        // This prevents accumulation of ghost entries that cause .term file
+        // read failures on subsequent writes.
+        {
+            let managed = index_path.join(".managed.json");
+            if managed.exists() {
+                if let Ok(entries) = std::fs::read_to_string(&managed) {
+                    if let Ok(list) = serde_json::from_str::<Vec<String>>(&entries) {
+                        let has_missing = list.iter().any(|f| {
+                            let p = index_path.join(f);
+                            !p.exists()
+                        });
+                        if has_missing {
+                            eprintln!(
+                                "Tantivy index has ghost entries in .managed.json — wiping and rebuilding."
+                            );
+                            let _ = std::fs::remove_dir_all(&index_path);
+                            let _ = std::fs::create_dir_all(&index_path);
+                            let fresh = Index::create_in_dir(&index_path, schema.clone())
+                                .unwrap_or_else(|e| {
+                                    panic!("Failed to create tantivy index after ghost cleanup: {e}")
+                                });
+                            let fresh_schema = fresh.schema();
+                            let writer = match fresh.writer(50_000_000) {
+                                Ok(w) => w,
+                                Err(e) => panic!("Failed to open writer after cleanup: {e}"),
+                            };
+                            return Self {
+                                index: Arc::new(fresh),
+                                writer: Arc::new(Mutex::new(writer)),
+                                schema: fresh_schema,
+                                kb_root: kb_root_path,
+                                index_path,
+                                is_ingesting: Arc::new(Mutex::new(false)),
+                            };
+                        }
+                    }
+                }
+            }
+        }
+
         // Initialize writer — on LockBusy, the previous server may have left a stale
         // lock file. Delete it and retry once (safe: we verified no live process holds it).
         let writer = match index.writer(50_000_000) {

@@ -947,6 +947,7 @@ async fn test_end_to_end_index_retrieve_edit_reindex() {
         let mut bm25 = search_engine.bm25.lock().await;
         let content = fs::read_to_string(&test_file).unwrap();
         bm25.index_file(&test_file, &content).await.unwrap();
+        bm25.commit().await.unwrap();
     }
 
     // Step 5: Verify updated content
@@ -1148,6 +1149,7 @@ async fn test_ingestion_state_set_before_reindex_starts() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_atomic_index_updates_all_or_none() {
     let temp_dir = TempDir::new().unwrap();
     let kb_root = temp_dir.path();

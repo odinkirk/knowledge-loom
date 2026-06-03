@@ -13,7 +13,7 @@ pub const STATE_FILE: &str = ".knowledge-loom/models/.install-state.json";
 pub const MODEL_URL: &str =
     "https://huggingface.co/Xenova/bge-small-en-v1.5/resolve/main/onnx/model.onnx";
 pub const EXPECTED_CHECKSUM: &str =
-    "bbd7b466f6d58e646fdc2bd5fd67b2f5e93c0b687011bd4548c420f7bd46f0c5";
+    "828e1496d7fabb79cfa4dcd84fa38625c0d3d21da474a00f08db0f559940cf35";
 
 /// Install error types
 #[derive(Debug, thiserror::Error)]
