@@ -57,7 +57,7 @@ nix = { version = "0.27", features = ["process", "signal", "fs"] }
 libc = "0.2"
 
 [target.'cfg(target_os = "linux")'.dependencies]
-blas-src = { version = "0.10", features = ["openblas"] }
+blas-src = { version = "0.10", features = ["openblas", "system"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 blas-src = { version = "0.10", features = ["accelerate"] }
