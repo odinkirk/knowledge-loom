@@ -24,7 +24,7 @@ jobs:
         toolchain: stable
 
     - name: Install system dependencies
-      run: sudo apt-get update && sudo apt-get install -y libopenblas-dev
+      run: sudo apt-get update && sudo apt-get install -y libopenblas-dev libblas-dev liblapack-dev
 
     - name: Run tests
       run: cargo test --verbose --all-features
