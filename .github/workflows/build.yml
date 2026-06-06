@@ -27,10 +27,6 @@ jobs:
       with:
         toolchain: ${{ matrix.rust }}
 
-    - name: Install system dependencies (Linux)
-      if: runner.os == 'Linux'
-      run: sudo apt-get update && sudo apt-get install -y pkg-config libopenblas-dev
-
     - name: Cache cargo registry
       uses: actions/cache@v4
       with:
