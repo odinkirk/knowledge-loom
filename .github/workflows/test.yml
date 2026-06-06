@@ -26,8 +26,8 @@ jobs:
     - name: Install system deps
       run: sudo apt-get update && sudo apt-get install -y libopenblas-dev
 
-    - name: Use GNU linker
-      run: echo "RUSTFLAGS=-C link-arg=-fuse-ld=bfd" >> $GITHUB_ENV
+    - name: Configure BLAS library path
+      run: echo "RUSTFLAGS=-L native=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
 
     - name: Run tests
       run: cargo test --verbose --all-features
