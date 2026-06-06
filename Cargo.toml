@@ -57,7 +57,7 @@ nix = { version = "0.27", features = ["process", "signal", "fs"] }
 libc = "0.2"
 
 [target.'cfg(target_os = "linux")'.dependencies]
-turbovec = { version = "0.6", features = ["netlib"] }
+blas-src = { version = "0.10", features = ["openblas-src"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 blas-src = { version = "0.10", features = ["accelerate"] }
