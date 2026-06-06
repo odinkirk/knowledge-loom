@@ -23,7 +23,7 @@ tantivy = "0.26"  # Upgraded to fix lz4_flex vulnerability
 petgraph = { version = "0.6", features = ["serde"] }
 rusqlite = { version = "0.31", features = ["bundled"] }
 sqlite-vec = "0.1"
-turbovec = "0.6"
+turbovec = { version = "0.6", default-features = false, features = ["blas-src"] }
 reqwest = { version = "0.12", features = ["json", "default-tls"] }
 pulldown-cmark = "0.10"
 walkdir = "2.5"
@@ -57,7 +57,7 @@ nix = { version = "0.27", features = ["process", "signal", "fs"] }
 libc = "0.2"
 
 [target.'cfg(target_os = "linux")'.dependencies]
-blas-src = { version = "0.10", features = ["netlib"] }
+blas-src = { version = "0.10", default-features = false, features = ["netlib"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 blas-src = { version = "0.10", features = ["accelerate"] }
