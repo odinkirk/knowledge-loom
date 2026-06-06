@@ -13,38 +13,56 @@ jobs:
   test:
     name: Run Tests
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Install Rust toolchain
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@v1
       with:
-        profile: minimal
         toolchain: stable
-        override: true
-    
+
     - name: Run tests
       run: cargo test --verbose --all-features
-    
+
     - name: Check formatting
       run: cargo fmt --all -- --check
-    
+
     - name: Run clippy
       run: cargo clippy -- -D warnings
-    
-    - name: Security audit
-      uses: actions-rs/audit-check@v1
+
+    - name: Cache cargo-audit
+      uses: actions/cache@v4
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-    
+        path: ~/.cargo/bin/cargo-audit
+        key: ${{ runner.os }}-cargo-audit-${{ hashFiles('Cargo.lock') }}
+
+    - name: Install cargo-audit (if not cached)
+      run: which cargo-audit || cargo install cargo-audit --locked
+
+    - name: Security audit
+      run: cargo audit
+
+    - name: Cache cargo-deny
+      uses: actions/cache@v4
+      with:
+        path: ~/.cargo/bin/cargo-deny
+        key: ${{ runner.os }}-cargo-deny-${{ hashFiles('Cargo.lock') }}
+
+    - name: Install cargo-deny (if not cached)
+      run: which cargo-deny || cargo install cargo-deny --locked
+
     - name: License check
+      run: cargo deny check licenses bans sources
+
+    - name: Extract MSRV from Cargo.toml
+      id: msrv
       run: |
-        cargo install cargo-deny
-        cargo deny check licenses bans sources
-    
+        MSRV=$(grep '^rust-version' Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
+        echo "msrv=${MSRV}" >> $GITHUB_OUTPUT
+
     - name: Check MSRV
       run: |
-        rustup install 1.75.0
-        cargo +1.75.0 build --all-features
+        rustup install ${{ steps.msrv.outputs.msrv }}
+        cargo +${{ steps.msrv.outputs.msrv }} build --all-features

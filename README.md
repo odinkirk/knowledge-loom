@@ -8,7 +8,7 @@
   <a href="https://github.com/odinkirk/knowledge-loom/releases"><img src="https://img.shields.io/github/v/release/odinkirk/knowledge-loom?label=release" alt="Release"></a>
   <a href="https://github.com/odinkirk/knowledge-loom/actions/workflows/test.yml?query=branch%3Amain"><img src="https://img.shields.io/github/actions/workflow/status/odinkirk/knowledge-loom/test.yml/main?label=tests" alt="Tests"></a>
   <a href="https://github.com/odinkirk/knowledge-loom/actions/workflows/build.yml?query=branch%3Amain"><img src="https://img.shields.io/github/actions/workflow/status/odinkirk/knowledge-loom/build.yml/main?label=build" alt="Build"></a>
-  <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/rust-1.70%2B-orange.svg?style=flat-square" alt="Rust 1.70+"></a>
+  <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/rust-1.75%2B-orange.svg?style=flat-square" alt="Rust 1.75+"></a>
   <a href="https://choosealicense.com/licenses/mit/"><img src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg?style=flat-square" alt="License"></a>
   <a href="https://modelcontextprotocol.io/"><img src="https://img.shields.io/badge/MCP-compatible-green.svg?style=flat-square" alt="MCP"></a>
   <a href="https://crates.io/crates/knowledge-loom"><img src="https://img.shields.io/crates/v/knowledge-loom?style=flat-square" alt="Crates.io"></a>
@@ -21,7 +21,7 @@
 The Knowledge Loom indexes your Markdown notes and provides:
 
 - **BM25 full-text search** — Fast keyword search with relevance ranking
-- **Semantic vector search** — Embedding-based similarity search (sqlite-vec)
+- **Semantic vector search** — Embedding-based similarity search (turbovec)
 - **Graph analytics** — Wikilink graph with PageRank, communities, and path finding
 - **File operations** — Read, edit, and create notes with surgical precision
 - **RRF merging** — Unified results from all search engines
@@ -36,7 +36,7 @@ For detailed architecture documentation, including system diagrams, component br
 
 Quick overview:
 - **Search Engine**: RRF-merged BM25 + semantic + graph search
-- **Storage**: Tantivy (BM25) + SQLite/vec (embeddings) + Petgraph (wikilinks)
+- **Storage**: Tantivy (BM25) + turbovec (embeddings) + Petgraph (wikilinks)
 - **Integration**: MCP protocol for 8+ coding platforms
 - **Performance**: ~150ms unified search for 10k documents
 
@@ -47,7 +47,7 @@ Quick overview:
 | Category | Feature | Details | Implementation |
 |----------|---------|---------|----------------|
 | **Search Engines** | BM25 full-text search | Fast keyword search with relevance ranking via Tantivy | `BM25Index::search_and_retrieve()` |
-| **Search Engines** | Semantic vector search | Embedding-based similarity search via sqlite-vec | `VectorIndex::search_similar()` |
+| **Search Engines** | Semantic vector search | Embedding-based similarity search via turbovec | `TurbovecIndex::search_similar()` |
 | **Search Engines** | Graph analytics | Wikilink graph with PageRank, communities, path finding | `GraphState::search_graph()` |
 | **Search Engines** | RRF merging | Reciprocal Rank Fusion for unified results (k=60) | `SearchEngine::search()` |
 | **Search Engines** | Graph-fused search | Vector similarity boosted by PageRank scores | `SearchEngine::search_graph_fused_inner()` |
@@ -69,7 +69,7 @@ Quick overview:
 | **Integration** | Web UI | Read-only web interface (port 8080) | `web::run_web()` |
 | **Integration** | Shell mode | Interactive shell for testing | `shell::run_shell()` |
 | **Storage** | Local-only | No cloud dependencies, all data stays local | All storage backends |
-| **Storage** | Efficient indexes | Tantivy, SQLite, binary graph cache | `.knowledge-loom-index/` |
+| **Storage** | Efficient indexes | Tantivy, turbovec, binary graph cache | `.knowledge-loom-index/` |
 | **Storage** | Chunking strategy | 2000 char chunks with whitespace truncation | `bm25::MAX_CHUNK_CHARS` |
 | **Embedding** | Local provider | Built-in embedding support | `LocalEmbedProvider` |
 | **Embedding** | Ollama provider | Optional Ollama integration | `OllamaEmbedProvider` |
@@ -322,7 +322,7 @@ Knowledge Loom supports multiple embedding providers with automatic fallback:
 | Metric | Value | Notes |
 |--------|-------|-------|
 | BM25 search latency | ~10ms | For 10k documents |
-| Vector search latency | ~50ms | For 10k documents (sqlite-vec) |
+| Vector search latency | ~50ms | For 10k documents (turbovec) |
 | Graph analytics latency | ~100ms | For 10k nodes (cached) |
 | Unified search latency | ~150ms | For 10k documents (parallel) |
 | Indexing speed (first, full) | ~200s (65 files) | Initial build, ONNX CPU inference bound |
@@ -510,7 +510,7 @@ For more help, visit [GitHub Issues](https://github.com/odinkirk/knowledge-loom/
 | Daemon mode | ✅ | ❌ | ✅ | ❌ | ❌ |
 | Web UI | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Language | Rust | TypeScript | Python | Rust | JavaScript |
-| Storage | Tantivy + SQLite + Binary | External Rust brain | SQLite | SQLite + Binary | JSON in vault |
+| Storage | Tantivy + turbovec + Binary | External Rust brain | SQLite | SQLite + Binary | JSON in vault |
 
 ---
 
@@ -518,7 +518,7 @@ For more help, visit [GitHub Issues](https://github.com/odinkirk/knowledge-loom/
 
 ### Prerequisites
 
-- Rust 1.70 or later
+- Rust 1.75 or later
 - Cargo (comes with Rust)
 
 ### Build
@@ -642,8 +642,10 @@ All dependencies use permissive, commercial-friendly licenses. See `about.toml` 
 
 Built with:
 - [Tantivy](https://github.com/quickwit-oss/tantivy) - Full-text search engine
-- [sqlite-vec](https://github.com/asg017/sqlite-vec) - Vector similarity search
+- [turbovec](https://github.com/izvekov/turbovec) - Approximate nearest neighbor search
 - [petgraph](https://github.com/petgraph/petgraph) - Graph algorithms
+
+Previously used [sqlite-vec](https://github.com/asg017/sqlite-vec) for vector similarity search (replaced by turbovec in v0.2).
 
 Inspired by:
 - [obsidian-brain](https://github.com/ruvnet/obsidian-brain) - Obsidian plugin with semantic search

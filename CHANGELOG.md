@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   ## [Unreleased]
 
+  ### Fixed
+  - **Documentation cleanup**: Replaced stale sqlite-vec references with turbovec in README.md (features table, architecture overview, storage description, benchmarks, comparison table, credits), removed SQLite prerequisite from CONTRIBUTING.md, fixed Mermaid parse error in Architecture.md Model Download Flow diagram by renaming single-letter node IDs (L1/M1/N1/O1 → DL1/DM1/DN1/DO1)
+  - **MSRV consistency**: Added `rust-version = "1.75"` to Cargo.toml as canonical MSRV, updated README badge and prereqs from `1.70+` to `1.75+`
+  - **CI modernization**: Replaced deprecated `actions-rs/toolchain@v1` with `dtolnay/rust-toolchain@v1`, `actions-rs/cargo@v1` with direct `run: cargo` commands, `actions-rs/audit-check@v1` with direct `cargo audit`; upgraded `actions/cache@v3` to `actions/cache@v4` across all workflows; added `cargo-deny` and `cargo-audit` binary caching for faster CI runs; simplified build matrix to stable-only across 3 OSes; MSRV check now derives version from `Cargo.toml` instead of hardcoding
+
   ### Changed
   - **turbovec vector index integration**:
     - Replaced sqlite-vec vector store with turbovec `IdMapIndex` for approximate nearest neighbor search

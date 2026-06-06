@@ -313,10 +313,10 @@ graph TB
     end
 
     subgraph "Shared Utilities"
-        F --> L1[download/utils.rs]
-        L1 --> M1[calculate_checksum()]
-        L1 --> N1[validate_checksum()]
-        L1 --> O1[check_disk_space()]
+        F --> DL1[download/utils.rs]
+        DL1 --> DM1[calculate_checksum()]
+        DL1 --> DN1[validate_checksum()]
+        DL1 --> DO1[check_disk_space()]
     end
 
     subgraph "Validation"

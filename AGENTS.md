@@ -41,5 +41,5 @@ Do not infer consent from prior consent or from the user saying "push" or "go ah
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-specs/008-integrate-turbovec/plan.md
+specs/009-docs-ci-cleanup/plan.md
 <!-- SPECKIT END -->
