@@ -27,9 +27,9 @@ jobs:
       with:
         toolchain: ${{ matrix.rust }}
 
-    - name: Install build tools (Linux)
+    - name: Install system deps (Linux)
       if: runner.os == 'Linux'
-      run: sudo apt-get update && sudo apt-get install -y cmake
+      run: sudo apt-get update && sudo apt-get install -y libopenblas-dev
 
     - name: Cache cargo registry
       uses: actions/cache@v4
