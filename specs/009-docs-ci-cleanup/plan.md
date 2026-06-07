@@ -71,6 +71,14 @@ Architecture.md          # MODIFIED — fix Mermaid node IDs in Model Download F
 
 > No constitutional violations. No complexity to justify.
 
+## Deferred Technical Debt
+
+| ID | Severity | Description | Impact | Recommended Fix | Target |
+|----|----------|-------------|--------|-----------------|--------|
+| D01 | MEDIUM | `test_graph_edges_from_test_vault` fails on CI because `test-vault/` corpus is not present on the runner. | Tests workflow fails with exit code 101; test result: 1 failed. Build workflow passes all 3 OSes. | Clone `test-vault` from `ashuotaku/Personal-Wiki` in the CI job before running tests, or mock the graph edges test with synthetic data. | Feature 010 or CI fix sprint |
+
+**Authorization**: Deferral explicitly approved by user on 2026-06-07. To be addressed per roadmap requirement within 3 features.
+
 ## Phase 0: Research
 
 See [research.md](./research.md) for detailed findings.
