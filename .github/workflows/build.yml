@@ -31,9 +31,9 @@ jobs:
       if: runner.os == 'Linux'
       run: sudo apt-get update && sudo apt-get install -y libopenblas-dev
 
-    - name: Use system linker (Linux)
+    - name: Use system linker + explicit BLAS (Linux)
       if: runner.os == 'Linux'
-      run: echo "RUSTFLAGS=-C linker=cc" >> $GITHUB_ENV
+      run: echo 'RUSTFLAGS=-C linker=cc -l openblas' >> $GITHUB_ENV
 
 
     - name: Cache cargo registry

@@ -26,8 +26,8 @@ jobs:
     - name: Install system deps
       run: sudo apt-get update && sudo apt-get install -y libopenblas-dev
 
-    - name: Use system linker
-      run: echo "RUSTFLAGS=-C linker=cc" >> $GITHUB_ENV
+    - name: Use system linker + explicit BLAS
+      run: echo 'RUSTFLAGS=-C linker=cc -l openblas' >> $GITHUB_ENV
 
     - name: Run tests
       run: cargo test --verbose --all-features
