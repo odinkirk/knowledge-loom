@@ -7,7 +7,6 @@ Thank you for your interest in contributing to Knowledge Loom! This project is a
 ### Prerequisites
 - **Rust 1.75+**: Knowledge Loom requires modern Rust features (Async Trait support).
 - **Cargo**: Standard Rust package manager.
-- **SQLite**: Local data storage.
 
 ### Setup
 1. Clone the repository:

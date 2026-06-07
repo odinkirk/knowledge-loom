@@ -1,1 +1,3 @@
-{"feature_directory": "specs/008-integrate-turbovec"}
+{
+  "feature_directory": "specs/009-docs-ci-cleanup"
+}

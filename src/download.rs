@@ -10,6 +10,7 @@ use reqwest::Client;
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
+#[cfg(unix)]
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -442,6 +443,7 @@ impl DownloadManager {
         // Check available disk space before starting download
         // This prevents partial file corruption if disk fills during download
         if total_bytes > 0 {
+            #[cfg(unix)]
             crate::download::utils::check_disk_space(&self.output_path, total_bytes)?;
         }
 
