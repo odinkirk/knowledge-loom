@@ -29,11 +29,11 @@ jobs:
 
     - name: Install system deps (Linux)
       if: runner.os == 'Linux'
-      run: sudo apt-get update && sudo apt-get install -y libopenblas-dev
-
-    - name: Configure BLAS library path (Linux)
-      if: runner.os == 'Linux'
-      run: echo "RUSTFLAGS=-L native=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libopenblas-dev
+        echo "/usr/lib/x86_64-linux-gnu" | sudo tee /etc/ld.so.conf.d/openblas.conf
+        sudo ldconfig
 
 
     - name: Cache cargo registry
