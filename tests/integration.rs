@@ -1550,10 +1550,27 @@ fn integration_manual_download_instructions_display() {
 #[tokio::test]
 async fn smoke_test_corpus_search() {
     let kb_root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-vault");
-    let search_engine = knowledge_loom::search::SearchEngine::new(
-        kb_root.to_str().unwrap(),
-    )
-    .await;
+    let kb_root_str = kb_root.to_str().unwrap();
+
+    let vault = knowledge_loom::vault::VaultState::new(kb_root_str).await;
+    let search_engine = knowledge_loom::search::SearchEngine::new(kb_root_str).await;
+
+    // Index the test-vault corpus
+    search_engine
+        .bm25
+        .lock()
+        .await
+        .index_vault(&vault)
+        .await
+        .unwrap();
+    search_engine
+        .vector
+        .lock()
+        .await
+        .index_vault(&vault, &search_engine.embed)
+        .await
+        .unwrap();
+
     let results = search_engine.search("knowledge", 10).await;
 
     println!("Found {} results for 'knowledge':", results.len());
@@ -1563,10 +1580,6 @@ async fn smoke_test_corpus_search() {
                 "  - {} ({})",
                 r.path,
                 s.heading.as_deref().unwrap_or("no heading")
-            );
-            println!(
-                "    Content: {}...",
-                s.content.chars().take(150).collect::<String>()
             );
         }
     }
