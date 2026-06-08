@@ -600,6 +600,7 @@ impl EditManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use std::sync::Arc;
     use tempfile::TempDir;
     use tokio::sync::Mutex;
@@ -624,6 +625,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_apply_edit_preview_found() {
         let tmp = TempDir::new().unwrap();
         let content = "# Intro\n\nHello world\n\n# Summary\n\nFin\n";
