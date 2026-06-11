@@ -37,6 +37,9 @@ jobs:
     - name: Use system linker + explicit BLAS
       run: echo 'RUSTFLAGS=-C linker=cc -l openblas' >> $GITHUB_ENV
 
+    - name: Download model for e2e tests
+      run: cargo build --bin loom && ./target/debug/loom install
+
     - name: Run tests
       run: cargo test --verbose --all-features
 
