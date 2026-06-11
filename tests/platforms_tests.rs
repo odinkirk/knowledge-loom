@@ -118,6 +118,8 @@ fn test_run_init_with_platform_claude() {
     std::env::set_var("KB_ROOT", tmp.path().to_str().unwrap());
     // Create .gitignore so init can update it
     fs::write(tmp.path().join(".gitignore"), "").unwrap();
+    // Remove stale index dir if present (prior test env contamination)
+    let _ = std::fs::remove_dir_all(tmp.path().join(".knowledge-loom-index"));
     let args = vec![
         "init".to_string(),
         "--platform".to_string(),
