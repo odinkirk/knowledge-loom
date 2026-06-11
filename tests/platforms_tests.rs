@@ -124,7 +124,11 @@ fn test_run_init_with_platform_claude() {
     fs::copy(&bin, bin_dir.join("loom")).unwrap();
 
     // Create .gitignore
-    fs::write(tmp.path().join(".gitignore"), ".knowledge-loom/\n.knowledge-loom-index/\n").unwrap();
+    fs::write(
+        tmp.path().join(".gitignore"),
+        ".knowledge-loom/\n.knowledge-loom-index/\n",
+    )
+    .unwrap();
 
     // Create .mcp.json (Claude platform)
     let mcp_path = tmp.path().join(".mcp.json");
