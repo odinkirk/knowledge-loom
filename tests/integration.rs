@@ -1552,6 +1552,10 @@ async fn smoke_test_corpus_search() {
     let kb_root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-vault");
     let kb_root_str = kb_root.to_str().unwrap();
 
+    // Force local embedding provider; Ollama/OpenRouter env vars may be set by other tests
+    std::env::remove_var("OLLAMA_URL");
+    std::env::remove_var("OPENROUTER_API_KEY");
+
     let vault = knowledge_loom::vault::VaultState::new(kb_root_str).await;
     let search_engine = knowledge_loom::search::SearchEngine::new(kb_root_str).await;
 
