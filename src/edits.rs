@@ -643,6 +643,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_apply_edit_preview_not_found() {
         let tmp = TempDir::new().unwrap();
         let content = "# Intro\n\nHello\n";
@@ -652,6 +653,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_edit_triggers_reindexing() {
         let tmp = TempDir::new().unwrap();
         let content = "# Section A\n\nContent A.\n\n# Section B\n\nContent B.";
@@ -672,6 +674,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_reindexing_updates_ordinals() {
         let tmp = TempDir::new().unwrap();
         let content = "# A\n\nContent A.\n\n# B\n\nContent B.";
@@ -694,6 +697,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_ordinal_preservation_after_edit() {
         let tmp = TempDir::new().unwrap();
         let content = "# A\n\nContent A.\n\n# B\n\nContent B.";
@@ -715,6 +719,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_ordinal_reassignment_after_chunk_split() {
         let tmp = TempDir::new().unwrap();
         let content = "# A\n\nContent A.\n\n# B\n\nContent B.";
@@ -737,6 +742,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_ordinal_reassignment_after_chunk_merge() {
         let tmp = TempDir::new().unwrap();
         let content = "# A\n\nContent A.\n\n# B\n\nContent B.\n\n# C\n\nContent C.";
@@ -758,6 +764,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_error_handling_in_reindexing() {
         let tmp = TempDir::new().unwrap();
         let content = "# A\n\nContent A.";
@@ -770,6 +777,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_concurrent_edits_and_retrievals() {
         let tmp = TempDir::new().unwrap();
         let content = "# A\n\nContent A.\n\n# B\n\nContent B.";
@@ -802,6 +810,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_corpus_reingestion_on_failure() {
         let tmp = TempDir::new().unwrap();
         let content = "# A\n\nContent A.\n\n# B\n\nContent B.";
@@ -867,6 +876,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_concurrent_edit_serialization() {
         let tmp = TempDir::new().unwrap();
         let content = "# A\n\nContent A.\n\n# B\n\nContent B.";
@@ -910,6 +920,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_edit_request_queuing() {
         let tmp = TempDir::new().unwrap();
         let content = "# A\n\nContent A.\n\n# B\n\nContent B.";
@@ -944,6 +955,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_reindexing_failure_logging() {
         let tmp = TempDir::new().unwrap();
         let content = "# A\n\nContent A.";
@@ -965,6 +977,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_user_notification_on_failure() {
         let tmp = TempDir::new().unwrap();
         let content = "# A\n\nContent A.";
@@ -986,6 +999,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_insert_after_heading_strips_hash_from_input() {
         let tmp = tempfile::tempdir().unwrap();
         let content = "# The Unspoken World — TTRPG Sourcebook\n\nSome content.\n";
