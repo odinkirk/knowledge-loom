@@ -97,7 +97,10 @@ fn test_full_pipeline_init_install_reindex_incremental() {
     let meta = kb_root.join(".knowledge-loom-index/turbovec_meta.bin");
     let config = kb_root.join(".knowledge-loom-index/turbovec_config.bin");
     assert!(tvim.exists(), "turbovec.tvim should exist after reindex");
-    assert!(meta.exists(), "turbovec_meta.bin should exist after reindex");
+    assert!(
+        meta.exists(),
+        "turbovec_meta.bin should exist after reindex"
+    );
     assert!(
         config.exists(),
         "turbovec_config.bin should exist after reindex"

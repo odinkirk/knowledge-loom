@@ -162,10 +162,7 @@ impl MaintenanceManager {
 
         eprintln!("  [perf] BM25 index_vault starting...");
         let bm25_start = std::time::Instant::now();
-        if let Err(e) = bm25_lock
-            .index_vault(&*self.vault_state.lock().await)
-            .await
-        {
+        if let Err(e) = bm25_lock.index_vault(&*self.vault_state.lock().await).await {
             eprintln!(
                 "  BM25 index_vault failed ({}); wiping corrupt index and retrying...",
                 e
@@ -193,12 +190,8 @@ impl MaintenanceManager {
                         e
                     );
                     // Wipe turbovec files but preserve models dir
-                    let tvim = self
-                        .kb_root
-                        .join(".knowledge-loom-index/turbovec.tvim");
-                    let meta = self
-                        .kb_root
-                        .join(".knowledge-loom-index/turbovec_meta.bin");
+                    let tvim = self.kb_root.join(".knowledge-loom-index/turbovec.tvim");
+                    let meta = self.kb_root.join(".knowledge-loom-index/turbovec_meta.bin");
                     let config = self
                         .kb_root
                         .join(".knowledge-loom-index/turbovec_config.bin");

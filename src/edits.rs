@@ -441,7 +441,8 @@ impl EditManager {
                         // Normalize em-dash (U+2014) and en-dash (U+2013) to ASCII dash
                         // for comparison, since MCP transport may alter Unicode characters
                         let normalized_heading = normalize_dashes(heading_text);
-                        let normalized_input = normalize_dashes(heading.trim_start_matches('#').trim());
+                        let normalized_input =
+                            normalize_dashes(heading.trim_start_matches('#').trim());
                         if normalized_heading == normalized_input {
                             // Insert content after this heading
                             for content_line in content.lines() {
@@ -991,13 +992,9 @@ mod tests {
         let (em, path) = make_edit_manager(&tmp, content).await;
 
         // Heading with no # prefix should match
-        em.insert_after_heading(
-            &path,
-            "The Unspoken World — TTRPG Sourcebook",
-            "New line.",
-        )
-        .await
-        .expect("Should match heading without # prefix");
+        em.insert_after_heading(&path, "The Unspoken World — TTRPG Sourcebook", "New line.")
+            .await
+            .expect("Should match heading without # prefix");
 
         // Heading WITH # prefix should also match (this was the bug)
         em.insert_after_heading(

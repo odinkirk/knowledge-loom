@@ -26,9 +26,7 @@ async fn test_index_file() {
         .collect();
 
     let relative_path = "test.md";
-    let result = index
-        .add_chunks(&chunks, &embeddings, relative_path)
-        .await;
+    let result = index.add_chunks(&chunks, &embeddings, relative_path).await;
     assert!(result.is_ok());
     assert_eq!(index.count().await, chunks.len());
 
@@ -79,8 +77,7 @@ async fn test_concurrent_search_and_index() {
             line_end: i as usize + 2,
         })
         .collect();
-    let init_embeddings: Vec<Vec<f32>> =
-        (0..10).map(|_| vec![0.1; dim]).collect();
+    let init_embeddings: Vec<Vec<f32>> = (0..10).map(|_| vec![0.1; dim]).collect();
     index
         .add_chunks(&chunks, &init_embeddings, "test.md")
         .await
@@ -150,10 +147,7 @@ async fn test_allowlist_search() {
     assert!(!full_results.is_empty());
 
     // Now we verify that search_filtered with empty allowlist falls back to full search
-    let filtered = index
-        .search_filtered(&query, 10, &[])
-        .await
-        .unwrap();
+    let filtered = index.search_filtered(&query, 10, &[]).await.unwrap();
     assert!(!filtered.is_empty());
     assert_eq!(filtered.len(), full_results.len());
 }
@@ -236,10 +230,7 @@ async fn test_quantization_config() {
         })
         .collect();
     let emb4: Vec<Vec<f32>> = (0..5).map(|_| vec![0.5; dim]).collect();
-    index4
-        .add_chunks(&chunks, &emb4, "test.md")
-        .await
-        .unwrap();
+    index4.add_chunks(&chunks, &emb4, "test.md").await.unwrap();
     assert_eq!(index4.count().await, 5);
     let query: Vec<f32> = vec![1.0; dim];
     let results = index4.search_similar(&query, 5).await.unwrap();
@@ -249,10 +240,7 @@ async fn test_quantization_config() {
     let temp2 = tempfile::tempdir().unwrap();
     let root2 = temp2.path().to_str().unwrap();
     let index2 = TurbovecIndex::new(root2, dim, 2).await;
-    index2
-        .add_chunks(&chunks, &emb4, "test.md")
-        .await
-        .unwrap();
+    index2.add_chunks(&chunks, &emb4, "test.md").await.unwrap();
     assert_eq!(index2.count().await, 5);
 }
 
@@ -339,7 +327,7 @@ async fn test_migration_from_sqlite() {
     std::fs::create_dir_all(&index_dir).unwrap();
 
     // Create a real sqlite-vec embeddings.db
-    use rusqlite::{Connection, params};
+    use rusqlite::{params, Connection};
 
     unsafe {
         rusqlite::ffi::sqlite3_auto_extension(Some(std::mem::transmute(
@@ -374,7 +362,10 @@ async fn test_migration_from_sqlite() {
     // Now create turbovec index — migration should trigger on new()
     let index = knowledge_loom::turbovec_index::TurbovecIndex::new(root, dim, 4).await;
     let count = index.count().await;
-    assert!(count > 0, "Migration should have ingested the legacy embedding");
+    assert!(
+        count > 0,
+        "Migration should have ingested the legacy embedding"
+    );
 
     // Verify the legacy db was deleted
     assert!(
@@ -413,7 +404,10 @@ async fn test_search_filtered_with_allowlist() {
             v
         })
         .collect();
-    index.add_chunks(&chunks, &embeddings, "test.md").await.unwrap();
+    index
+        .add_chunks(&chunks, &embeddings, "test.md")
+        .await
+        .unwrap();
 
     // Collect chunk IDs by searching unfiltered first
     let query: Vec<f32> = vec![1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
@@ -452,7 +446,10 @@ async fn test_search_filtered_unknown_id_filtered() {
         line_end: 1,
     }];
     let embeddings: Vec<Vec<f32>> = vec![vec![1.0; dim]];
-    index.add_chunks(&chunks, &embeddings, "test.md").await.unwrap();
+    index
+        .add_chunks(&chunks, &embeddings, "test.md")
+        .await
+        .unwrap();
 
     let query: Vec<f32> = vec![1.0; dim];
     // Unknown IDs should be silently filtered, not crash
@@ -482,12 +479,9 @@ async fn test_empty_vault_indexing() {
 async fn test_search_similar_empty_query() {
     let temp = tempfile::tempdir().unwrap();
     let dim = 8;
-    let index = knowledge_loom::turbovec_index::TurbovecIndex::new(
-        temp.path().to_str().unwrap(),
-        dim,
-        4,
-    )
-    .await;
+    let index =
+        knowledge_loom::turbovec_index::TurbovecIndex::new(temp.path().to_str().unwrap(), dim, 4)
+            .await;
 
     let results = index.search_similar(&[], 10).await.unwrap();
     assert!(results.is_empty(), "Empty query vector should return empty");
@@ -510,7 +504,10 @@ async fn test_save_load_dimension_mismatch() {
             line_end: 1,
         }];
         let embeddings: Vec<Vec<f32>> = vec![vec![0.5; dim]];
-        index.add_chunks(&chunks, &embeddings, "test.md").await.unwrap();
+        index
+            .add_chunks(&chunks, &embeddings, "test.md")
+            .await
+            .unwrap();
         index.save().await.unwrap();
     }
 
@@ -576,7 +573,10 @@ async fn test_save_and_then_search() {
             v
         })
         .collect();
-    index.add_chunks(&chunks, &embeddings, "notes/test.md").await.unwrap();
+    index
+        .add_chunks(&chunks, &embeddings, "notes/test.md")
+        .await
+        .unwrap();
     assert_eq!(index.count().await, 5);
     index.save().await.unwrap();
 
@@ -596,7 +596,10 @@ async fn test_remove_nonexistent_file() {
     let dim = 8;
 
     let index = knowledge_loom::turbovec_index::TurbovecIndex::new(root, dim, 4).await;
-    let removed = index.remove_file(std::path::Path::new("nonexistent.md")).await.unwrap();
+    let removed = index
+        .remove_file(std::path::Path::new("nonexistent.md"))
+        .await
+        .unwrap();
     assert_eq!(removed, 0, "Removing nonexistent file should return 0");
 }
 
@@ -618,7 +621,10 @@ async fn test_search_filtered_empty_allowlist_falls_back() {
         })
         .collect();
     let embeddings: Vec<Vec<f32>> = (0..5).map(|_| vec![0.5; dim]).collect();
-    index.add_chunks(&chunks, &embeddings, "test.md").await.unwrap();
+    index
+        .add_chunks(&chunks, &embeddings, "test.md")
+        .await
+        .unwrap();
 
     let query: Vec<f32> = vec![1.0; dim];
 

@@ -145,9 +145,8 @@ impl TurbovecIndex {
                     .expect("Failed to create IdMapIndex for migration");
                 let mut meta = HashMap::new();
                 eprintln!("Legacy embeddings.db found — migrating to turbovec...");
-                if let Err(e) = Self::migrate_from_sqlite_inner(
-                    &kb_root_path, &mut idx, &mut meta,
-                ) {
+                if let Err(e) = Self::migrate_from_sqlite_inner(&kb_root_path, &mut idx, &mut meta)
+                {
                     eprintln!("Migration failed ({}); starting with fresh index.", e);
                 }
                 return Self {
@@ -197,8 +196,7 @@ impl TurbovecIndex {
             )));
         }
 
-        let conn =
-            Connection::open(&db_path).map_err(|e| TurbovecError::Embed(e.to_string()))?;
+        let conn = Connection::open(&db_path).map_err(|e| TurbovecError::Embed(e.to_string()))?;
 
         let mut stmt = conn
             .prepare("SELECT path, heading, content, embedding FROM embeddings")
@@ -525,10 +523,7 @@ impl TurbovecIndex {
         let meta = self.metadata.lock().await;
         meta.iter()
             .filter(|(_, m)| {
-                let stem = m
-                    .path
-                    .strip_suffix(".md")
-                    .unwrap_or(&m.path);
+                let stem = m.path.strip_suffix(".md").unwrap_or(&m.path);
                 stem == note_name || m.path == note_name
             })
             .map(|(&id, _)| id)
@@ -613,16 +608,11 @@ impl TurbovecIndex {
                     if chunks.is_empty() {
                         return (file_path, None);
                     }
-                    let texts: Vec<String> =
-                        chunks.iter().map(|c| c.content.clone()).collect();
+                    let texts: Vec<String> = chunks.iter().map(|c| c.content.clone()).collect();
                     match embed.embed_batch(&texts).await {
                         Ok(embeddings) => (file_path, Some((chunks, embeddings))),
                         Err(e) => {
-                            eprintln!(
-                                "embed_batch failed for {}: {}",
-                                file_path.display(),
-                                e
-                            );
+                            eprintln!("embed_batch failed for {}: {}", file_path.display(), e);
                             (file_path, None)
                         }
                     }
@@ -644,19 +634,12 @@ impl TurbovecIndex {
 
                     let _ = self.remove_file(&file_path).await;
 
-                    match self
-                        .add_chunks(&chunks, &embeddings, &relative_path)
-                        .await
-                    {
+                    match self.add_chunks(&chunks, &embeddings, &relative_path).await {
                         Ok(successful) => {
                             total_successful += successful;
                         }
                         Err(e) => {
-                            eprintln!(
-                                "Failed to add chunks for {}: {}",
-                                file_path.display(),
-                                e
-                            );
+                            eprintln!("Failed to add chunks for {}: {}", file_path.display(), e);
                             total_failed += chunks.len();
                         }
                     }
@@ -684,9 +667,11 @@ impl TurbovecIndex {
         let meta_tmp = self.meta_path.with_extension("bin.tmp");
         let config_tmp = self.config_path.with_extension("bin.tmp");
 
-        let index_path_str = index_tmp.to_str().ok_or_else(|| TurbovecError::CorruptIndex {
-            path: index_tmp.clone(),
-        })?;
+        let index_path_str = index_tmp
+            .to_str()
+            .ok_or_else(|| TurbovecError::CorruptIndex {
+                path: index_tmp.clone(),
+            })?;
         index_lock
             .write(index_path_str)
             .map_err(|e| TurbovecError::Io(std::io::Error::other(e)))?;

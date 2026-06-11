@@ -1,7 +1,4 @@
-use knowledge_loom::{
-    search::SearchEngine,
-    vault::VaultState,
-};
+use knowledge_loom::{search::SearchEngine, vault::VaultState};
 use std::fs;
 use tempfile::tempdir;
 
@@ -25,9 +22,7 @@ async fn index_into_engine(engine: &SearchEngine, vault: &VaultState) {
 }
 
 /// Helper: create a vault, index it, return SearchEngine
-async fn setup_search_vault(
-    temp_dir: &tempfile::TempDir,
-) -> SearchEngine {
+async fn setup_search_vault(temp_dir: &tempfile::TempDir) -> SearchEngine {
     let kb_root = temp_dir.path().to_str().unwrap().to_string();
 
     fs::write(
@@ -60,10 +55,7 @@ async fn test_turbovec_e2e_search() {
     // Search for ML concepts — should rank machine_learning.md highest
     let results = engine.search("neural networks deep learning", 3).await;
     assert!(!results.is_empty(), "Search should return results");
-    assert!(
-        results.len() <= 3,
-        "Should respect top_k limit"
-    );
+    assert!(results.len() <= 3, "Should respect top_k limit");
 
     // The ML article should be top result
     let top_path = &results[0].path;
@@ -117,12 +109,17 @@ async fn test_turbovec_e2e_persistence() {
 
         // Verify search works
         let results = engine.search("distributed systems", 3).await;
-        assert!(!results.is_empty(), "Search should find results before restart");
+        assert!(
+            !results.is_empty(),
+            "Search should find results before restart"
+        );
     }
 
     // Phase 2: Verify index files exist on disk
     let tvim = temp_dir.path().join(".knowledge-loom-index/turbovec.tvim");
-    let meta = temp_dir.path().join(".knowledge-loom-index/turbovec_meta.bin");
+    let meta = temp_dir
+        .path()
+        .join(".knowledge-loom-index/turbovec_meta.bin");
     assert!(tvim.exists(), "turbovec.tvim should persist to disk");
     assert!(meta.exists(), "turbovec_meta.bin should persist to disk");
 
@@ -130,7 +127,10 @@ async fn test_turbovec_e2e_persistence() {
     {
         let engine = SearchEngine::new(&kb_root).await;
         let results = engine.search("distributed systems", 3).await;
-        assert!(!results.is_empty(), "Search should find results after simulated restart");
+        assert!(
+            !results.is_empty(),
+            "Search should find results after simulated restart"
+        );
     }
 }
 
@@ -203,11 +203,7 @@ async fn test_turbovec_e2e_index_status() {
     let temp_dir = tempdir().unwrap();
     let kb_root = temp_dir.path().to_str().unwrap().to_string();
 
-    fs::write(
-        temp_dir.path().join("note.md"),
-        "# Test\n\nContent.\n",
-    )
-    .unwrap();
+    fs::write(temp_dir.path().join("note.md"), "# Test\n\nContent.\n").unwrap();
 
     // Init + index via CLI
     use std::process::Command;

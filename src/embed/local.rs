@@ -384,7 +384,10 @@ mod tests {
         let model_file = models_dir.join("model.onnx");
         // fastembed caches models in the configured directory; skip if not installed
         if !model_file.exists() {
-            eprintln!("Skipping performance test: model not installed at {:?}", model_file);
+            eprintln!(
+                "Skipping performance test: model not installed at {:?}",
+                model_file
+            );
             return;
         }
         let provider = LocalEmbedProvider::new(&models_dir);
