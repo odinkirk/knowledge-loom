@@ -6,8 +6,8 @@
 
 <p align="center">
   <a href="https://github.com/odinkirk/knowledge-loom/releases"><img src="https://img.shields.io/github/v/release/odinkirk/knowledge-loom?label=release" alt="Release"></a>
-  <a href="https://github.com/odinkirk/knowledge-loom/actions/workflows/test.yml?query=branch%3Amain"><img src="https://img.shields.io/github/actions/workflow/status/odinkirk/knowledge-loom/test.yml/main?label=tests" alt="Tests"></a>
-  <a href="https://github.com/odinkirk/knowledge-loom/actions/workflows/build.yml?query=branch%3Amain"><img src="https://img.shields.io/github/actions/workflow/status/odinkirk/knowledge-loom/build.yml/main?label=build" alt="Build"></a>
+  <a href="https://github.com/odinkirk/knowledge-loom/actions/workflows/test.yml?query=branch%3Amain"><img src="https://img.shields.io/github/actions/workflow/status/odinkirk/knowledge-loom/test.yml?branch=main&label=tests" alt="Tests"></a>
+  <a href="https://github.com/odinkirk/knowledge-loom/actions/workflows/build.yml?query=branch%3Amain"><img src="https://img.shields.io/github/actions/workflow/status/odinkirk/knowledge-loom/build.yml?branch=main&label=build" alt="Build"></a>
   <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/rust-1.89%2B-orange.svg?style=flat-square" alt="Rust 1.89+"></a>
   <a href="https://choosealicense.com/licenses/mit/"><img src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg?style=flat-square" alt="License"></a>
   <a href="https://modelcontextprotocol.io/"><img src="https://img.shields.io/badge/MCP-compatible-green.svg?style=flat-square" alt="MCP"></a>
