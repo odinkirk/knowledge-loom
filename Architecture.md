@@ -314,9 +314,9 @@ graph TB
 
     subgraph "Shared Utilities"
         F --> UTIL[download/utils.rs]
-        UTIL --> CHK[calculate_checksum()]
-        UTIL --> VAL[validate_checksum()]
-        UTIL --> DISK[check_disk_space()]
+        UTIL --> CHK[calculate_checksum]
+        UTIL --> VAL[validate_checksum]
+        UTIL --> DISK[check_disk_space]
     end
 
     subgraph "Validation"
