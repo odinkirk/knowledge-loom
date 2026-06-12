@@ -37,8 +37,18 @@ jobs:
     - name: Use system linker + explicit BLAS
       run: echo 'RUSTFLAGS=-C linker=cc -l openblas' >> $GITHUB_ENV
 
+    - name: Cache fastembed models
+      uses: actions/cache@v4
+      with:
+        path: ~/.fastembed_cache
+        key: fastembed-cache-v1
+
     - name: Download model for e2e tests
-      run: cargo build --bin loom && ./target/debug/loom install
+      run: |
+        cargo build --bin loom
+        for i in 1 2 3; do
+          ./target/debug/loom install && break || sleep $((5 * i))
+        done
 
     - name: Run tests
       run: cargo test --verbose --all-features
