@@ -142,7 +142,9 @@ impl BM25Index {
                             let _ = std::fs::create_dir_all(&index_path);
                             let fresh = Index::create_in_dir(&index_path, schema.clone())
                                 .unwrap_or_else(|e| {
-                                    panic!("Failed to create tantivy index after ghost cleanup: {e}")
+                                    panic!(
+                                        "Failed to create tantivy index after ghost cleanup: {e}"
+                                    )
                                 });
                             let fresh_schema = fresh.schema();
                             let writer = match fresh.writer(50_000_000) {

@@ -441,7 +441,8 @@ impl EditManager {
                         // Normalize em-dash (U+2014) and en-dash (U+2013) to ASCII dash
                         // for comparison, since MCP transport may alter Unicode characters
                         let normalized_heading = normalize_dashes(heading_text);
-                        let normalized_input = normalize_dashes(heading.trim_start_matches('#').trim());
+                        let normalized_input =
+                            normalize_dashes(heading.trim_start_matches('#').trim());
                         if normalized_heading == normalized_input {
                             // Insert content after this heading
                             for content_line in content.lines() {
@@ -600,6 +601,7 @@ impl EditManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use std::sync::Arc;
     use tempfile::TempDir;
     use tokio::sync::Mutex;
@@ -624,6 +626,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_apply_edit_preview_found() {
         let tmp = TempDir::new().unwrap();
         let content = "# Intro\n\nHello world\n\n# Summary\n\nFin\n";
@@ -640,6 +643,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_apply_edit_preview_not_found() {
         let tmp = TempDir::new().unwrap();
         let content = "# Intro\n\nHello\n";
@@ -649,6 +653,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_edit_triggers_reindexing() {
         let tmp = TempDir::new().unwrap();
         let content = "# Section A\n\nContent A.\n\n# Section B\n\nContent B.";
@@ -669,6 +674,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_reindexing_updates_ordinals() {
         let tmp = TempDir::new().unwrap();
         let content = "# A\n\nContent A.\n\n# B\n\nContent B.";
@@ -691,6 +697,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_ordinal_preservation_after_edit() {
         let tmp = TempDir::new().unwrap();
         let content = "# A\n\nContent A.\n\n# B\n\nContent B.";
@@ -712,6 +719,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_ordinal_reassignment_after_chunk_split() {
         let tmp = TempDir::new().unwrap();
         let content = "# A\n\nContent A.\n\n# B\n\nContent B.";
@@ -734,6 +742,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_ordinal_reassignment_after_chunk_merge() {
         let tmp = TempDir::new().unwrap();
         let content = "# A\n\nContent A.\n\n# B\n\nContent B.\n\n# C\n\nContent C.";
@@ -755,6 +764,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_error_handling_in_reindexing() {
         let tmp = TempDir::new().unwrap();
         let content = "# A\n\nContent A.";
@@ -767,6 +777,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_concurrent_edits_and_retrievals() {
         let tmp = TempDir::new().unwrap();
         let content = "# A\n\nContent A.\n\n# B\n\nContent B.";
@@ -799,6 +810,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_corpus_reingestion_on_failure() {
         let tmp = TempDir::new().unwrap();
         let content = "# A\n\nContent A.\n\n# B\n\nContent B.";
@@ -864,6 +876,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_concurrent_edit_serialization() {
         let tmp = TempDir::new().unwrap();
         let content = "# A\n\nContent A.\n\n# B\n\nContent B.";
@@ -907,6 +920,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_edit_request_queuing() {
         let tmp = TempDir::new().unwrap();
         let content = "# A\n\nContent A.\n\n# B\n\nContent B.";
@@ -941,6 +955,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_reindexing_failure_logging() {
         let tmp = TempDir::new().unwrap();
         let content = "# A\n\nContent A.";
@@ -962,6 +977,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_user_notification_on_failure() {
         let tmp = TempDir::new().unwrap();
         let content = "# A\n\nContent A.";
@@ -983,19 +999,16 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_insert_after_heading_strips_hash_from_input() {
         let tmp = tempfile::tempdir().unwrap();
         let content = "# The Unspoken World — TTRPG Sourcebook\n\nSome content.\n";
         let (em, path) = make_edit_manager(&tmp, content).await;
 
         // Heading with no # prefix should match
-        em.insert_after_heading(
-            &path,
-            "The Unspoken World — TTRPG Sourcebook",
-            "New line.",
-        )
-        .await
-        .expect("Should match heading without # prefix");
+        em.insert_after_heading(&path, "The Unspoken World — TTRPG Sourcebook", "New line.")
+            .await
+            .expect("Should match heading without # prefix");
 
         // Heading WITH # prefix should also match (this was the bug)
         em.insert_after_heading(

@@ -2,7 +2,7 @@
 name = "knowledge-loom"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.75"
+rust-version = "1.89"
 license = "MIT OR Apache-2.0"
 
 [[bin]]
@@ -79,3 +79,4 @@ missing_panics_doc = "allow"
 type_complexity = "allow"
 missing_transmute_annotations = "allow"
 should_implement_trait = "allow"
+collapsible_str_replace = "allow"

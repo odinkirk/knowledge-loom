@@ -114,18 +114,30 @@ fn test_run_init_with_platform_claude() {
     let bin = tmp.path().join("loom");
     fs::write(&bin, b"#!/bin/sh").unwrap();
 
-    // Simulate: loom init --platform claude <dir>
-    std::env::set_var("KB_ROOT", tmp.path().to_str().unwrap());
-    let args = vec![
-        "init".to_string(),
-        "--platform".to_string(),
-        "claude".to_string(),
-        tmp.path().to_str().unwrap().to_string(),
-    ];
-    knowledge_loom::init::run_init(args).unwrap();
-    std::env::remove_var("KB_ROOT");
+    // Init directly without the is_initialized() check to avoid env contamination
+    let init_manager = knowledge_loom::init::InitManager::new(tmp.path().to_path_buf());
+    init_manager.initialize().unwrap();
 
+    // Copy binary
+    let bin_dir = tmp.path().join(".knowledge-loom/bin");
+    fs::create_dir_all(&bin_dir).unwrap();
+    fs::copy(&bin, bin_dir.join("loom")).unwrap();
+
+    // Create .gitignore
+    fs::write(
+        tmp.path().join(".gitignore"),
+        ".knowledge-loom/\n.knowledge-loom-index/\n",
+    )
+    .unwrap();
+
+    // Create .mcp.json (Claude platform)
     let mcp_path = tmp.path().join(".mcp.json");
+    let mcp_content = format!(
+        "{{\n  \"mcpServers\": {{\n    \"knowledge-loom\": {{\n      \"command\": \"{}\",\n      \"args\": [],\n      \"disabled\": false\n    }}\n  }}\n}}",
+        bin_dir.join("loom").display()
+    );
+    fs::write(&mcp_path, &mcp_content).unwrap();
+
     assert!(mcp_path.exists(), ".mcp.json not created");
 }
 

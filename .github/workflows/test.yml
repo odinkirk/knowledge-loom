@@ -23,11 +23,22 @@ jobs:
       with:
         toolchain: stable
 
+    - name: Clone test-vault corpus
+      uses: actions/checkout@v4
+      with:
+        repository: ashuotaku/Personal-Wiki
+        path: test-vault
+        ref: 1ba41b9656705254ea1faf3f6b99c9f8b9fbb3ab
+        fetch-depth: 1
+
     - name: Install system deps
       run: sudo apt-get update && sudo apt-get install -y libopenblas-dev
 
     - name: Use system linker + explicit BLAS
       run: echo 'RUSTFLAGS=-C linker=cc -l openblas' >> $GITHUB_ENV
+
+    - name: Download model for e2e tests
+      run: cargo build --bin loom && ./target/debug/loom install
 
     - name: Run tests
       run: cargo test --verbose --all-features

@@ -1548,15 +1548,36 @@ fn integration_manual_download_instructions_display() {
 }
 
 #[tokio::test]
-async fn smoke_test_subdrop_search() {
-    // Search the unspoken-world corpus for "subdrop"
-    let search_engine = knowledge_loom::search::SearchEngine::new(
-        "/Users/odinkirk/Documents/Claude/Projects/unspoken-world",
-    )
-    .await;
-    let results = search_engine.search("subdrop", 10).await;
+async fn smoke_test_corpus_search() {
+    let kb_root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-vault");
+    let kb_root_str = kb_root.to_str().unwrap();
 
-    println!("Found {} results for 'subdrop':", results.len());
+    // Force local embedding provider; Ollama/OpenRouter env vars may be set by other tests
+    std::env::remove_var("OLLAMA_URL");
+    std::env::remove_var("OPENROUTER_API_KEY");
+
+    let vault = knowledge_loom::vault::VaultState::new(kb_root_str).await;
+    let search_engine = knowledge_loom::search::SearchEngine::new(kb_root_str).await;
+
+    // Index the test-vault corpus
+    search_engine
+        .bm25
+        .lock()
+        .await
+        .index_vault(&vault)
+        .await
+        .unwrap();
+    search_engine
+        .vector
+        .lock()
+        .await
+        .index_vault(&vault, &search_engine.embed)
+        .await
+        .unwrap();
+
+    let results = search_engine.search("knowledge", 10).await;
+
+    println!("Found {} results for 'knowledge':", results.len());
     for r in &results {
         for s in &r.sections {
             println!(
@@ -1564,21 +1585,11 @@ async fn smoke_test_subdrop_search() {
                 r.path,
                 s.heading.as_deref().unwrap_or("no heading")
             );
-            println!(
-                "    Content: {}...",
-                s.content.chars().take(150).collect::<String>()
-            );
         }
     }
 
     assert!(
         !results.is_empty(),
-        "Should find the subdrop passage in Story Bible"
-    );
-    assert!(
-        results
-            .iter()
-            .any(|r| r.sections.iter().any(|s| s.content.contains("subdrop"))),
-        "Should contain 'subdrop' in content"
+        "Should find results for 'knowledge' in test-vault corpus"
     );
 }
