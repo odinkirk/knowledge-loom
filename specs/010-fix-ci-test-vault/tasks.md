@@ -33,7 +33,7 @@
 ### Implementation for User Story 1
 
 - [x] T003 [US1] Add `actions/checkout@v4` step for `ashuotaku/Personal-Wiki` to `.github/workflows/test.yml` before the `Run tests` step, with `path: test-vault`, `ref: <commit-hash>`, and `fetch-depth: 1`
-- [ ] T004 [US1] Verify US1: push to remote and observe Tests workflow — `test_graph_edges_from_test_vault` passes, zero test failures overall
+- [x] T004 [US1] Verify US1: push to remote and observe Tests workflow — `test_graph_edges_from_test_vault` passes, zero test failures overall
 
 ---
 
@@ -41,7 +41,7 @@
 
 **Purpose**: Final documentation update
 
-- [ ] T005 Update `CHANGELOG.md` under `## [Unreleased]` → `### Fixed` with note that the CI Tests workflow now clones `test-vault/` corpus before running tests, resolving the `test_graph_edges_from_test_vault` failure
+- [x] T005 Update `CHANGELOG.md` under `## [Unreleased]` → `### Fixed` with note that the CI Tests workflow now clones `test-vault/` corpus before running tests, resolving the `test_graph_edges_from_test_vault` failure
 
 ---
 

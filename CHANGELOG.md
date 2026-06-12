@@ -147,7 +147,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Graph Node structure**: Ordinal metadata included in node metadata
   - **MCP tool responses**: Ordinal metadata included in all chunk-related responses
 
-   ### Fixed
+  ### Fixed
+  - **CI test-vault**: Tests workflow now clones `test-vault/` corpus before running tests, resolving `test_graph_edges_from_test_vault` failure
+  - **E2E tests**: Added `loom install` step to pre-download ONNX model before e2e tests, preventing network download failures during `cargo test`
+  - **Test isolation**: Marked embed provider tests with `#[serial]` to prevent fastembed model cache lock contention; fixed env var contamination in test runner
+  - **Platform test**: Rewrote `test_run_init_with_platform_claude` to use `InitManager` directly, bypassing env-var-dependent initialization checks
+  - **MSRV**: Bumped minimum Rust version from 1.75 to 1.89 to match actual code dependencies (`StorageFull` from 1.83, `file.unlock()` from 1.89)
+  - **Clippy**: Allowed `collapsible_str_replace` lint introduced in Rust 1.96.0
+  - **Smoke test**: Rewrote `smoke_test_subdrop_search` as `smoke_test_corpus_search` using portable `test-vault/` corpus instead of hardcoded personal machine path
   - **Fixed confusing hang during first-time indexing**: Model download now shows clear progress indicators
   - **Fixed model download error handling**: Enhanced error messages with specific guidance and manual download instructions
   - **UTF-8 panic during chunk truncation**: Fixed by using `char_indices()` for character boundary detection
